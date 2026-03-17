@@ -22,13 +22,28 @@ import {
   Clock,
   ListChecks,
   Info,
+  LogOut,
+  Shield,
+  ShieldCheck,
+  Eye,
+  Lock,
+  Search,
+  UploadCloud,
+  FileSearch,
+  AlertCircle,
   Download
 } from 'lucide-react';
 
 // --- Types ---
 
 type Step = 'personal' | 'academic' | 'career' | 'success';
-type View = 'preinscripcion' | 'guia';
+type View = 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion';
+type Role = 'admin' | 'registrador' | 'visualizador';
+
+interface UserAuth {
+  username: string;
+  role: Role;
+}
 
 interface FormData {
   dni: string;
@@ -119,10 +134,25 @@ const SelectField = ({ label, icon: Icon, options, ...props }: any) => (
 );
 
 export default function App() {
-  const [view, setView] = useState<View>('preinscripcion');
+  const [user, setUser] = useState<UserAuth | null>(null);
+  const [view, setView] = useState<View>('login');
   const [step, setStep] = useState<Step>('personal');
   const [formData, setFormData] = useState<FormData>(INITIAL_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogin = (username: string, role: Role) => {
+    setUser({ username, role });
+    if (role === 'admin') setView('admin-dashboard');
+    else if (role === 'registrador') setView('preinscripcion');
+    else setView('guia');
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setView('login');
+    setStep('personal');
+    setFormData(INITIAL_DATA);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -158,43 +188,88 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f8f7f4] text-stone-900 font-sans selection:bg-emerald-100 selection:text-emerald-900">
       {/* Header */}
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-700 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-emerald-900/10">
-              U
+      {view !== 'login' && (
+        <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
+          <div className="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div className="flex items-center gap-4 cursor-pointer" onClick={() => setView(user?.role === 'admin' ? 'admin-dashboard' : 'guia')}>
+              <div className="w-10 h-10 bg-emerald-700 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-emerald-900/10">
+                U
+              </div>
+              <div>
+                <h1 className="font-bold text-base leading-tight tracking-tight text-stone-800">UNIQ</h1>
+                <p className="text-[9px] uppercase font-bold tracking-[0.2em] text-stone-400">Admisión 2026</p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-bold text-lg leading-tight tracking-tight text-stone-800">UNIQ</h1>
-              <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-stone-400">Admisión 2026</p>
+            
+            <div className="hidden lg:flex items-center gap-6">
+              <nav className="flex gap-4 text-xs font-bold uppercase tracking-wider text-stone-500">
+                {(user?.role === 'admin' || user?.role === 'registrador') && (
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setView('preinscripcion')}
+                      className={`transition-colors py-2 px-3 rounded-lg ${view === 'preinscripcion' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                    >
+                      Preinscripción
+                    </button>
+                    <button 
+                      onClick={() => setView('control-preinscripcion')}
+                      className={`transition-colors py-2 px-3 rounded-lg ${view === 'control-preinscripcion' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                    >
+                      Control
+                    </button>
+                  </div>
+                )}
+                <button 
+                  onClick={() => setView('cronograma')}
+                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'cronograma' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                >
+                  Cronograma
+                </button>
+                <button 
+                  onClick={() => setView('reglamento')}
+                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'reglamento' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                >
+                  Reglamento
+                </button>
+                <button 
+                  onClick={() => setView('temario')}
+                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'temario' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                >
+                  Temario
+                </button>
+                <button 
+                  onClick={() => setView('resultados')}
+                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'resultados' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                >
+                  Resultados
+                </button>
+              </nav>
+              
+              <div className="h-8 w-px bg-stone-200 mx-2" />
+              
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-stone-400 uppercase leading-none">{user?.role}</p>
+                  <p className="text-xs font-bold text-stone-800">{user?.username}</p>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
+                  title="Cerrar Sesión"
+                >
+                  <LogOut size={18} />
+                </button>
+              </div>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-8">
-            <nav className="flex gap-6 text-sm font-medium text-stone-500">
-              <button 
-                onClick={() => setView('preinscripcion')}
-                className={`transition-colors ${view === 'preinscripcion' ? 'text-emerald-600 font-bold' : 'hover:text-emerald-600'}`}
-              >
-                Preinscripción
-              </button>
-              <button 
-                onClick={() => setView('guia')}
-                className={`transition-colors ${view === 'guia' ? 'text-emerald-600 font-bold' : 'hover:text-emerald-600'}`}
-              >
-                Guía del Postulante
-              </button>
-              <a href="#" className="hover:text-emerald-600 transition-colors">Resultados</a>
-            </nav>
-            <button className="px-5 py-2 bg-stone-900 text-white text-sm font-semibold rounded-full hover:bg-stone-800 transition-all shadow-md">
-              Contacto
-            </button>
-          </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      <main className="max-w-5xl mx-auto px-6 py-12">
+      <main className={`${view === 'login' ? '' : 'max-w-5xl mx-auto px-6 py-12'}`}>
         <AnimatePresence mode="wait">
-          {view === 'preinscripcion' ? (
+          {view === 'login' ? (
+            <LoginView key="login" onLogin={handleLogin} />
+          ) : view === 'preinscripcion' ? (
             <motion.div
               key="preinscripcion-view"
               initial={{ opacity: 0, x: -20 }}
@@ -202,8 +277,18 @@ export default function App() {
               exit={{ opacity: 0, x: 20 }}
               className="max-w-3xl mx-auto"
             >
-              {/* Progress Bar */}
-              {step !== 'success' && (
+              {/* Role Check */}
+              {user?.role === 'visualizador' ? (
+                <div className="text-center py-20 bg-white rounded-3xl border border-stone-200 shadow-xl">
+                  <Info className="mx-auto text-amber-500 mb-4" size={48} />
+                  <h2 className="text-2xl font-bold text-stone-800">Acceso Restringido</h2>
+                  <p className="text-stone-500 mt-2">Su cuenta solo tiene permisos de visualización.</p>
+                  <button onClick={() => setView('guia')} className="mt-6 px-6 py-2 bg-stone-900 text-white rounded-full font-bold">Volver a la Guía</button>
+                </div>
+              ) : (
+                <>
+                  {/* Progress Bar */}
+                  {step !== 'success' && (
                 <div className="mb-12">
                   <div className="flex justify-between mb-4">
                     <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${step === 'personal' ? 'text-emerald-600' : 'text-stone-400'}`}>
@@ -506,7 +591,21 @@ export default function App() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </motion.div>
+            </>
+          )}
+        </motion.div>
+          ) : view === 'control-preinscripcion' ? (
+            <ControlPreinscripcionView key="control-view" />
+          ) : view === 'cronograma' ? (
+            <CronogramaView key="cronograma-view" />
+          ) : view === 'reglamento' ? (
+            <ReglamentoView key="reglamento-view" />
+          ) : view === 'temario' ? (
+            <TemarioView key="temario-view" />
+          ) : view === 'resultados' ? (
+            <ResultadosView key="resultados-view" isAdmin={user?.role === 'admin'} />
+          ) : view === 'admin-dashboard' ? (
+            <AdminDashboardView key="admin-view" />
           ) : (
             <motion.div
               key="guia-view"
@@ -721,3 +820,463 @@ export default function App() {
     </div>
   );
 }
+
+// --- New Sub-Views ---
+
+const LoginView = ({ onLogin }: { onLogin: (u: string, r: Role) => void }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<Role>('visualizador');
+  const [error, setError] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username === 'fmamani' && password === 'Ast3r1sk') {
+      onLogin(username, role);
+      setError(false);
+    } else {
+      setError(true);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#f8f7f4] p-6">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md bg-white p-10 rounded-[2.5rem] shadow-2xl border border-stone-100"
+      >
+        <div className="text-center mb-10">
+          <div className="w-16 h-16 bg-emerald-700 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-xl shadow-emerald-900/20">
+            U
+          </div>
+          <h2 className="text-2xl font-bold text-stone-800">Sistema de Admisión</h2>
+          <p className="text-stone-400 text-sm mt-1">Universidad Nacional Intercultural de Quillabamba</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[10px] font-bold uppercase tracking-widest text-center"
+            >
+              Credenciales incorrectas
+            </motion.div>
+          )}
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Usuario</label>
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+              <input 
+                type="text" 
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+                placeholder="Nombre de usuario"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Contraseña</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+              <input 
+                type="password" 
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+                placeholder="••••••••"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Tipo de Cuenta</label>
+            <div className="grid grid-cols-3 gap-3">
+              {(['admin', 'registrador', 'visualizador'] as Role[]).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRole(r)}
+                  className={`py-3 rounded-2xl border text-[10px] font-bold uppercase tracking-tighter transition-all ${role === r ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white border-stone-200 text-stone-400 hover:border-stone-300'}`}
+                >
+                  {r === 'admin' ? <Shield size={14} className="mx-auto mb-1" /> : r === 'registrador' ? <ShieldCheck size={14} className="mx-auto mb-1" /> : <Eye size={14} className="mx-auto mb-1" />}
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button 
+            type="submit"
+            className="w-full py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-xl shadow-stone-900/20 mt-4"
+          >
+            Iniciar Sesión
+          </button>
+        </form>
+
+        <div className="mt-8 pt-8 border-t border-stone-100 text-center">
+          <p className="text-xs text-stone-400">¿Problemas para acceder? Contacte a soporte técnico.</p>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const CronogramaView = () => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+    <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+      <div className="flex items-center gap-4 mb-8">
+        <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
+          <Clock size={24} />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-stone-800">Cronograma de Admisión 2026</h2>
+          <p className="text-stone-500">Fechas oficiales del proceso de selección.</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {[
+          { event: "Lanzamiento de Convocatoria", date: "15 de Enero", status: "completado" },
+          { event: "Inscripciones Ordinario y Extraordinario", date: "01 Feb - 15 Mar", status: "activo" },
+          { event: "Cierre de Inscripciones", date: "15 de Marzo", status: "pendiente" },
+          { event: "Examen de Admisión Ordinario", date: "22 de Marzo", status: "pendiente" },
+          { event: "Publicación de Resultados", date: "23 de Marzo", status: "pendiente" },
+          { event: "Entrega de Constancias", date: "25 - 27 de Marzo", status: "pendiente" },
+        ].map((item, i) => (
+          <div key={i} className="flex items-center justify-between p-5 bg-stone-50 rounded-2xl border border-stone-100 hover:border-blue-200 transition-all">
+            <div className="flex items-center gap-4">
+              <div className={`w-2 h-2 rounded-full ${item.status === 'activo' ? 'bg-emerald-500 animate-pulse' : item.status === 'completado' ? 'bg-stone-300' : 'bg-blue-400'}`} />
+              <div>
+                <p className="font-bold text-stone-800">{item.event}</p>
+                <p className="text-xs text-stone-500">{item.date}</p>
+              </div>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.status === 'activo' ? 'bg-emerald-100 text-emerald-700' : item.status === 'completado' ? 'bg-stone-200 text-stone-500' : 'bg-blue-50 text-blue-600'}`}>
+              {item.status}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </motion.div>
+);
+
+const ReglamentoView = () => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+    <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+      <div className="flex items-center gap-4 mb-8">
+        <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center">
+          <Info size={24} />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-stone-800">Reglamento de Admisión</h2>
+          <p className="text-stone-500">Normas y disposiciones legales del proceso.</p>
+        </div>
+      </div>
+
+      <div className="prose prose-stone max-w-none space-y-6 text-stone-600">
+        <section className="space-y-3">
+          <h3 className="text-lg font-bold text-stone-800">Capítulo I: De la Inscripción</h3>
+          <p className="text-sm leading-relaxed">Art. 15: El postulante es responsable de la veracidad de los datos consignados en su ficha de preinscripción. Cualquier falsedad detectada anulará automáticamente su participación sin derecho a reclamo.</p>
+          <p className="text-sm leading-relaxed">Art. 16: El pago por derecho de examen no es reembolsable ni transferible a otros procesos o personas.</p>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-lg font-bold text-stone-800">Capítulo II: Del Examen</h3>
+          <p className="text-sm leading-relaxed">Art. 22: El ingreso al campus universitario se realizará estrictamente entre las 07:00 y 08:30 horas. No habrá tolerancia bajo ninguna circunstancia.</p>
+          <p className="text-sm leading-relaxed">Art. 25: Está prohibido el ingreso con celulares, relojes inteligentes, calculadoras, gorras, aretes o cualquier objeto metálico.</p>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-lg font-bold text-stone-800">Capítulo III: De la Calificación</h3>
+          <p className="text-sm leading-relaxed">Art. 40: El sistema de calificación es por procesamiento óptico. No hay lugar a revisión de tarjetas de respuestas.</p>
+        </section>
+      </div>
+
+      <div className="mt-10 p-6 bg-stone-900 text-white rounded-3xl flex items-center justify-between">
+        <div>
+          <p className="font-bold">¿Necesitas el documento completo?</p>
+          <p className="text-xs text-stone-400">Descarga el PDF oficial con todos los artículos.</p>
+        </div>
+        <button className="px-6 py-2 bg-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all">Descargar PDF</button>
+      </div>
+    </div>
+  </motion.div>
+);
+
+const TemarioView = () => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+    <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+      <div className="flex items-center gap-4 mb-8">
+        <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center">
+          <ListChecks size={24} />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-stone-800">Temario del Examen</h2>
+          <p className="text-stone-500">Contenidos temáticos por áreas de conocimiento.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {[
+          { title: "Razonamiento Verbal", topics: ["Sinónimos y Antónimos", "Analogías", "Comprensión de Lectura", "Conectores Lógicos"] },
+          { title: "Razonamiento Matemático", topics: ["Sucesiones y Series", "Planteo de Ecuaciones", "Áreas y Perímetros", "Probabilidades"] },
+          { title: "Matemática", topics: ["Álgebra", "Aritmética", "Geometría", "Trigonometría"] },
+          { title: "Comunicación", topics: ["Lenguaje y Literatura", "Ortografía", "Gramática", "Redacción"] },
+          { title: "Ciencia y Tecnología", topics: ["Física", "Química", "Biología", "Ecología"] },
+          { title: "Ciencias Sociales", topics: ["Historia del Perú", "Geografía", "Economía", "Cívica"] },
+        ].map((area, i) => (
+          <div key={i} className="p-6 bg-stone-50 rounded-3xl border border-stone-100">
+            <h3 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-amber-500" />
+              {area.title}
+            </h3>
+            <ul className="space-y-2">
+              {area.topics.map((t, j) => (
+                <li key={j} className="text-sm text-stone-500 flex items-center gap-2">
+                  <ChevronRight size={12} className="text-stone-300" />
+                  {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  </motion.div>
+);
+
+const ResultadosView = ({ isAdmin }: { isAdmin: boolean }) => {
+  const [search, setSearch] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [pdfFile, setPdfFile] = useState<string | null>(null);
+
+  const handleUpload = () => {
+    setUploading(true);
+    // Simulate file selection and upload
+    setTimeout(() => {
+      setUploading(false);
+      setPdfFile('Resultados_Admision_2026_Final.pdf');
+    }, 2000);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+              <FileSearch size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-stone-800">Resultados de Admisión</h2>
+              <p className="text-stone-500">Consulta de puntajes y vacantes adjudicadas.</p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            {pdfFile && (
+              <button 
+                className="flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-700 rounded-2xl font-bold text-sm hover:bg-emerald-100 transition-all"
+                onClick={() => window.open('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+              >
+                <FileText size={18} />
+                Ver PDF Oficial
+              </button>
+            )}
+            {isAdmin && (
+              <button 
+                onClick={handleUpload}
+                disabled={uploading}
+                className="flex items-center gap-2 px-6 py-3 bg-stone-900 text-white rounded-2xl font-bold text-sm hover:bg-stone-800 transition-all disabled:opacity-50"
+              >
+                <UploadCloud size={18} />
+                {uploading ? 'Subiendo...' : 'Subir PDF de Resultados'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="relative mb-8">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
+          <input 
+            type="text" 
+            placeholder="Buscar por DNI o Apellidos..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-12 pr-4 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+          />
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 p-6 rounded-3xl flex items-start gap-4 mb-8">
+          <AlertCircle className="text-amber-600 shrink-0" size={24} />
+          <div>
+            <p className="font-bold text-amber-900">Resultados Preliminares</p>
+            <p className="text-sm text-amber-800">Los resultados oficiales finales se publicarán después de la validación de documentos originales.</p>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-3xl border border-stone-100">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-stone-50">
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Puesto</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Postulante</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Puntaje</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {[
+                { pos: 1, name: "GARCIA LOPEZ, MARCO", score: "18.450", status: "Ingresó" },
+                { pos: 2, name: "QUISPE MAMANI, ELENA", score: "17.920", status: "Ingresó" },
+                { pos: 3, name: "HUAMAN ROJAS, JORGE", score: "17.100", status: "Ingresó" },
+                { pos: 4, name: "TORRES VELA, LUCIA", score: "16.850", status: "No Ingresó" },
+              ].map((res, i) => (
+                <tr key={i} className="hover:bg-stone-50 transition-colors">
+                  <td className="p-4 font-mono font-bold text-stone-400">#{res.pos}</td>
+                  <td className="p-4 font-bold text-stone-800">{res.name}</td>
+                  <td className="p-4 font-mono text-emerald-700 font-bold">{res.score}</td>
+                  <td className="p-4">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${res.status === 'Ingresó' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                      {res.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const ControlPreinscripcionView = () => {
+  const [search, setSearch] = useState('');
+  
+  const applicants = [
+    { id: 'UNIQ-001', name: 'GARCIA LOPEZ, MARCO', dni: '72839401', career: 'Ingeniería Civil', status: 'Validado' },
+    { id: 'UNIQ-002', name: 'QUISPE MAMANI, ELENA', dni: '45678912', career: 'Ecoturismo', status: 'Pendiente' },
+    { id: 'UNIQ-003', name: 'HUAMAN ROJAS, JORGE', dni: '12345678', career: 'Ingeniería de Alimentos', status: 'Validado' },
+    { id: 'UNIQ-004', name: 'TORRES VELA, LUCIA', dni: '87654321', career: 'Ingeniería Agronómica Tropical', status: 'Observado' },
+  ];
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+            <ListChecks size={24} />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-stone-800">Control de Preinscripciones</h2>
+            <p className="text-stone-500">Gestión y validación de postulantes registrados.</p>
+          </div>
+        </div>
+
+        <div className="relative mb-8">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
+          <input 
+            type="text" 
+            placeholder="Buscar por DNI, Nombre o Código..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-12 pr-4 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+          />
+        </div>
+
+        <div className="overflow-hidden rounded-3xl border border-stone-100">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-stone-50">
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Código</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Postulante</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">DNI</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Carrera</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Estado</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {applicants.map((app, i) => (
+                <tr key={i} className="hover:bg-stone-50 transition-colors">
+                  <td className="p-4 font-mono text-xs font-bold text-stone-400">{app.id}</td>
+                  <td className="p-4 font-bold text-stone-800 text-sm">{app.name}</td>
+                  <td className="p-4 text-sm text-stone-600">{app.dni}</td>
+                  <td className="p-4 text-sm text-stone-600">{app.career}</td>
+                  <td className="p-4">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                      app.status === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
+                      app.status === 'Pendiente' ? 'bg-amber-100 text-amber-700' : 
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {app.status}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <button className="text-emerald-600 hover:text-emerald-700 font-bold text-xs uppercase tracking-wider">Ver Detalle</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const AdminDashboardView = () => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Total Postulantes</p>
+        <p className="text-4xl font-bold text-stone-800">1,248</p>
+        <div className="mt-4 flex items-center gap-2 text-emerald-600 text-xs font-bold">
+          <ChevronRight size={14} className="-rotate-90" />
+          +12% esta semana
+        </div>
+      </div>
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Pagos Validados</p>
+        <p className="text-4xl font-bold text-stone-800">856</p>
+        <div className="mt-4 flex items-center gap-2 text-stone-400 text-xs font-bold">
+          68% del total
+        </div>
+      </div>
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Vacantes Disponibles</p>
+        <p className="text-4xl font-bold text-emerald-700">320</p>
+        <div className="mt-4 flex items-center gap-2 text-stone-400 text-xs font-bold">
+          4 carreras activas
+        </div>
+      </div>
+    </div>
+
+    <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+      <h3 className="text-xl font-bold text-stone-800 mb-6">Acciones Rápidas de Administrador</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { icon: UploadCloud, label: "Subir Resultados", color: "bg-blue-50 text-blue-600" },
+          { icon: FileText, label: "Reporte de Pagos", color: "bg-emerald-50 text-emerald-600" },
+          { icon: User, label: "Gestionar Usuarios", color: "bg-purple-50 text-purple-600" },
+          { icon: Info, label: "Editar Reglamento", color: "bg-amber-50 text-amber-600" },
+        ].map((action, i) => (
+          <button key={i} className="p-6 rounded-3xl border border-stone-100 hover:border-stone-200 hover:bg-stone-50 transition-all text-left group">
+            <div className={`w-10 h-10 ${action.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+              <action.icon size={20} />
+            </div>
+            <p className="font-bold text-stone-800 text-sm">{action.label}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  </motion.div>
+);
