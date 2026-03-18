@@ -121,7 +121,7 @@ const InputField = ({ label, icon: Icon, error, ...props }: any) => (
   </div>
 );
 
-const SelectField = ({ label, icon: Icon, options, ...props }: any) => (
+const SelectField = ({ label, icon: Icon, options, error, ...props }: any) => (
   <div className="space-y-1.5">
     <label className="text-xs font-semibold uppercase tracking-wider text-stone-500 flex items-center gap-2">
       {Icon && <Icon size={14} />}
@@ -129,13 +129,14 @@ const SelectField = ({ label, icon: Icon, options, ...props }: any) => (
     </label>
     <select
       {...props}
-      className="w-full px-4 py-2.5 bg-white border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all text-stone-800 appearance-none cursor-pointer"
+      className={`w-full px-4 py-2.5 bg-white border ${error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-stone-200 focus:ring-emerald-500/20 focus:border-emerald-500'} rounded-lg outline-none transition-all text-stone-800 appearance-none cursor-pointer`}
     >
       <option value="">Seleccione una opción</option>
       {options.map((opt: string) => (
         <option key={opt} value={opt}>{opt}</option>
       ))}
     </select>
+    {error && <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">{error}</p>}
   </div>
 );
 
@@ -206,19 +207,65 @@ export default function App() {
     }
 
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error when user types
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
   };
 
   const handleNext = () => {
+    const newErrors: Record<string, string> = {};
+
     if (step === 'personal') {
+      const requiredFields: (keyof FormData)[] = [
+        'dni', 'names', 'paternalSurname', 'maternalSurname', 
+        'birthDate', 'gender', 'email', 'phone', 'indigenousPeople'
+      ];
+      
+      requiredFields.forEach(field => {
+        if (!formData[field]) {
+          newErrors[field] = 'Este campo es obligatorio';
+        }
+      });
+
       const requiredLength = formData.documentType === 'DNI' ? 8 : 12;
-      if (formData.dni.length !== requiredLength) {
-        setErrors({ dni: `El ${formData.documentType === 'DNI' ? 'DNI' : 'Carnet de Extranjería'} debe tener exactamente ${requiredLength} ${formData.documentType === 'DNI' ? 'dígitos' : 'caracteres'}` });
+      if (formData.dni && formData.dni.length !== requiredLength) {
+        newErrors.dni = `El ${formData.documentType === 'DNI' ? 'DNI' : 'Carnet de Extranjería'} debe tener exactamente ${requiredLength} ${formData.documentType === 'DNI' ? 'dígitos' : 'caracteres'}`;
+      }
+
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
         return;
       }
+
       setErrors({});
       setStep('academic');
     }
-    else if (step === 'academic') setStep('career');
+    else if (step === 'academic') {
+      const requiredFields: (keyof FormData)[] = [
+        'schoolName', 'schoolType', 'graduationYear', 
+        'department', 'province', 'district'
+      ];
+      
+      requiredFields.forEach(field => {
+        if (!formData[field]) {
+          newErrors[field] = 'Este campo es obligatorio';
+        }
+      });
+
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        return;
+      }
+
+      setErrors({});
+      setStep('career');
+    }
   };
 
   const handleBack = () => {
@@ -228,6 +275,21 @@ export default function App() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const newErrors: Record<string, string> = {};
+    const requiredFields: (keyof FormData)[] = ['career', 'modality'];
+    
+    requiredFields.forEach(field => {
+      if (!formData[field]) {
+        newErrors[field] = 'Este campo es obligatorio';
+      }
+    });
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     setIsSubmitting(true);
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -414,18 +476,21 @@ export default function App() {
                         value={formData.names} 
                         onChange={handleChange} 
                         placeholder="Nombres completos"
+                        error={errors.names}
                       />
                       <InputField 
                         label="Apellido Paterno" 
                         name="paternalSurname" 
                         value={formData.paternalSurname} 
                         onChange={handleChange} 
+                        error={errors.paternalSurname}
                       />
                       <InputField 
                         label="Apellido Materno" 
                         name="maternalSurname" 
                         value={formData.maternalSurname} 
                         onChange={handleChange} 
+                        error={errors.maternalSurname}
                       />
                       <InputField 
                         label="Fecha de Nacimiento" 
@@ -434,6 +499,7 @@ export default function App() {
                         value={formData.birthDate} 
                         onChange={handleChange} 
                         icon={Calendar}
+                        error={errors.birthDate}
                       />
                       <SelectField 
                         label="Género" 
@@ -441,6 +507,7 @@ export default function App() {
                         value={formData.gender} 
                         onChange={handleChange} 
                         options={["Masculino", "Femenino", "Otro"]}
+                        error={errors.gender}
                       />
                       <InputField 
                         label="Correo Electrónico" 
@@ -450,6 +517,7 @@ export default function App() {
                         onChange={handleChange} 
                         placeholder="ejemplo@correo.com"
                         icon={Mail}
+                        error={errors.email}
                       />
                       <InputField 
                         label="Celular" 
@@ -458,6 +526,7 @@ export default function App() {
                         onChange={handleChange} 
                         placeholder="999 999 999"
                         icon={Phone}
+                        error={errors.phone}
                       />
                       <SelectField 
                         label="¿Pertenece a un Pueblo Andino o Amazónico?" 
@@ -466,6 +535,7 @@ export default function App() {
                         onChange={handleChange} 
                         options={["No", "Andino", "Amazónico"]}
                         icon={Globe}
+                        error={errors.indigenousPeople}
                       />
                     </div>
 
@@ -505,6 +575,7 @@ export default function App() {
                         onChange={handleChange} 
                         placeholder="Nombre completo del colegio"
                         icon={School}
+                        error={errors.schoolName}
                       />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <SelectField 
@@ -513,6 +584,7 @@ export default function App() {
                           value={formData.schoolType} 
                           onChange={handleChange} 
                           options={["Estatal", "Particular"]}
+                          error={errors.schoolType}
                         />
                         <InputField 
                           label="Año de Egreso" 
@@ -520,12 +592,13 @@ export default function App() {
                           value={formData.graduationYear} 
                           onChange={handleChange} 
                           placeholder="Ej. 2024"
+                          error={errors.graduationYear}
                         />
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <InputField label="Departamento" name="department" value={formData.department} onChange={handleChange} icon={MapPin} />
-                        <InputField label="Provincia" name="province" value={formData.province} onChange={handleChange} />
-                        <InputField label="Distrito" name="district" value={formData.district} onChange={handleChange} />
+                        <InputField label="Departamento" name="department" value={formData.department} onChange={handleChange} icon={MapPin} error={errors.department} />
+                        <InputField label="Provincia" name="province" value={formData.province} onChange={handleChange} error={errors.province} />
+                        <InputField label="Distrito" name="district" value={formData.district} onChange={handleChange} error={errors.district} />
                       </div>
                     </div>
 
@@ -572,6 +645,7 @@ export default function App() {
                           value={formData.career} 
                           onChange={handleChange} 
                           options={CAREERS}
+                          error={errors.career}
                         />
                         <SelectField 
                           label="Modalidad de Admisión" 
@@ -579,6 +653,7 @@ export default function App() {
                           value={formData.modality} 
                           onChange={handleChange} 
                           options={MODALITIES}
+                          error={errors.modality}
                         />
                       </div>
 
