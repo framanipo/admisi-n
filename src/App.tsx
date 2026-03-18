@@ -31,7 +31,8 @@ import {
   UploadCloud,
   FileSearch,
   AlertCircle,
-  Download
+  Download,
+  Globe
 } from 'lucide-react';
 
 // --- Types ---
@@ -46,6 +47,7 @@ interface UserAuth {
 }
 
 interface FormData {
+  documentType: 'DNI' | 'Carnet de Extranjería';
   dni: string;
   names: string;
   paternalSurname: string;
@@ -62,9 +64,11 @@ interface FormData {
   graduationYear: string;
   career: string;
   modality: string;
+  indigenousPeople: string;
 }
 
 const INITIAL_DATA: FormData = {
+  documentType: 'DNI',
   dni: '',
   names: '',
   paternalSurname: '',
@@ -81,6 +85,7 @@ const INITIAL_DATA: FormData = {
   graduationYear: '',
   career: '',
   modality: 'Ordinario',
+  indigenousPeople: 'No',
 };
 
 const CAREERS = [
@@ -102,7 +107,7 @@ const MODALITIES = [
 
 // --- Components ---
 
-const InputField = ({ label, icon: Icon, ...props }: any) => (
+const InputField = ({ label, icon: Icon, error, ...props }: any) => (
   <div className="space-y-1.5">
     <label className="text-xs font-semibold uppercase tracking-wider text-stone-500 flex items-center gap-2">
       {Icon && <Icon size={14} />}
@@ -110,8 +115,9 @@ const InputField = ({ label, icon: Icon, ...props }: any) => (
     </label>
     <input
       {...props}
-      className="w-full px-4 py-2.5 bg-white border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all text-stone-800 placeholder:text-stone-400"
+      className={`w-full px-4 py-2.5 bg-white border ${error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-stone-200 focus:ring-emerald-500/20 focus:border-emerald-500'} rounded-lg outline-none transition-all text-stone-800 placeholder:text-stone-400`}
     />
+    {error && <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">{error}</p>}
   </div>
 );
 
@@ -139,6 +145,7 @@ export default function App() {
   const [step, setStep] = useState<Step>('personal');
   const [formData, setFormData] = useState<FormData>(INITIAL_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleLogin = (username: string, role: Role) => {
     setUser({ username, role });
@@ -156,11 +163,61 @@ export default function App() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    
+    if (name === 'documentType') {
+      setFormData(prev => ({ ...prev, documentType: value as 'DNI' | 'Carnet de Extranjería', dni: '' }));
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.dni;
+        return newErrors;
+      });
+      return;
+    }
+
+    // Validar DNI o CE
+    if (name === 'dni') {
+      if (formData.documentType === 'DNI') {
+        const onlyNums = value.replace(/[^0-9]/g, '');
+        if (onlyNums.length <= 8) {
+          setFormData(prev => ({ ...prev, [name]: onlyNums }));
+          if (onlyNums.length === 8) {
+            setErrors(prev => {
+              const newErrors = { ...prev };
+              delete newErrors.dni;
+              return newErrors;
+            });
+          }
+        }
+      } else {
+        // Carnet de Extranjería: 12 caracteres alfanuméricos
+        const alphanumeric = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        if (alphanumeric.length <= 12) {
+          setFormData(prev => ({ ...prev, [name]: alphanumeric }));
+          if (alphanumeric.length === 12) {
+            setErrors(prev => {
+              const newErrors = { ...prev };
+              delete newErrors.dni;
+              return newErrors;
+            });
+          }
+        }
+      }
+      return;
+    }
+
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleNext = () => {
-    if (step === 'personal') setStep('academic');
+    if (step === 'personal') {
+      const requiredLength = formData.documentType === 'DNI' ? 8 : 12;
+      if (formData.dni.length !== requiredLength) {
+        setErrors({ dni: `El ${formData.documentType === 'DNI' ? 'DNI' : 'Carnet de Extranjería'} debe tener exactamente ${requiredLength} ${formData.documentType === 'DNI' ? 'dígitos' : 'caracteres'}` });
+        return;
+      }
+      setErrors({});
+      setStep('academic');
+    }
     else if (step === 'academic') setStep('career');
   };
 
@@ -333,13 +390,23 @@ export default function App() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <SelectField
+                        label="Tipo de Documento"
+                        name="documentType"
+                        value={formData.documentType}
+                        onChange={handleChange}
+                        icon={IdCard}
+                        options={['DNI', 'Carnet de Extranjería']}
+                      />
                       <InputField 
-                        label="DNI / Carnet Extranjería" 
+                        label={formData.documentType === 'DNI' ? "DNI" : "Carnet de Extranjería"} 
                         name="dni" 
                         value={formData.dni} 
                         onChange={handleChange} 
-                        placeholder="8 dígitos"
+                        placeholder={formData.documentType === 'DNI' ? "8 dígitos" : "12 caracteres"}
                         icon={IdCard}
+                        error={errors.dni}
+                        maxLength={formData.documentType === 'DNI' ? 8 : 12}
                       />
                       <InputField 
                         label="Nombres" 
@@ -391,6 +458,14 @@ export default function App() {
                         onChange={handleChange} 
                         placeholder="999 999 999"
                         icon={Phone}
+                      />
+                      <SelectField 
+                        label="¿Pertenece a un Pueblo Andino o Amazónico?" 
+                        name="indigenousPeople" 
+                        value={formData.indigenousPeople} 
+                        onChange={handleChange} 
+                        options={["No", "Andino", "Amazónico"]}
+                        icon={Globe}
                       />
                     </div>
 
@@ -823,7 +898,7 @@ export default function App() {
 
 // --- New Sub-Views ---
 
-const LoginView = ({ onLogin }: { onLogin: (u: string, r: Role) => void }) => {
+const LoginView = ({ onLogin }: { onLogin: (u: string, r: Role) => void, key?: string }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<Role>('visualizador');
@@ -1052,7 +1127,7 @@ const TemarioView = () => (
   </motion.div>
 );
 
-const ResultadosView = ({ isAdmin }: { isAdmin: boolean }) => {
+const ResultadosView = ({ isAdmin }: { isAdmin: boolean, key?: string }) => {
   const [search, setSearch] = useState('');
   const [uploading, setUploading] = useState(false);
   const [pdfFile, setPdfFile] = useState<string | null>(null);
@@ -1162,10 +1237,10 @@ const ControlPreinscripcionView = () => {
   const [search, setSearch] = useState('');
   
   const applicants = [
-    { id: 'UNIQ-001', name: 'GARCIA LOPEZ, MARCO', dni: '72839401', career: 'Ingeniería Civil', status: 'Validado' },
-    { id: 'UNIQ-002', name: 'QUISPE MAMANI, ELENA', dni: '45678912', career: 'Ecoturismo', status: 'Pendiente' },
-    { id: 'UNIQ-003', name: 'HUAMAN ROJAS, JORGE', dni: '12345678', career: 'Ingeniería de Alimentos', status: 'Validado' },
-    { id: 'UNIQ-004', name: 'TORRES VELA, LUCIA', dni: '87654321', career: 'Ingeniería Agronómica Tropical', status: 'Observado' },
+    { id: 'UNIQ-001', name: 'GARCIA LOPEZ, MARCO', dni: '72839401', career: 'Ingeniería Civil', status: 'Validado', indigenous: 'No' },
+    { id: 'UNIQ-002', name: 'QUISPE MAMANI, ELENA', dni: '45678912', career: 'Ecoturismo', status: 'Pendiente', indigenous: 'Andino' },
+    { id: 'UNIQ-003', name: 'HUAMAN ROJAS, JORGE', dni: '12345678', career: 'Ingeniería de Alimentos', status: 'Validado', indigenous: 'No' },
+    { id: 'UNIQ-004', name: 'TORRES VELA, LUCIA', dni: '87654321', career: 'Ingeniería Agronómica Tropical', status: 'Observado', indigenous: 'Amazónico' },
   ];
 
   return (
@@ -1200,6 +1275,7 @@ const ControlPreinscripcionView = () => {
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Postulante</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">DNI</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Carrera</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Pueblo</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Estado</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Acciones</th>
               </tr>
@@ -1211,6 +1287,7 @@ const ControlPreinscripcionView = () => {
                   <td className="p-4 font-bold text-stone-800 text-sm">{app.name}</td>
                   <td className="p-4 text-sm text-stone-600">{app.dni}</td>
                   <td className="p-4 text-sm text-stone-600">{app.career}</td>
+                  <td className="p-4 text-sm text-stone-600">{app.indigenous}</td>
                   <td className="p-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
                       app.status === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
