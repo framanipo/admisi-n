@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, 
@@ -32,13 +32,14 @@ import {
   FileSearch,
   AlertCircle,
   Download,
-  Globe
+  Globe,
+  Check
 } from 'lucide-react';
 
 // --- Types ---
 
 type Step = 'personal' | 'academic' | 'career' | 'success';
-type View = 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion';
+type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion';
 type Role = 'admin' | 'registrador' | 'visualizador';
 
 interface UserAuth {
@@ -92,7 +93,9 @@ const CAREERS = [
   "Ingeniería Agronómica Tropical",
   "Ingeniería de Alimentos",
   "Ingeniería Civil",
-  "Ecoturismo"
+  "Ecoturismo",
+  "Contabilidad",
+  "Economía"
 ];
 
 const MODALITIES = [
@@ -140,24 +143,349 @@ const SelectField = ({ label, icon: Icon, options, error, ...props }: any) => (
   </div>
 );
 
+const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, onLogin: () => void }) => {
+  return (
+    <div className="min-h-screen bg-[#f8f7f4]">
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-stone-100">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-700 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-emerald-900/20">
+              U
+            </div>
+            <div className="hidden sm:block">
+              <h1 className="font-bold text-stone-800 leading-tight">UNIQ</h1>
+              <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Admisión 2026</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={onLogin}
+              className="px-6 py-2.5 text-stone-600 font-bold text-sm hover:text-stone-900 transition-colors"
+            >
+              Ingresar
+            </button>
+            <button 
+              onClick={onPreRegister}
+              className="px-6 py-2.5 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+            >
+              Preinscripción
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="pt-32 pb-20 px-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="space-y-8"
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold uppercase tracking-widest border border-emerald-100">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Proceso de Admisión Abierto
+            </div>
+            <h2 className="text-5xl md:text-7xl font-bold text-stone-900 leading-[1.1] tracking-tight">
+              Tu futuro comienza <span className="text-emerald-600">aquí.</span>
+            </h2>
+            <p className="text-lg text-stone-500 leading-relaxed max-w-lg">
+              Únete a la Universidad Nacional Intercultural de Quillabamba y sé parte de una comunidad académica que valora la excelencia y la diversidad cultural.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <button 
+                onClick={onPreRegister}
+                className="px-10 py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-2xl shadow-stone-900/20 flex items-center justify-center gap-2 group"
+              >
+                Iniciar Preinscripción
+                <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+              <button className="px-10 py-4 bg-white text-stone-800 font-bold rounded-2xl border border-stone-200 hover:border-stone-300 transition-all flex items-center justify-center gap-2">
+                Descargar Guía
+                <Download size={18} />
+              </button>
+            </div>
+          </motion.div>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative"
+          >
+            <div className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-2xl">
+              <img 
+                src="https://picsum.photos/seed/uniq-campus-quillabamba/800/1000" 
+                alt="UNIQ Campus Principal" 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div className="absolute -bottom-6 -left-6 bg-white p-6 rounded-3xl shadow-xl border border-stone-100 max-w-[240px]">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center">
+                  <GraduationCap size={18} />
+                </div>
+                <p className="font-bold text-stone-800 text-sm">Excelencia</p>
+              </div>
+              <p className="text-xs text-stone-500 leading-relaxed">
+                Programas acreditados y docentes de primer nivel para tu formación.
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {[
+              { label: "Carreras", value: "06" },
+              { label: "Estudiantes", value: "1.2k+" },
+              { label: "Docentes", value: "80+" },
+              { label: "Años", value: "05+" },
+            ].map((stat, i) => (
+              <div key={i} className="text-center space-y-2">
+                <p className="text-4xl md:text-5xl font-bold text-stone-900">{stat.value}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Carreras Section */}
+      <section className="py-24 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16 space-y-4">
+            <h2 className="text-3xl md:text-5xl font-bold text-stone-900">Nuestras Carreras</h2>
+            <p className="text-stone-500 max-w-2xl mx-auto">
+              Formamos profesionales líderes con visión intercultural y compromiso social.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[
+              { 
+                name: "Ingeniería Agronómica Tropical", 
+                img: "tropical-agri-intercultural",
+                desc: "Desarrollo agrícola sostenible con saberes ancestrales y tecnología moderna."
+              },
+              { 
+                name: "Ingeniería de Alimentos", 
+                img: "food-tech-culture",
+                desc: "Transformación de productos nativos con estándares globales de calidad."
+              },
+              { 
+                name: "Ingeniería Civil", 
+                img: "civil-eng-andes",
+                desc: "Infraestructura resiliente integrada al paisaje y cultura regional."
+              },
+              { 
+                name: "Ecoturismo", 
+                img: "ecotourism-amazon-culture",
+                desc: "Gestión turística que revaloriza el patrimonio natural y cultural."
+              },
+              { 
+                name: "Contabilidad", 
+                img: "accounting-intercultural-finance",
+                desc: "Gestión financiera transparente para organizaciones diversas y globales."
+              },
+              { 
+                name: "Economía", 
+                img: "economy-community-market",
+                desc: "Análisis económico para el desarrollo equitativo y sostenible de los pueblos."
+              }
+            ].map((career, i) => (
+              <motion.div 
+                key={career.name}
+                whileHover={{ y: -10 }}
+                className="bg-white rounded-[2rem] overflow-hidden shadow-lg border border-stone-100 group"
+              >
+                <div className="aspect-video overflow-hidden">
+                  <img 
+                    src={`https://picsum.photos/seed/${career.img}/600/400`} 
+                    alt={career.name} 
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="p-8">
+                  <h3 className="font-bold text-xl text-stone-800 mb-3 leading-tight">{career.name}</h3>
+                  <p className="text-sm text-stone-500 mb-6 leading-relaxed">{career.desc}</p>
+                  <button className="text-emerald-600 font-bold text-xs uppercase tracking-widest flex items-center gap-2 group-hover:gap-3 transition-all">
+                    Ver más <ChevronRight size={14} />
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Cronograma Preview */}
+      <section className="py-24 px-6 bg-stone-900 text-white overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-600/20 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div className="space-y-8">
+              <h2 className="text-3xl md:text-5xl font-bold leading-tight">Cronograma de <br />Admisión 2026</h2>
+              <p className="text-stone-400 text-lg">
+                No pierdas la oportunidad de postular. Revisa las fechas clave del proceso actual.
+              </p>
+              <div className="space-y-4">
+                {[
+                  { date: "01 Feb - 15 Mar", event: "Inscripciones Ordinario" },
+                  { date: "22 de Marzo", event: "Examen de Admisión" },
+                  { date: "23 de Marzo", event: "Publicación de Resultados" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-6 p-4 bg-white/5 rounded-2xl border border-white/10">
+                    <div className="text-emerald-400 font-mono font-bold">{item.date}</div>
+                    <div className="font-bold">{item.event}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10">
+              <h3 className="text-xl font-bold mb-6">Requisitos de Inscripción</h3>
+              <ul className="space-y-4">
+                {[
+                  "Certificado de estudios secundarios (original).",
+                  "Copia de DNI vigente.",
+                  "Comprobante de pago por derecho de examen.",
+                  "Fotografía tamaño carnet a color.",
+                  "Ficha de preinscripción debidamente llenada."
+                ].map((req, i) => (
+                  <li key={i} className="flex items-start gap-3 text-stone-400 text-sm">
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+                      <Check size={12} />
+                    </div>
+                    {req}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-20 px-6 bg-white border-t border-stone-100">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
+          <div className="col-span-1 md:col-span-2 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-700 rounded-xl flex items-center justify-center text-white font-bold text-xl">U</div>
+              <h1 className="font-bold text-stone-800 text-xl">UNIQ Admisión</h1>
+            </div>
+            <p className="text-stone-500 max-w-sm leading-relaxed">
+              Universidad Nacional Intercultural de Quillabamba. Formando profesionales para el mundo desde el corazón de la Amazonía cusqueña.
+            </p>
+            <div className="flex gap-4">
+              <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-stone-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all cursor-pointer">
+                <Shield size={20} />
+              </div>
+              <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-stone-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all cursor-pointer">
+                <Info size={20} />
+              </div>
+            </div>
+          </div>
+          <div>
+            <h4 className="font-bold text-stone-800 mb-6">Proceso</h4>
+            <ul className="space-y-4 text-sm text-stone-500">
+              <li className="hover:text-emerald-600 cursor-pointer">Guía del Postulante</li>
+              <li className="hover:text-emerald-600 cursor-pointer">Cronograma</li>
+              <li className="hover:text-emerald-600 cursor-pointer">Reglamento</li>
+              <li className="hover:text-emerald-600 cursor-pointer">Resultados</li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-bold text-stone-800 mb-6">Contacto</h4>
+            <ul className="space-y-4 text-sm text-stone-500">
+              <li className="flex items-center gap-3">
+                <Mail size={16} className="text-emerald-600" />
+                admision@uniq.edu.pe
+              </li>
+              <li className="flex items-center gap-3">
+                <Phone size={16} className="text-emerald-600" />
+                (084) 282728
+              </li>
+              <li className="flex items-center gap-3">
+                <MapPin size={16} className="text-emerald-600" />
+                Quillabamba, Cusco
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-stone-100 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-stone-400">
+          <p>© 2026 UNIQ. Todos los derechos reservados.</p>
+          <div className="flex gap-8">
+            <a href="#" className="hover:text-stone-600">Privacidad</a>
+            <a href="#" className="hover:text-stone-600">Términos</a>
+            <a href="#" className="hover:text-stone-600">Cookies</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
 export default function App() {
   const [user, setUser] = useState<UserAuth | null>(null);
-  const [view, setView] = useState<View>('login');
+  const [view, setView] = useState<View>('landing');
   const [step, setStep] = useState<Step>('personal');
   const [formData, setFormData] = useState<FormData>(INITIAL_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchRegistrations = useCallback(async () => {
+    try {
+      const response = await fetch('/api/registrations');
+      if (response.ok) {
+        const data = await response.json();
+        setRegistrations(data);
+      }
+    } catch (error) {
+      console.error('Error fetching registrations:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user && (user.role === 'admin' || user.role === 'visualizador' || user.role === 'registrador')) {
+      fetchRegistrations();
+    }
+  }, [user, fetchRegistrations]);
+
+  const updateRegistrationStatus = async (id: string, status: string) => {
+    try {
+      const response = await fetch(`/api/registrations/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (response.ok) {
+        setRegistrations(prev => prev.map(reg => reg.id === id ? { ...reg, estado: status } : reg));
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
+  };
 
   const handleLogin = (username: string, role: Role) => {
     setUser({ username, role });
-    if (role === 'admin') setView('admin-dashboard');
+    if (role === 'admin' || role === 'visualizador') setView('admin-dashboard');
     else if (role === 'registrador') setView('preinscripcion');
     else setView('guia');
   };
 
   const handleLogout = () => {
     setUser(null);
-    setView('login');
+    setView('landing');
     setStep('personal');
     setFormData(INITIAL_DATA);
   };
@@ -291,10 +619,33 @@ export default function App() {
     }
 
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setStep('success');
+    try {
+      const response = await fetch('/api/registrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        const newRegistration = {
+          ...formData,
+          id: result.id,
+          estado: 'Pendiente',
+          created_at: new Date().toISOString()
+        };
+        
+        setRegistrations(prev => [newRegistration, ...prev]);
+        setStep('success');
+      } else {
+        alert('Error al enviar la preinscripción. Por favor intente de nuevo.');
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      alert('Error de conexión con el servidor.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const progress = {
@@ -307,7 +658,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f8f7f4] text-stone-900 font-sans selection:bg-emerald-100 selection:text-emerald-900">
       {/* Header */}
-      {view !== 'login' && (
+      {view !== 'login' && view !== 'landing' && (
         <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
           <div className="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
             <div className="flex items-center gap-4 cursor-pointer" onClick={() => setView(user?.role === 'admin' ? 'admin-dashboard' : 'guia')}>
@@ -322,21 +673,37 @@ export default function App() {
             
             <div className="hidden lg:flex items-center gap-6">
               <nav className="flex gap-4 text-xs font-bold uppercase tracking-wider text-stone-500">
+                {user?.role === 'admin' && (
+                  <button 
+                    onClick={() => setView('admin-dashboard')}
+                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'admin-dashboard' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                  >
+                    Dashboard
+                  </button>
+                )}
                 {(user?.role === 'admin' || user?.role === 'registrador') && (
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setView('preinscripcion')}
-                      className={`transition-colors py-2 px-3 rounded-lg ${view === 'preinscripcion' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
-                    >
-                      Preinscripción
-                    </button>
-                    <button 
-                      onClick={() => setView('control-preinscripcion')}
-                      className={`transition-colors py-2 px-3 rounded-lg ${view === 'control-preinscripcion' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
-                    >
-                      Control
-                    </button>
-                  </div>
+                  <button 
+                    onClick={() => setView('preinscripcion')}
+                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'preinscripcion' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                  >
+                    Preinscripción
+                  </button>
+                )}
+                {(user?.role === 'admin' || user?.role === 'registrador' || user?.role === 'visualizador') && (
+                  <button 
+                    onClick={() => setView('control-preinscripcion')}
+                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'control-preinscripcion' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                  >
+                    Control
+                  </button>
+                )}
+                {user?.role === 'visualizador' && (
+                  <button 
+                    onClick={() => setView('admin-dashboard')}
+                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'admin-dashboard' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                  >
+                    Estadísticas
+                  </button>
                 )}
                 <button 
                   onClick={() => setView('cronograma')}
@@ -384,10 +751,15 @@ export default function App() {
         </header>
       )}
 
-      <main className={`${view === 'login' ? '' : 'max-w-5xl mx-auto px-6 py-12'}`}>
+      <main className={`${(view === 'login' || view === 'landing') ? '' : 'max-w-5xl mx-auto px-6 py-12'}`}>
         <AnimatePresence mode="wait">
-          {view === 'login' ? (
-            <LoginView key="login" onLogin={handleLogin} />
+          {view === 'landing' ? (
+            <LandingPage 
+              onPreRegister={() => setView('preinscripcion')} 
+              onLogin={() => setView('login')} 
+            />
+          ) : view === 'login' ? (
+            <LoginView key="login" onLogin={handleLogin} onBack={() => setView('landing')} />
           ) : view === 'preinscripcion' ? (
             <motion.div
               key="preinscripcion-view"
@@ -450,6 +822,13 @@ export default function App() {
                       </h2>
                       <p className="text-stone-500 mt-2">Ingrese sus datos tal como aparecen en su documento de identidad.</p>
                     </div>
+
+                    {Object.keys(errors).length > 0 && (
+                      <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3 text-red-800 animate-shake">
+                        <AlertCircle size={20} className="shrink-0" />
+                        <p className="text-sm font-bold">Por favor, complete todos los campos obligatorios marcados en rojo.</p>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <SelectField
@@ -539,7 +918,14 @@ export default function App() {
                       />
                     </div>
 
-                    <div className="mt-10 flex justify-end">
+                    <div className="mt-10 flex justify-between">
+                      <button 
+                        onClick={() => setView('landing')}
+                        className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all"
+                      >
+                        <ChevronLeft size={18} />
+                        Volver
+                      </button>
                       <button 
                         onClick={handleNext}
                         className="flex items-center gap-2 px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 group"
@@ -745,17 +1131,22 @@ export default function App() {
           )}
         </motion.div>
           ) : view === 'control-preinscripcion' ? (
-            <ControlPreinscripcionView key="control-view" />
+            <ControlPreinscripcionView 
+              registrations={registrations} 
+              onUpdateStatus={updateRegistrationStatus}
+              userRole={user?.role}
+              onBack={() => setView(user?.role === 'admin' ? 'admin-dashboard' : 'guia')}
+            />
           ) : view === 'cronograma' ? (
-            <CronogramaView key="cronograma-view" />
+            <CronogramaView key="cronograma-view" onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'reglamento' ? (
-            <ReglamentoView key="reglamento-view" />
+            <ReglamentoView key="reglamento-view" onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'temario' ? (
-            <TemarioView key="temario-view" />
+            <TemarioView key="temario-view" onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'resultados' ? (
-            <ResultadosView key="resultados-view" isAdmin={user?.role === 'admin'} />
+            <ResultadosView key="resultados-view" isAdmin={user?.role === 'admin'} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'admin-dashboard' ? (
-            <AdminDashboardView key="admin-view" />
+            <AdminDashboardView registrations={registrations} userRole={user?.role} onBack={() => setView('guia')} />
           ) : (
             <motion.div
               key="guia-view"
@@ -973,19 +1364,36 @@ export default function App() {
 
 // --- New Sub-Views ---
 
-const LoginView = ({ onLogin }: { onLogin: (u: string, r: Role) => void, key?: string }) => {
+const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void, onBack: () => void, key?: string }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<Role>('visualizador');
-  const [error, setError] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === 'fmamani' && password === 'Ast3r1sk') {
-      onLogin(username, role);
-      setError(false);
-    } else {
-      setError(true);
+    setIsLoggingIn(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (response.ok) {
+        const user = await response.json();
+        onLogin(user.username, user.role);
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Credenciales incorrectas');
+      }
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError('Error de conexión: Tiempo de espera agotado (Timeout). Verifique que el servidor de base de datos permita conexiones externas en el puerto 3306.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -1011,7 +1419,7 @@ const LoginView = ({ onLogin }: { onLogin: (u: string, r: Role) => void, key?: s
               animate={{ opacity: 1, y: 0 }}
               className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[10px] font-bold uppercase tracking-widest text-center"
             >
-              Credenciales incorrectas
+              {error}
             </motion.div>
           )}
           <div className="space-y-2">
@@ -1044,28 +1452,25 @@ const LoginView = ({ onLogin }: { onLogin: (u: string, r: Role) => void, key?: s
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Tipo de Cuenta</label>
-            <div className="grid grid-cols-3 gap-3">
-              {(['admin', 'registrador', 'visualizador'] as Role[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRole(r)}
-                  className={`py-3 rounded-2xl border text-[10px] font-bold uppercase tracking-tighter transition-all ${role === r ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white border-stone-200 text-stone-400 hover:border-stone-300'}`}
-                >
-                  {r === 'admin' ? <Shield size={14} className="mx-auto mb-1" /> : r === 'registrador' ? <ShieldCheck size={14} className="mx-auto mb-1" /> : <Eye size={14} className="mx-auto mb-1" />}
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <button 
             type="submit"
-            className="w-full py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-xl shadow-stone-900/20 mt-4"
+            disabled={isLoggingIn}
+            className="w-full py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-xl shadow-stone-900/20 mt-4 disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            Iniciar Sesión
+            {isLoggingIn ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              "Iniciar Sesión"
+            )}
+          </button>
+
+          <button 
+            type="button"
+            onClick={onBack}
+            className="w-full py-3 text-stone-500 font-bold hover:text-stone-800 transition-all flex items-center justify-center gap-2"
+          >
+            <ChevronLeft size={18} />
+            Volver al Inicio
           </button>
         </form>
 
@@ -1077,7 +1482,7 @@ const LoginView = ({ onLogin }: { onLogin: (u: string, r: Role) => void, key?: s
   );
 };
 
-const CronogramaView = () => (
+const CronogramaView = ({ onBack, key }: { onBack: () => void, key?: string }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
@@ -1113,11 +1518,21 @@ const CronogramaView = () => (
           </div>
         ))}
       </div>
+
+      <div className="mt-10 pt-8 border-t border-stone-100">
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all"
+        >
+          <ChevronLeft size={18} />
+          Volver
+        </button>
+      </div>
     </div>
   </motion.div>
 );
 
-const ReglamentoView = () => (
+const ReglamentoView = ({ onBack, key }: { onBack: () => void, key?: string }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
@@ -1156,11 +1571,21 @@ const ReglamentoView = () => (
         </div>
         <button className="px-6 py-2 bg-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all">Descargar PDF</button>
       </div>
+
+      <div className="mt-10 pt-8 border-t border-stone-100">
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all"
+        >
+          <ChevronLeft size={18} />
+          Volver
+        </button>
+      </div>
     </div>
   </motion.div>
 );
 
-const TemarioView = () => (
+const TemarioView = ({ onBack, key }: { onBack: () => void, key?: string }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
@@ -1198,11 +1623,21 @@ const TemarioView = () => (
           </div>
         ))}
       </div>
+
+      <div className="mt-10 pt-8 border-t border-stone-100">
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all"
+        >
+          <ChevronLeft size={18} />
+          Volver
+        </button>
+      </div>
     </div>
   </motion.div>
 );
 
-const ResultadosView = ({ isAdmin }: { isAdmin: boolean, key?: string }) => {
+const ResultadosView = ({ isAdmin, onBack }: { isAdmin: boolean, onBack: () => void, key?: string }) => {
   const [search, setSearch] = useState('');
   const [uploading, setUploading] = useState(false);
   const [pdfFile, setPdfFile] = useState<string | null>(null);
@@ -1303,20 +1738,29 @@ const ResultadosView = ({ isAdmin }: { isAdmin: boolean, key?: string }) => {
             </tbody>
           </table>
         </div>
+
+        <div className="mt-10 pt-8 border-t border-stone-100">
+          <button 
+            onClick={onBack}
+            className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all"
+          >
+            <ChevronLeft size={18} />
+            Volver
+          </button>
+        </div>
       </div>
     </motion.div>
   );
 };
 
-const ControlPreinscripcionView = () => {
+const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, onBack }: { registrations: any[], onUpdateStatus: (id: string, status: string) => void, userRole?: string, onBack: () => void }) => {
   const [search, setSearch] = useState('');
   
-  const applicants = [
-    { id: 'UNIQ-001', name: 'GARCIA LOPEZ, MARCO', dni: '72839401', career: 'Ingeniería Civil', status: 'Validado', indigenous: 'No' },
-    { id: 'UNIQ-002', name: 'QUISPE MAMANI, ELENA', dni: '45678912', career: 'Ecoturismo', status: 'Pendiente', indigenous: 'Andino' },
-    { id: 'UNIQ-003', name: 'HUAMAN ROJAS, JORGE', dni: '12345678', career: 'Ingeniería de Alimentos', status: 'Validado', indigenous: 'No' },
-    { id: 'UNIQ-004', name: 'TORRES VELA, LUCIA', dni: '87654321', career: 'Ingeniería Agronómica Tropical', status: 'Observado', indigenous: 'Amazónico' },
-  ];
+  const filteredApplicants = registrations.filter(app => 
+    (app.dni && app.dni.includes(search)) || 
+    (app.nombres && `${app.nombres} ${app.apellido_paterno} ${app.apellido_materno}`.toLowerCase().includes(search.toLowerCase())) ||
+    (app.id && app.id.toString().includes(search.toUpperCase()))
+  );
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
@@ -1356,79 +1800,130 @@ const ControlPreinscripcionView = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {applicants.map((app, i) => (
+              {filteredApplicants.map((app, i) => (
                 <tr key={i} className="hover:bg-stone-50 transition-colors">
-                  <td className="p-4 font-mono text-xs font-bold text-stone-400">{app.id}</td>
-                  <td className="p-4 font-bold text-stone-800 text-sm">{app.name}</td>
+                  <td className="p-4 font-mono text-xs font-bold text-stone-400">#{app.id}</td>
+                  <td className="p-4 font-bold text-stone-800 text-sm">{app.nombres} {app.apellido_paterno} {app.apellido_materno}</td>
                   <td className="p-4 text-sm text-stone-600">{app.dni}</td>
-                  <td className="p-4 text-sm text-stone-600">{app.career}</td>
-                  <td className="p-4 text-sm text-stone-600">{app.indigenous}</td>
+                  <td className="p-4 text-sm text-stone-600">{app.carrera}</td>
+                  <td className="p-4 text-sm text-stone-600">{app.pueblo_indigena}</td>
                   <td className="p-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                      app.status === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
-                      app.status === 'Pendiente' ? 'bg-amber-100 text-amber-700' : 
+                      app.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
+                      app.estado === 'Pendiente' ? 'bg-amber-100 text-amber-700' : 
                       'bg-red-100 text-red-700'
                     }`}>
-                      {app.status}
+                      {app.estado}
                     </span>
                   </td>
                   <td className="p-4">
-                    <button className="text-emerald-600 hover:text-emerald-700 font-bold text-xs uppercase tracking-wider">Ver Detalle</button>
+                    <div className="flex gap-2">
+                      {app.estado === 'Pendiente' && userRole !== 'visualizador' && (
+                        <>
+                          <button 
+                            onClick={() => onUpdateStatus(app.id, 'Validado')}
+                            className="text-emerald-600 hover:text-emerald-700 font-bold text-[10px] uppercase tracking-wider"
+                          >
+                            Validar
+                          </button>
+                          <button 
+                            onClick={() => onUpdateStatus(app.id, 'Observado')}
+                            className="text-red-600 hover:text-red-700 font-bold text-[10px] uppercase tracking-wider"
+                          >
+                            Observar
+                          </button>
+                        </>
+                      )}
+                      <button className="text-stone-400 hover:text-stone-600 font-bold text-[10px] uppercase tracking-wider">Detalle</button>
+                    </div>
                   </td>
                 </tr>
               ))}
+              {filteredApplicants.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center text-stone-400 text-sm">No se encontraron postulantes.</td>
+                </tr>
+              )}
             </tbody>
           </table>
+        </div>
+
+        <div className="mt-10 pt-8 border-t border-stone-100">
+          <button 
+            onClick={onBack}
+            className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all"
+          >
+            <ChevronLeft size={18} />
+            Volver
+          </button>
         </div>
       </div>
     </motion.div>
   );
 };
 
-const AdminDashboardView = () => (
-  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Total Postulantes</p>
-        <p className="text-4xl font-bold text-stone-800">1,248</p>
-        <div className="mt-4 flex items-center gap-2 text-emerald-600 text-xs font-bold">
-          <ChevronRight size={14} className="-rotate-90" />
-          +12% esta semana
-        </div>
-      </div>
-      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Pagos Validados</p>
-        <p className="text-4xl font-bold text-stone-800">856</p>
-        <div className="mt-4 flex items-center gap-2 text-stone-400 text-xs font-bold">
-          68% del total
-        </div>
-      </div>
-      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Vacantes Disponibles</p>
-        <p className="text-4xl font-bold text-emerald-700">320</p>
-        <div className="mt-4 flex items-center gap-2 text-stone-400 text-xs font-bold">
-          4 carreras activas
-        </div>
-      </div>
-    </div>
+const AdminDashboardView = ({ registrations, userRole, onBack }: { registrations: any[], userRole?: string, onBack: () => void }) => {
+  const total = registrations.length;
+  const validated = registrations.filter(r => r.estado === 'Validado').length;
+  const pending = registrations.filter(r => r.estado === 'Pendiente').length;
 
-    <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
-      <h3 className="text-xl font-bold text-stone-800 mb-6">Acciones Rápidas de Administrador</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { icon: UploadCloud, label: "Subir Resultados", color: "bg-blue-50 text-blue-600" },
-          { icon: FileText, label: "Reporte de Pagos", color: "bg-emerald-50 text-emerald-600" },
-          { icon: User, label: "Gestionar Usuarios", color: "bg-purple-50 text-purple-600" },
-          { icon: Info, label: "Editar Reglamento", color: "bg-amber-50 text-amber-600" },
-        ].map((action, i) => (
-          <button key={i} className="p-6 rounded-3xl border border-stone-100 hover:border-stone-200 hover:bg-stone-50 transition-all text-left group">
-            <div className={`w-10 h-10 ${action.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-              <action.icon size={20} />
-            </div>
-            <p className="font-bold text-stone-800 text-sm">{action.label}</p>
-          </button>
-        ))}
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Total Postulantes</p>
+          <p className="text-4xl font-bold text-stone-800">{total.toLocaleString()}</p>
+          <div className="mt-4 flex items-center gap-2 text-emerald-600 text-xs font-bold">
+            <ChevronRight size={14} className="-rotate-90" />
+            Actualizado ahora
+          </div>
+        </div>
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Pagos Validados</p>
+          <p className="text-4xl font-bold text-stone-800">{validated.toLocaleString()}</p>
+          <div className="mt-4 flex items-center gap-2 text-stone-400 text-xs font-bold">
+            {total > 0 ? Math.round((validated / total) * 100) : 0}% del total
+          </div>
+        </div>
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Pendientes</p>
+          <p className="text-4xl font-bold text-amber-600">{pending.toLocaleString()}</p>
+          <div className="mt-4 flex items-center gap-2 text-stone-400 text-xs font-bold">
+            Por revisar
+          </div>
+        </div>
       </div>
-    </div>
-  </motion.div>
-);
+
+      {userRole !== 'visualizador' && (
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+          <h3 className="text-xl font-bold text-stone-800 mb-6">Acciones Rápidas de Administrador</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { icon: UploadCloud, label: "Subir Resultados", color: "bg-blue-50 text-blue-600" },
+              { icon: FileText, label: "Reporte de Pagos", color: "bg-emerald-50 text-emerald-600" },
+              { icon: User, label: "Gestionar Usuarios", color: "bg-purple-50 text-purple-600" },
+              { icon: Info, label: "Editar Reglamento", color: "bg-amber-50 text-amber-600" },
+            ].map((action, i) => (
+              <button key={i} className="p-6 rounded-3xl border border-stone-100 hover:border-stone-200 hover:bg-stone-50 transition-all text-left group">
+                <div className={`w-10 h-10 ${action.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                  <action.icon size={20} />
+                </div>
+                <p className="font-bold text-stone-800 text-sm">{action.label}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-10 pt-8 border-t border-stone-100">
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all"
+        >
+          <ChevronLeft size={18} />
+          Volver
+        </button>
+      </div>
+    </motion.div>
+  );
+};
