@@ -33,13 +33,14 @@ import {
   AlertCircle,
   Download,
   Globe,
-  Check
+  Check,
+  Image
 } from 'lucide-react';
 
 // --- Types ---
 
 type Step = 'personal' | 'academic' | 'career' | 'success';
-type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion';
+type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion' | 'config-imagenes' | 'config-cronograma' | 'config-carreras' | 'carrera-detail';
 type Role = 'admin' | 'registrador' | 'visualizador';
 
 interface UserAuth {
@@ -67,6 +68,14 @@ interface FormData {
   modality: string;
   indigenousPeople: string;
 }
+
+import { ConfiguracionImagenesView } from './ConfiguracionImagenesView';
+import { ConfiguracionCronogramaView, DEFAULT_CRONOGRAMA } from './ConfiguracionCronogramaView';
+import { ConfiguracionCarrerasView } from './ConfiguracionCarrerasView';
+import { CarreraDetailView } from './CarreraDetailView';
+import { Career, DEFAULT_CAREERS } from './data/defaultCareers';
+
+import { UniqLogo } from './UniqLogo';
 
 const INITIAL_DATA: FormData = {
   documentType: 'DNI',
@@ -118,7 +127,7 @@ const InputField = ({ label, icon: Icon, error, ...props }: any) => (
     </label>
     <input
       {...props}
-      className={`w-full px-4 py-2.5 bg-white border ${error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-stone-200 focus:ring-emerald-500/20 focus:border-emerald-500'} rounded-lg outline-none transition-all text-stone-800 placeholder:text-stone-400`}
+      className={`w-full px-4 py-2.5 bg-white border ${error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-stone-200 focus:ring-cyan-500/20 focus:border-cyan-500'} rounded-lg outline-none transition-all text-stone-800 placeholder:text-stone-400`}
     />
     {error && <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">{error}</p>}
   </div>
@@ -132,7 +141,7 @@ const SelectField = ({ label, icon: Icon, options, error, ...props }: any) => (
     </label>
     <select
       {...props}
-      className={`w-full px-4 py-2.5 bg-white border ${error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-stone-200 focus:ring-emerald-500/20 focus:border-emerald-500'} rounded-lg outline-none transition-all text-stone-800 appearance-none cursor-pointer`}
+      className={`w-full px-4 py-2.5 bg-white border ${error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-stone-200 focus:ring-cyan-500/20 focus:border-cyan-500'} rounded-lg outline-none transition-all text-stone-800 appearance-none cursor-pointer`}
     >
       <option value="">Seleccione una opción</option>
       {options.map((opt: string) => (
@@ -143,18 +152,16 @@ const SelectField = ({ label, icon: Icon, options, error, ...props }: any) => (
   </div>
 );
 
-const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, onLogin: () => void }) => {
+const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings }: { onPreRegister: () => void, onLogin: () => void, onViewCareer: (career: Career) => void, appSettings: any }) => {
   return (
     <div className="min-h-screen bg-[#f8f7f4]">
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-stone-100">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-700 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-emerald-900/20">
-              U
-            </div>
+            <UniqLogo className="h-12 w-12" />
             <div className="hidden sm:block">
-              <h1 className="font-bold text-stone-800 leading-tight">UNIQ</h1>
+              <h1 className="font-bold text-stone-800 leading-tight text-sm max-w-[250px]">Universidad Nacional Intercultural de Quillabamba</h1>
               <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Admisión 2026</p>
             </div>
           </div>
@@ -167,7 +174,7 @@ const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, on
             </button>
             <button 
               onClick={onPreRegister}
-              className="px-6 py-2.5 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+              className="px-6 py-2.5 bg-cyan-600 text-white font-bold text-sm rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20"
             >
               Preinscripción
             </button>
@@ -183,15 +190,15 @@ const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, on
             animate={{ opacity: 1, x: 0 }}
             className="space-y-8"
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold uppercase tracking-widest border border-emerald-100">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-cyan-50 text-cyan-700 rounded-full text-[10px] font-bold uppercase tracking-widest border border-cyan-100">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
               </span>
               Proceso de Admisión Abierto
             </div>
             <h2 className="text-5xl md:text-7xl font-bold text-stone-900 leading-[1.1] tracking-tight">
-              Tu futuro comienza <span className="text-emerald-600">aquí.</span>
+              Tu futuro comienza <span className="text-cyan-600">aquí.</span>
             </h2>
             <p className="text-lg text-stone-500 leading-relaxed max-w-lg">
               Únete a la Universidad Nacional Intercultural de Quillabamba y sé parte de una comunidad académica que valora la excelencia y la diversidad cultural.
@@ -217,7 +224,7 @@ const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, on
           >
             <div className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-2xl">
               <img 
-                src="https://picsum.photos/seed/uniq-campus-quillabamba/800/1000" 
+                src={appSettings?.heroImage || "https://picsum.photos/seed/uniq-campus-quillabamba/800/1000"} 
                 alt="UNIQ Campus Principal" 
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
@@ -267,46 +274,16 @@ const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, on
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[
-              { 
-                name: "Ingeniería Agronómica Tropical", 
-                img: "tropical-agri-intercultural",
-                desc: "Desarrollo agrícola sostenible con saberes ancestrales y tecnología moderna."
-              },
-              { 
-                name: "Ingeniería de Alimentos", 
-                img: "food-tech-culture",
-                desc: "Transformación de productos nativos con estándares globales de calidad."
-              },
-              { 
-                name: "Ingeniería Civil", 
-                img: "civil-eng-andes",
-                desc: "Infraestructura resiliente integrada al paisaje y cultura regional."
-              },
-              { 
-                name: "Ecoturismo", 
-                img: "ecotourism-amazon-culture",
-                desc: "Gestión turística que revaloriza el patrimonio natural y cultural."
-              },
-              { 
-                name: "Contabilidad", 
-                img: "accounting-intercultural-finance",
-                desc: "Gestión financiera transparente para organizaciones diversas y globales."
-              },
-              { 
-                name: "Economía", 
-                img: "economy-community-market",
-                desc: "Análisis económico para el desarrollo equitativo y sostenible de los pueblos."
-              }
-            ].map((career, i) => (
+            {(appSettings?.careers || DEFAULT_CAREERS).map((career: Career) => {
+              return (
               <motion.div 
-                key={career.name}
+                key={career.id}
                 whileHover={{ y: -10 }}
                 className="bg-white rounded-[2rem] overflow-hidden shadow-lg border border-stone-100 group"
               >
                 <div className="aspect-video overflow-hidden">
                   <img 
-                    src={`https://picsum.photos/seed/${career.img}/600/400`} 
+                    src={career.imageUrl} 
                     alt={career.name} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     referrerPolicy="no-referrer"
@@ -314,20 +291,20 @@ const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, on
                 </div>
                 <div className="p-8">
                   <h3 className="font-bold text-xl text-stone-800 mb-3 leading-tight">{career.name}</h3>
-                  <p className="text-sm text-stone-500 mb-6 leading-relaxed">{career.desc}</p>
-                  <button className="text-emerald-600 font-bold text-xs uppercase tracking-widest flex items-center gap-2 group-hover:gap-3 transition-all">
+                  <p className="text-sm text-stone-500 mb-6 leading-relaxed">{career.shortDesc}</p>
+                  <button onClick={() => onViewCareer(career)} className="text-cyan-600 font-bold text-xs uppercase tracking-widest flex items-center gap-2 group-hover:gap-3 transition-all">
                     Ver más <ChevronRight size={14} />
                   </button>
                 </div>
               </motion.div>
-            ))}
+            )})}
           </div>
         </div>
       </section>
 
       {/* Cronograma Preview */}
       <section className="py-24 px-6 bg-stone-900 text-white overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-600/20 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-600/20 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-8">
@@ -336,13 +313,9 @@ const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, on
                 No pierdas la oportunidad de postular. Revisa las fechas clave del proceso actual.
               </p>
               <div className="space-y-4">
-                {[
-                  { date: "01 Feb - 15 Mar", event: "Inscripciones Ordinario" },
-                  { date: "22 de Marzo", event: "Examen de Admisión" },
-                  { date: "23 de Marzo", event: "Publicación de Resultados" },
-                ].map((item, i) => (
+                {(appSettings?.cronograma || DEFAULT_CRONOGRAMA).slice(0, 3).map((item: any, i: number) => (
                   <div key={i} className="flex items-center gap-6 p-4 bg-white/5 rounded-2xl border border-white/10">
-                    <div className="text-emerald-400 font-mono font-bold">{item.date}</div>
+                    <div className="text-cyan-400 font-mono font-bold">{item.date}</div>
                     <div className="font-bold">{item.event}</div>
                   </div>
                 ))}
@@ -359,7 +332,7 @@ const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, on
                   "Ficha de preinscripción debidamente llenada."
                 ].map((req, i) => (
                   <li key={i} className="flex items-start gap-3 text-stone-400 text-sm">
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+                    <div className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0 mt-0.5">
                       <Check size={12} />
                     </div>
                     {req}
@@ -376,17 +349,17 @@ const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, on
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
           <div className="col-span-1 md:col-span-2 space-y-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-700 rounded-xl flex items-center justify-center text-white font-bold text-xl">U</div>
-              <h1 className="font-bold text-stone-800 text-xl">UNIQ Admisión</h1>
+              <UniqLogo className="h-10 w-10" />
+              <h1 className="font-bold text-stone-800 text-xl max-w-[250px] leading-tight">Universidad Nacional Intercultural de Quillabamba</h1>
             </div>
             <p className="text-stone-500 max-w-sm leading-relaxed">
               Universidad Nacional Intercultural de Quillabamba. Formando profesionales para el mundo desde el corazón de la Amazonía cusqueña.
             </p>
             <div className="flex gap-4">
-              <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-stone-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all cursor-pointer">
+              <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-stone-400 hover:bg-cyan-50 hover:text-cyan-600 transition-all cursor-pointer">
                 <Shield size={20} />
               </div>
-              <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-stone-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all cursor-pointer">
+              <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-stone-400 hover:bg-cyan-50 hover:text-cyan-600 transition-all cursor-pointer">
                 <Info size={20} />
               </div>
             </div>
@@ -394,32 +367,32 @@ const LandingPage = ({ onPreRegister, onLogin }: { onPreRegister: () => void, on
           <div>
             <h4 className="font-bold text-stone-800 mb-6">Proceso</h4>
             <ul className="space-y-4 text-sm text-stone-500">
-              <li className="hover:text-emerald-600 cursor-pointer">Guía del Postulante</li>
-              <li className="hover:text-emerald-600 cursor-pointer">Cronograma</li>
-              <li className="hover:text-emerald-600 cursor-pointer">Reglamento</li>
-              <li className="hover:text-emerald-600 cursor-pointer">Resultados</li>
+              <li className="hover:text-cyan-600 cursor-pointer">Guía del Postulante</li>
+              <li className="hover:text-cyan-600 cursor-pointer">Cronograma</li>
+              <li className="hover:text-cyan-600 cursor-pointer">Reglamento</li>
+              <li className="hover:text-cyan-600 cursor-pointer">Resultados</li>
             </ul>
           </div>
           <div>
             <h4 className="font-bold text-stone-800 mb-6">Contacto</h4>
             <ul className="space-y-4 text-sm text-stone-500">
               <li className="flex items-center gap-3">
-                <Mail size={16} className="text-emerald-600" />
+                <Mail size={16} className="text-cyan-600" />
                 admision@uniq.edu.pe
               </li>
               <li className="flex items-center gap-3">
-                <Phone size={16} className="text-emerald-600" />
+                <Phone size={16} className="text-cyan-600" />
                 (084) 282728
               </li>
               <li className="flex items-center gap-3">
-                <MapPin size={16} className="text-emerald-600" />
+                <MapPin size={16} className="text-cyan-600" />
                 Quillabamba, Cusco
               </li>
             </ul>
           </div>
         </div>
         <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-stone-100 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-stone-400">
-          <p>© 2026 UNIQ. Todos los derechos reservados.</p>
+          <p>© 2026 Universidad Nacional Intercultural de Quillabamba. Todos los derechos reservados.</p>
           <div className="flex gap-8">
             <a href="#" className="hover:text-stone-600">Privacidad</a>
             <a href="#" className="hover:text-stone-600">Términos</a>
@@ -440,6 +413,24 @@ export default function App() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [appSettings, setAppSettings] = useState<any>({});
+  const [selectedCareer, setSelectedCareer] = useState<Career | null>(null);
+
+  const fetchSettings = useCallback(async () => {
+    try {
+      const response = await fetch('/api/settings');
+      if (response.ok) {
+        const data = await response.json();
+        setAppSettings(data);
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
 
   const fetchRegistrations = useCallback(async () => {
     try {
@@ -656,17 +647,15 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4] text-stone-900 font-sans selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="min-h-screen bg-[#f8f7f4] text-stone-900 font-sans selection:bg-cyan-100 selection:text-cyan-900">
       {/* Header */}
       {view !== 'login' && view !== 'landing' && (
         <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
           <div className="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
             <div className="flex items-center gap-4 cursor-pointer" onClick={() => setView(user?.role === 'admin' ? 'admin-dashboard' : 'guia')}>
-              <div className="w-10 h-10 bg-emerald-700 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-emerald-900/10">
-                U
-              </div>
-              <div>
-                <h1 className="font-bold text-base leading-tight tracking-tight text-stone-800">UNIQ</h1>
+              <UniqLogo className="h-10 w-10" />
+              <div className="hidden sm:block">
+                <h1 className="font-bold text-sm leading-tight tracking-tight text-stone-800 max-w-[250px]">Universidad Nacional Intercultural de Quillabamba</h1>
                 <p className="text-[9px] uppercase font-bold tracking-[0.2em] text-stone-400">Admisión 2026</p>
               </div>
             </div>
@@ -676,7 +665,7 @@ export default function App() {
                 {user?.role === 'admin' && (
                   <button 
                     onClick={() => setView('admin-dashboard')}
-                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'admin-dashboard' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'admin-dashboard' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
                   >
                     Dashboard
                   </button>
@@ -684,7 +673,7 @@ export default function App() {
                 {(user?.role === 'admin' || user?.role === 'registrador') && (
                   <button 
                     onClick={() => setView('preinscripcion')}
-                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'preinscripcion' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'preinscripcion' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
                   >
                     Preinscripción
                   </button>
@@ -692,7 +681,7 @@ export default function App() {
                 {(user?.role === 'admin' || user?.role === 'registrador' || user?.role === 'visualizador') && (
                   <button 
                     onClick={() => setView('control-preinscripcion')}
-                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'control-preinscripcion' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'control-preinscripcion' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
                   >
                     Control
                   </button>
@@ -700,32 +689,32 @@ export default function App() {
                 {user?.role === 'visualizador' && (
                   <button 
                     onClick={() => setView('admin-dashboard')}
-                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'admin-dashboard' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'admin-dashboard' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
                   >
                     Estadísticas
                   </button>
                 )}
                 <button 
                   onClick={() => setView('cronograma')}
-                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'cronograma' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'cronograma' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
                 >
                   Cronograma
                 </button>
                 <button 
                   onClick={() => setView('reglamento')}
-                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'reglamento' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'reglamento' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
                 >
                   Reglamento
                 </button>
                 <button 
                   onClick={() => setView('temario')}
-                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'temario' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'temario' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
                 >
                   Temario
                 </button>
                 <button 
                   onClick={() => setView('resultados')}
-                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'resultados' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
+                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'resultados' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
                 >
                   Resultados
                 </button>
@@ -757,7 +746,14 @@ export default function App() {
             <LandingPage 
               onPreRegister={() => setView('preinscripcion')} 
               onLogin={() => setView('login')} 
+              onViewCareer={(career) => {
+                setSelectedCareer(career);
+                setView('carrera-detail');
+              }}
+              appSettings={appSettings}
             />
+          ) : view === 'carrera-detail' && selectedCareer ? (
+            <CarreraDetailView career={selectedCareer} onBack={() => setView('landing')} />
           ) : view === 'login' ? (
             <LoginView key="login" onLogin={handleLogin} onBack={() => setView('landing')} />
           ) : view === 'preinscripcion' ? (
@@ -782,22 +778,22 @@ export default function App() {
                   {step !== 'success' && (
                 <div className="mb-12">
                   <div className="flex justify-between mb-4">
-                    <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${step === 'personal' ? 'text-emerald-600' : 'text-stone-400'}`}>
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${step === 'personal' ? 'border-emerald-600 bg-emerald-50' : 'border-stone-200'}`}>1</div>
+                    <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${step === 'personal' ? 'text-cyan-600' : 'text-stone-400'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${step === 'personal' ? 'border-cyan-600 bg-cyan-50' : 'border-stone-200'}`}>1</div>
                       Datos Personales
                     </div>
-                    <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${step === 'academic' ? 'text-emerald-600' : 'text-stone-400'}`}>
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${step === 'academic' ? 'border-emerald-600 bg-emerald-50' : 'border-stone-200'}`}>2</div>
+                    <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${step === 'academic' ? 'text-cyan-600' : 'text-stone-400'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${step === 'academic' ? 'border-cyan-600 bg-cyan-50' : 'border-stone-200'}`}>2</div>
                       Académico
                     </div>
-                    <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${step === 'career' ? 'text-emerald-600' : 'text-stone-400'}`}>
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${step === 'career' ? 'border-emerald-600 bg-emerald-50' : 'border-stone-200'}`}>3</div>
+                    <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${step === 'career' ? 'text-cyan-600' : 'text-stone-400'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${step === 'career' ? 'border-cyan-600 bg-cyan-50' : 'border-stone-200'}`}>3</div>
                       Carrera
                     </div>
                   </div>
                   <div className="h-1.5 w-full bg-stone-200 rounded-full overflow-hidden">
                     <motion.div 
-                      className="h-full bg-emerald-600"
+                      className="h-full bg-cyan-600"
                       initial={{ width: 0 }}
                       animate={{ width: `${progress[step]}%` }}
                       transition={{ duration: 0.5, ease: "circOut" }}
@@ -817,7 +813,7 @@ export default function App() {
                   >
                     <div className="mb-8">
                       <h2 className="text-2xl font-bold text-stone-800 flex items-center gap-3">
-                        <User className="text-emerald-600" />
+                        <User className="text-cyan-600" />
                         Información Personal
                       </h2>
                       <p className="text-stone-500 mt-2">Ingrese sus datos tal como aparecen en su documento de identidad.</p>
@@ -928,7 +924,7 @@ export default function App() {
                       </button>
                       <button 
                         onClick={handleNext}
-                        className="flex items-center gap-2 px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 group"
+                        className="flex items-center gap-2 px-8 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20 group"
                       >
                         Siguiente
                         <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
@@ -947,7 +943,7 @@ export default function App() {
                   >
                     <div className="mb-8">
                       <h2 className="text-2xl font-bold text-stone-800 flex items-center gap-3">
-                        <GraduationCap className="text-emerald-600" />
+                        <GraduationCap className="text-cyan-600" />
                         Información Académica
                       </h2>
                       <p className="text-stone-500 mt-2">Detalles sobre su educación secundaria.</p>
@@ -998,7 +994,7 @@ export default function App() {
                       </button>
                       <button 
                         onClick={handleNext}
-                        className="flex items-center gap-2 px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 group"
+                        className="flex items-center gap-2 px-8 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20 group"
                       >
                         Siguiente
                         <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
@@ -1017,7 +1013,7 @@ export default function App() {
                   >
                     <div className="mb-8">
                       <h2 className="text-2xl font-bold text-stone-800 flex items-center gap-3">
-                        <BookOpen className="text-emerald-600" />
+                        <BookOpen className="text-cyan-600" />
                         Elección de Carrera
                       </h2>
                       <p className="text-stone-500 mt-2">Seleccione la carrera a la que desea postular y la modalidad.</p>
@@ -1056,7 +1052,7 @@ export default function App() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-stone-500">Carrera:</span>
-                            <span className="font-semibold text-emerald-700">{formData.career || 'No seleccionada'}</span>
+                            <span className="font-semibold text-cyan-700">{formData.career || 'No seleccionada'}</span>
                           </div>
                         </div>
                       </div>
@@ -1066,7 +1062,7 @@ export default function App() {
                           <CheckCircle size={16} />
                         </div>
                         <p className="text-xs text-amber-800 leading-relaxed">
-                          Al hacer clic en "Finalizar Preinscripción", declaro que la información proporcionada es verdadera y acepto los términos y condiciones del proceso de admisión UNIQ 2026.
+                          Al hacer clic en "Finalizar Preinscripción", declaro que la información proporcionada es verdadera y acepto los términos y condiciones del proceso de admisión 2026.
                         </p>
                       </div>
                     </div>
@@ -1095,9 +1091,9 @@ export default function App() {
                     key="success"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="bg-white p-12 rounded-3xl shadow-2xl shadow-emerald-900/10 border border-emerald-100 text-center"
+                    className="bg-white p-12 rounded-3xl shadow-2xl shadow-cyan-900/10 border border-cyan-100 text-center"
                   >
-                    <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-8">
+                    <div className="w-20 h-20 bg-cyan-100 text-cyan-600 rounded-full flex items-center justify-center mx-auto mb-8">
                       <CheckCircle size={40} />
                     </div>
                     <h2 className="text-3xl font-bold text-stone-800 mb-4">¡Preinscripción Exitosa!</h2>
@@ -1107,11 +1103,11 @@ export default function App() {
                     
                     <div className="bg-stone-50 p-6 rounded-2xl mb-8 text-left inline-block w-full max-w-sm border border-stone-200">
                       <p className="text-[10px] uppercase font-bold tracking-widest text-stone-400 mb-3">Código de Registro</p>
-                      <p className="text-2xl font-mono font-bold text-emerald-700">UNIQ-2026-8842</p>
+                      <p className="text-2xl font-mono font-bold text-cyan-700">UNIQ-2026-8842</p>
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                      <button className="px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20">
+                      <button className="px-8 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20">
                         Descargar Constancia
                       </button>
                       <button 
@@ -1138,7 +1134,7 @@ export default function App() {
               onBack={() => setView(user?.role === 'admin' ? 'admin-dashboard' : 'guia')}
             />
           ) : view === 'cronograma' ? (
-            <CronogramaView key="cronograma-view" onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
+            <CronogramaView key="cronograma-view" appSettings={appSettings} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'reglamento' ? (
             <ReglamentoView key="reglamento-view" onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'temario' ? (
@@ -1146,7 +1142,25 @@ export default function App() {
           ) : view === 'resultados' ? (
             <ResultadosView key="resultados-view" isAdmin={user?.role === 'admin'} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'admin-dashboard' ? (
-            <AdminDashboardView registrations={registrations} userRole={user?.role} onBack={() => setView('guia')} />
+            <AdminDashboardView registrations={registrations} userRole={user?.role} onBack={() => setView('guia')} onConfigImages={() => setView('config-imagenes')} onConfigCronograma={() => setView('config-cronograma')} onConfigCarreras={() => setView('config-carreras')} />
+          ) : view === 'config-imagenes' ? (
+            <ConfiguracionImagenesView 
+              appSettings={appSettings} 
+              onSave={(newSettings) => setAppSettings(newSettings)} 
+              onBack={() => setView('admin-dashboard')} 
+            />
+          ) : view === 'config-cronograma' ? (
+            <ConfiguracionCronogramaView 
+              appSettings={appSettings} 
+              onSave={(newSettings) => setAppSettings(newSettings)} 
+              onBack={() => setView('admin-dashboard')} 
+            />
+          ) : view === 'config-carreras' ? (
+            <ConfiguracionCarrerasView 
+              appSettings={appSettings} 
+              onSave={(newSettings) => setAppSettings(newSettings)} 
+              onBack={() => setView('admin-dashboard')} 
+            />
           ) : (
             <motion.div
               key="guia-view"
@@ -1164,25 +1178,25 @@ export default function App() {
               {/* Secciones de la Guía */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-8 rounded-3xl shadow-lg border border-stone-100">
-                  <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-6">
+                  <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center mb-6">
                     <FileText size={24} />
                   </div>
                   <h3 className="text-xl font-bold text-stone-800 mb-4">Requisitos Generales</h3>
                   <ul className="space-y-3 text-stone-600 text-sm">
                     <li className="flex items-start gap-3">
-                      <CheckCircle size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                      <CheckCircle size={16} className="text-cyan-500 mt-0.5 shrink-0" />
                       Certificado de estudios secundarios (original).
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                      <CheckCircle size={16} className="text-cyan-500 mt-0.5 shrink-0" />
                       Copia del Documento Nacional de Identidad (DNI).
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                      <CheckCircle size={16} className="text-cyan-500 mt-0.5 shrink-0" />
                       Recibo de pago por derecho de examen de admisión.
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                      <CheckCircle size={16} className="text-cyan-500 mt-0.5 shrink-0" />
                       Fotografía tamaño carnet a color con fondo blanco.
                     </li>
                   </ul>
@@ -1194,25 +1208,17 @@ export default function App() {
                   </div>
                   <h3 className="text-xl font-bold text-stone-800 mb-4">Cronograma de Admisión</h3>
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center p-3 bg-stone-50 rounded-xl">
-                      <div>
-                        <p className="text-xs font-bold text-stone-400 uppercase">Inscripciones</p>
-                        <p className="text-sm font-semibold text-stone-700">01 Feb - 15 Mar</p>
+                    {(appSettings?.cronograma || DEFAULT_CRONOGRAMA).slice(0, 3).map((item: any, i: number) => (
+                      <div key={i} className="flex justify-between items-center p-3 bg-stone-50 rounded-xl">
+                        <div>
+                          <p className="text-xs font-bold text-stone-400 uppercase">{item.event}</p>
+                          <p className="text-sm font-semibold text-stone-700">{item.date}</p>
+                        </div>
+                        {item.status === 'activo' && (
+                          <span className="px-2 py-1 bg-cyan-100 text-cyan-700 text-[10px] font-bold rounded">ACTIVO</span>
+                        )}
                       </div>
-                      <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded">ACTIVO</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-stone-50 rounded-xl">
-                      <div>
-                        <p className="text-xs font-bold text-stone-400 uppercase">Examen Ordinario</p>
-                        <p className="text-sm font-semibold text-stone-700">22 de Marzo, 2026</p>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-stone-50 rounded-xl">
-                      <div>
-                        <p className="text-xs font-bold text-stone-400 uppercase">Resultados</p>
-                        <p className="text-sm font-semibold text-stone-700">23 de Marzo, 2026</p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1241,8 +1247,8 @@ export default function App() {
                 <h3 className="text-2xl font-bold text-stone-800 mb-8 text-center">Nuestras Carreras Profesionales</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   {CAREERS.map((c, i) => (
-                    <div key={i} className="bg-white p-6 rounded-2xl shadow-md border border-stone-100 hover:border-emerald-500 transition-all group cursor-pointer">
-                      <div className="w-10 h-10 bg-stone-50 text-stone-400 rounded-xl flex items-center justify-center mb-4 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-all">
+                    <div key={i} className="bg-white p-6 rounded-2xl shadow-md border border-stone-100 hover:border-cyan-500 transition-all group cursor-pointer">
+                      <div className="w-10 h-10 bg-stone-50 text-stone-400 rounded-xl flex items-center justify-center mb-4 group-hover:bg-cyan-50 group-hover:text-cyan-600 transition-all">
                         <BookOpen size={20} />
                       </div>
                       <h4 className="font-bold text-sm text-stone-800 leading-tight">{c}</h4>
@@ -1307,17 +1313,17 @@ export default function App() {
               </div>
 
               {/* Descargas */}
-              <div className="bg-emerald-50 p-8 rounded-3xl border border-emerald-100 flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="bg-cyan-50 p-8 rounded-3xl border border-cyan-100 flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-cyan-600 text-white rounded-2xl flex items-center justify-center">
                     <Download size={24} />
                   </div>
                   <div>
-                    <h4 className="font-bold text-emerald-900">Prospecto de Admisión Completo</h4>
-                    <p className="text-sm text-emerald-700/70">Descarga el PDF con toda la información detallada.</p>
+                    <h4 className="font-bold text-cyan-900">Prospecto de Admisión Completo</h4>
+                    <p className="text-sm text-cyan-700/70">Descarga el PDF con toda la información detallada.</p>
                   </div>
                 </div>
-                <button className="px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20">
+                <button className="px-8 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20">
                   Descargar PDF
                 </button>
               </div>
@@ -1329,7 +1335,7 @@ export default function App() {
       <footer className="max-w-5xl mx-auto px-6 py-12 border-t border-stone-200 mt-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           <div>
-            <h3 className="font-bold text-stone-800 mb-4">UNIQ Admisión</h3>
+            <h3 className="font-bold text-stone-800 mb-4">Universidad Nacional Intercultural de Quillabamba</h3>
             <p className="text-sm text-stone-500 leading-relaxed">
               Universidad Nacional Intercultural de Quillabamba. Comprometidos con la excelencia académica y la interculturalidad.
             </p>
@@ -1337,15 +1343,15 @@ export default function App() {
           <div>
             <h3 className="font-bold text-stone-800 mb-4">Enlaces Rápidos</h3>
             <ul className="text-sm text-stone-500 space-y-2">
-              <li><a href="#" className="hover:text-emerald-600">Cronograma de Admisión</a></li>
-              <li><a href="#" className="hover:text-emerald-600">Reglamento de Admisión</a></li>
-              <li><a href="#" className="hover:text-emerald-600">Temario del Examen</a></li>
+              <li><a href="#" className="hover:text-cyan-600">Cronograma de Admisión</a></li>
+              <li><a href="#" className="hover:text-cyan-600">Reglamento de Admisión</a></li>
+              <li><a href="#" className="hover:text-cyan-600">Temario del Examen</a></li>
             </ul>
           </div>
           <div>
             <h3 className="font-bold text-stone-800 mb-4">Soporte</h3>
             <p className="text-sm text-stone-500 mb-2">¿Tienes dudas? Contáctanos:</p>
-            <p className="text-sm font-bold text-emerald-700">admision@uniq.edu.pe</p>
+            <p className="text-sm font-bold text-cyan-700">admision@uniq.edu.pe</p>
             <p className="text-sm text-stone-500">(084) 282728</p>
           </div>
         </div>
@@ -1405,7 +1411,7 @@ const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void,
         className="w-full max-w-md bg-white p-10 rounded-[2.5rem] shadow-2xl border border-stone-100"
       >
         <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-emerald-700 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-xl shadow-emerald-900/20">
+          <div className="w-16 h-16 bg-cyan-700 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-xl shadow-cyan-900/20">
             U
           </div>
           <h2 className="text-2xl font-bold text-stone-800">Sistema de Admisión</h2>
@@ -1431,7 +1437,7 @@ const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void,
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
                 placeholder="Nombre de usuario"
               />
             </div>
@@ -1446,7 +1452,7 @@ const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void,
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
                 placeholder="••••••••"
               />
             </div>
@@ -1482,7 +1488,7 @@ const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void,
   );
 };
 
-const CronogramaView = ({ onBack, key }: { onBack: () => void, key?: string }) => (
+const CronogramaView = ({ onBack, appSettings, key }: { onBack: () => void, appSettings: any, key?: string }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
@@ -1496,23 +1502,16 @@ const CronogramaView = ({ onBack, key }: { onBack: () => void, key?: string }) =
       </div>
 
       <div className="space-y-4">
-        {[
-          { event: "Lanzamiento de Convocatoria", date: "15 de Enero", status: "completado" },
-          { event: "Inscripciones Ordinario y Extraordinario", date: "01 Feb - 15 Mar", status: "activo" },
-          { event: "Cierre de Inscripciones", date: "15 de Marzo", status: "pendiente" },
-          { event: "Examen de Admisión Ordinario", date: "22 de Marzo", status: "pendiente" },
-          { event: "Publicación de Resultados", date: "23 de Marzo", status: "pendiente" },
-          { event: "Entrega de Constancias", date: "25 - 27 de Marzo", status: "pendiente" },
-        ].map((item, i) => (
+        {(appSettings?.cronograma || DEFAULT_CRONOGRAMA).map((item: any, i: number) => (
           <div key={i} className="flex items-center justify-between p-5 bg-stone-50 rounded-2xl border border-stone-100 hover:border-blue-200 transition-all">
             <div className="flex items-center gap-4">
-              <div className={`w-2 h-2 rounded-full ${item.status === 'activo' ? 'bg-emerald-500 animate-pulse' : item.status === 'completado' ? 'bg-stone-300' : 'bg-blue-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${item.status === 'activo' ? 'bg-cyan-500 animate-pulse' : item.status === 'completado' ? 'bg-stone-300' : 'bg-blue-400'}`} />
               <div>
                 <p className="font-bold text-stone-800">{item.event}</p>
                 <p className="text-xs text-stone-500">{item.date}</p>
               </div>
             </div>
-            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.status === 'activo' ? 'bg-emerald-100 text-emerald-700' : item.status === 'completado' ? 'bg-stone-200 text-stone-500' : 'bg-blue-50 text-blue-600'}`}>
+            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.status === 'activo' ? 'bg-cyan-100 text-cyan-700' : item.status === 'completado' ? 'bg-stone-200 text-stone-500' : 'bg-blue-50 text-blue-600'}`}>
               {item.status}
             </span>
           </div>
@@ -1569,7 +1568,7 @@ const ReglamentoView = ({ onBack, key }: { onBack: () => void, key?: string }) =
           <p className="font-bold">¿Necesitas el documento completo?</p>
           <p className="text-xs text-stone-400">Descarga el PDF oficial con todos los artículos.</p>
         </div>
-        <button className="px-6 py-2 bg-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all">Descargar PDF</button>
+        <button className="px-6 py-2 bg-cyan-600 rounded-xl font-bold text-sm hover:bg-cyan-700 transition-all">Descargar PDF</button>
       </div>
 
       <div className="mt-10 pt-8 border-t border-stone-100">
@@ -1656,7 +1655,7 @@ const ResultadosView = ({ isAdmin, onBack }: { isAdmin: boolean, onBack: () => v
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
               <FileSearch size={24} />
             </div>
             <div>
@@ -1668,7 +1667,7 @@ const ResultadosView = ({ isAdmin, onBack }: { isAdmin: boolean, onBack: () => v
           <div className="flex gap-3">
             {pdfFile && (
               <button 
-                className="flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-700 rounded-2xl font-bold text-sm hover:bg-emerald-100 transition-all"
+                className="flex items-center gap-2 px-6 py-3 bg-cyan-50 text-cyan-700 rounded-2xl font-bold text-sm hover:bg-cyan-100 transition-all"
                 onClick={() => window.open('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
               >
                 <FileText size={18} />
@@ -1695,7 +1694,7 @@ const ResultadosView = ({ isAdmin, onBack }: { isAdmin: boolean, onBack: () => v
             placeholder="Buscar por DNI o Apellidos..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+            className="w-full pl-12 pr-4 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
           />
         </div>
 
@@ -1727,9 +1726,9 @@ const ResultadosView = ({ isAdmin, onBack }: { isAdmin: boolean, onBack: () => v
                 <tr key={i} className="hover:bg-stone-50 transition-colors">
                   <td className="p-4 font-mono font-bold text-stone-400">#{res.pos}</td>
                   <td className="p-4 font-bold text-stone-800">{res.name}</td>
-                  <td className="p-4 font-mono text-emerald-700 font-bold">{res.score}</td>
+                  <td className="p-4 font-mono text-cyan-700 font-bold">{res.score}</td>
                   <td className="p-4">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${res.status === 'Ingresó' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${res.status === 'Ingresó' ? 'bg-cyan-100 text-cyan-700' : 'bg-red-50 text-red-600'}`}>
                       {res.status}
                     </span>
                   </td>
@@ -1766,7 +1765,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
         <div className="flex items-center gap-4 mb-8">
-          <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+          <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
             <ListChecks size={24} />
           </div>
           <div>
@@ -1782,7 +1781,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
             placeholder="Buscar por DNI, Nombre o Código..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+            className="w-full pl-12 pr-4 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
           />
         </div>
 
@@ -1809,7 +1808,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
                   <td className="p-4 text-sm text-stone-600">{app.pueblo_indigena}</td>
                   <td className="p-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                      app.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
+                      app.estado === 'Validado' ? 'bg-cyan-100 text-cyan-700' : 
                       app.estado === 'Pendiente' ? 'bg-amber-100 text-amber-700' : 
                       'bg-red-100 text-red-700'
                     }`}>
@@ -1822,7 +1821,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
                         <>
                           <button 
                             onClick={() => onUpdateStatus(app.id, 'Validado')}
-                            className="text-emerald-600 hover:text-emerald-700 font-bold text-[10px] uppercase tracking-wider"
+                            className="text-cyan-600 hover:text-cyan-700 font-bold text-[10px] uppercase tracking-wider"
                           >
                             Validar
                           </button>
@@ -1862,7 +1861,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
   );
 };
 
-const AdminDashboardView = ({ registrations, userRole, onBack }: { registrations: any[], userRole?: string, onBack: () => void }) => {
+const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, onConfigCronograma, onConfigCarreras }: { registrations: any[], userRole?: string, onBack: () => void, onConfigImages: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void }) => {
   const total = registrations.length;
   const validated = registrations.filter(r => r.estado === 'Validado').length;
   const pending = registrations.filter(r => r.estado === 'Pendiente').length;
@@ -1873,7 +1872,7 @@ const AdminDashboardView = ({ registrations, userRole, onBack }: { registrations
         <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
           <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Total Postulantes</p>
           <p className="text-4xl font-bold text-stone-800">{total.toLocaleString()}</p>
-          <div className="mt-4 flex items-center gap-2 text-emerald-600 text-xs font-bold">
+          <div className="mt-4 flex items-center gap-2 text-cyan-600 text-xs font-bold">
             <ChevronRight size={14} className="-rotate-90" />
             Actualizado ahora
           </div>
@@ -1900,11 +1899,14 @@ const AdminDashboardView = ({ registrations, userRole, onBack }: { registrations
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { icon: UploadCloud, label: "Subir Resultados", color: "bg-blue-50 text-blue-600" },
-              { icon: FileText, label: "Reporte de Pagos", color: "bg-emerald-50 text-emerald-600" },
+              { icon: FileText, label: "Reporte de Pagos", color: "bg-cyan-50 text-cyan-600" },
               { icon: User, label: "Gestionar Usuarios", color: "bg-purple-50 text-purple-600" },
               { icon: Info, label: "Editar Reglamento", color: "bg-amber-50 text-amber-600" },
+              { icon: Image, label: "Configurar Inicio", color: "bg-pink-50 text-pink-600", action: onConfigImages },
+              { icon: BookOpen, label: "Configurar Carreras", color: "bg-purple-50 text-purple-600", action: onConfigCarreras },
+              { icon: Clock, label: "Configurar Cronograma", color: "bg-indigo-50 text-indigo-600", action: onConfigCronograma },
             ].map((action, i) => (
-              <button key={i} className="p-6 rounded-3xl border border-stone-100 hover:border-stone-200 hover:bg-stone-50 transition-all text-left group">
+              <button key={i} onClick={action.action} className="p-6 rounded-3xl border border-stone-100 hover:border-stone-200 hover:bg-stone-50 transition-all text-left group">
                 <div className={`w-10 h-10 ${action.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                   <action.icon size={20} />
                 </div>

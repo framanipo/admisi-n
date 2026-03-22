@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
+import fs from "fs/promises";
 
 dotenv.config();
 
@@ -92,6 +93,35 @@ async function startServer() {
   };
 
   testConnection();
+
+  // Settings API
+  const SETTINGS_FILE = path.join(process.cwd(), 'data', 'settings.json');
+
+  async function getSettings() {
+    try {
+      const data = await fs.readFile(SETTINGS_FILE, 'utf-8');
+      return JSON.parse(data);
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async function saveSettings(settings: any) {
+    await fs.mkdir(path.dirname(SETTINGS_FILE), { recursive: true });
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+  }
+
+  app.get("/api/settings", async (req, res) => {
+    const settings = await getSettings();
+    res.json(settings);
+  });
+
+  app.post("/api/settings", async (req, res) => {
+    const newSettings = req.body;
+    const currentSettings = await getSettings();
+    await saveSettings({ ...currentSettings, ...newSettings });
+    res.json({ success: true });
+  });
 
   // API Routes
   app.get("/api/health", (req, res) => {
