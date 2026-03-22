@@ -1,20 +1,38 @@
-import mysql from "mysql2/promise";
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
 async function test() {
-  const pool = mysql.createPool({
-    host: "155.248.226.7",
-    port: 3306,
-    user: "atenea",
-    password: "W6CzP5dTH2tWRiGe",
-    database: "uniq_admision"
-  });
+  const dbConfig = {
+    host: process.env.DB_HOST || "161.132.41.68",
+    port: parseInt(process.env.DB_PORT || "3306"),
+    user: process.env.DB_USER || "uniq_admision",
+    password: process.env.DB_PASSWORD || "M1c4s1t4TI.2026",
+    database: process.env.DB_NAME || "uniq_admision",
+    waitForConnections: true,
+    connectionLimit: 5,
+    queueLimit: 0,
+    connectTimeout: 30000,
+  };
+
+  console.log(`Testing POOL connection to ${dbConfig.host}...`);
+  console.log(`DB_PASSWORD from env: [${process.env.DB_PASSWORD}]`);
+  const pool = mysql.createPool(dbConfig);
+  
   try {
-    await pool.query("CREATE TABLE IF NOT EXISTS app_settings (setting_key VARCHAR(255) PRIMARY KEY, setting_value TEXT)");
-    console.log("Table created or exists");
-    const [rows] = await pool.query("SELECT * FROM app_settings");
-    console.log(rows);
-  } catch (e) {
-    console.error(e);
+    const connection = await pool.getConnection();
+    console.log("SUCCESS: Connected to database via POOL!");
+    
+    const [rows] = await connection.execute("SELECT * FROM usuarios");
+    console.log("Users in database:");
+    console.log(JSON.stringify(rows, null, 2));
+    
+    connection.release();
+    await pool.end();
+  } catch (error: any) {
+    console.error("ERROR:", error.code, "-", error.message);
   }
-  process.exit(0);
 }
+
 test();

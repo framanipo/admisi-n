@@ -17,18 +17,24 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+  
+  // Request Logger Middleware
+  app.use((req, res, next) => {
+    console.log(`[REQUEST] ${req.method} ${req.url}`);
+    next();
+  });
 
   // Database connection pool
   const dbConfig = {
-    host: process.env.DB_HOST || "155.248.226.7",
+    host: process.env.DB_HOST || "161.132.41.68",
     port: parseInt(process.env.DB_PORT || "3306"),
-    user: process.env.DB_USER || "atenea",
-    password: process.env.DB_PASSWORD || "W6CzP5dTH2tWRiGe",
+    user: process.env.DB_USER || "uniq_admision",
+    password: process.env.DB_PASSWORD || "M1c4s1t4TI.2026",
     database: process.env.DB_NAME || "uniq_admision",
     waitForConnections: true,
     connectionLimit: 5,
     queueLimit: 0,
-    connectTimeout: 20000, // 20 seconds
+    connectTimeout: 30000, // Increased to 30 seconds
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
   };
@@ -67,7 +73,7 @@ async function startServer() {
   };
 
   // Test connection on startup with retries
-  const testConnection = async (retries = 2) => {
+  const testConnection = async (retries = 3) => {
     for (let i = 0; i < retries; i++) {
       try {
         console.log(`[DB] Attempt ${i + 1}: Connecting to ${dbConfig.host}:${dbConfig.port}...`);
@@ -82,17 +88,135 @@ async function startServer() {
           await new Promise(resolve => setTimeout(resolve, 3000));
         } else {
           console.error("[DB] CRITICAL: All connection attempts timed out.");
-          console.error("[DB] TROUBLESHOOTING: This ETIMEDOUT error means your MySQL server at 155.248.226.7 is not responding.");
+          console.error(`[DB] TROUBLESHOOTING: This ETIMEDOUT error means your MySQL server at ${dbConfig.host} is not responding.`);
           console.error("[DB] 1. Check if the MySQL service is running.");
-          console.error("[DB] 2. Check if port 3306 is open in your server's firewall (iptables/ufw/cloud security groups).");
+          console.error(`[DB] 2. Check if port ${dbConfig.port} is open in your server's firewall (iptables/ufw/cloud security groups).`);
           console.error("[DB] 3. Ensure MySQL is configured to listen on all interfaces (bind-address = 0.0.0.0).");
+          console.error("[DB] 4. IMPORTANT: In cPanel, add IP 34.34.229.3 to 'Remote MySQL' allowed hosts.");
         }
       }
     }
     return false;
   };
 
-  testConnection();
+  // Database Initialization
+  const setupDatabase = async () => {
+    let connection;
+    try {
+      const isConnected = await testConnection();
+      if (!isConnected) return;
+
+      connection = await pool.getConnection();
+      
+      // Table for Usuarios
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS usuarios (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          username VARCHAR(255) NOT NULL UNIQUE,
+          password VARCHAR(255) NOT NULL,
+          role ENUM('admin', 'registrador', 'visualizador') DEFAULT 'visualizador',
+          full_name VARCHAR(255),
+          email VARCHAR(255),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Insert default admin if not exists
+      await connection.query(`
+        INSERT IGNORE INTO usuarios (username, password, role, full_name, email)
+        VALUES ('admin', 'admin123', 'admin', 'Administrador UNIQ', 'admision@uniq.edu.pe')
+      `);
+
+      // Table for Cronograma
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS cronograma (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          event VARCHAR(255) NOT NULL,
+          date VARCHAR(255) NOT NULL,
+          status ENUM('activo', 'completado', 'pendiente') DEFAULT 'pendiente',
+          order_index INT DEFAULT 0
+        )
+      `);
+
+      // Table for Reglamento
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS reglamento (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          chapter VARCHAR(255) NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          content TEXT NOT NULL,
+          order_index INT DEFAULT 0
+        )
+      `);
+
+      // Table for Temario
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS temario (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          area VARCHAR(255) NOT NULL,
+          subject VARCHAR(255) NOT NULL,
+          topics TEXT NOT NULL,
+          order_index INT DEFAULT 0
+        )
+      `);
+
+      // Table for Resultados
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS resultados (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          pos INT NOT NULL,
+          name VARCHAR(255) NOT NULL,
+          score VARCHAR(50) NOT NULL,
+          status VARCHAR(50) NOT NULL,
+          dni VARCHAR(20)
+        )
+      `);
+
+      // Table for Carreras
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS carreras (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          vacancies INT DEFAULT 0
+        )
+      `);
+
+      // Table for Preinscripciones
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS preinscripciones (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          nombres VARCHAR(255) NOT NULL,
+          apellido_paterno VARCHAR(255) NOT NULL,
+          apellido_materno VARCHAR(255) NOT NULL,
+          dni VARCHAR(20) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          telefono VARCHAR(20),
+          fecha_nacimiento DATE,
+          genero VARCHAR(20),
+          pueblo_indigena VARCHAR(50),
+          departamento VARCHAR(100),
+          provincia VARCHAR(100),
+          distrito VARCHAR(100),
+          colegio_nombre VARCHAR(255),
+          colegio_tipo VARCHAR(50),
+          carrera VARCHAR(255),
+          modalidad VARCHAR(100),
+          estado ENUM('Pendiente', 'Validado', 'Observado') DEFAULT 'Pendiente',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      console.log("[DB] Tables initialized successfully");
+    } catch (error) {
+      console.error("[DB ERROR] Failed to initialize tables:", error);
+    } finally {
+      if (connection) connection.release();
+    }
+  };
+
+  // Start DB initialization in background
+  setupDatabase();
 
   // Settings API
   const SETTINGS_FILE = path.join(process.cwd(), 'data', 'settings.json');
@@ -128,6 +252,20 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  app.get("/api/test-json", (req, res) => {
+    res.json({ message: "JSON is working", timestamp: new Date().toISOString() });
+  });
+
+  app.get("/api/my-ip", async (req, res) => {
+    try {
+      const response = await fetch("https://api.ipify.org?format=json");
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      res.json({ ip: "No se pudo determinar (use 34.34.229.3)" });
+    }
+  });
+
   app.get("/api/db-status", async (req, res) => {
     try {
       const connection = await pool.getConnection();
@@ -143,14 +281,75 @@ async function startServer() {
     }
   });
 
+  const handleDbError = (res: express.Response, error: any, context: string) => {
+    console.error(`Error fetching ${context}:`, error);
+    if (error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED' || error.code === 'ER_HOST_NOT_PRIVILEGED' || error.code === 'ER_ACCESS_DENIED_ERROR') {
+      res.status(503).json({ 
+        error: "Database Connection Error", 
+        details: "El servidor de base de datos no responde o el acceso fue denegado. Asegúrese de autorizar la IP 34.34.229.3 en cPanel (Remote MySQL)." 
+      });
+    } else {
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  };
+
+  // Cronograma API
+  app.get("/api/cronograma", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT * FROM cronograma ORDER BY order_index ASC");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "cronograma");
+    }
+  });
+
+  // Reglamento API
+  app.get("/api/reglamento", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT * FROM reglamento ORDER BY order_index ASC");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "reglamento");
+    }
+  });
+
+  // Temario API
+  app.get("/api/temario", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT * FROM temario ORDER BY order_index ASC");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "temario");
+    }
+  });
+
+  // Resultados API
+  app.get("/api/resultados", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT * FROM resultados ORDER BY pos ASC");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "resultados");
+    }
+  });
+
+  // Carreras API
+  app.get("/api/carreras", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT * FROM carreras");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "carreras");
+    }
+  });
+
   // Get all registrations
   app.get("/api/registrations", async (req, res) => {
     try {
       const [rows] = await pool.query("SELECT * FROM preinscripciones ORDER BY created_at DESC");
       res.json(rows);
     } catch (error) {
-      console.error("Error fetching registrations:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+      handleDbError(res, error, "registrations");
     }
   });
 
@@ -217,8 +416,7 @@ async function startServer() {
 
       res.status(201).json({ id: insertId, status: "Pendiente" });
     } catch (error) {
-      console.error("Error creating registration:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+      handleDbError(res, error, "creating registration");
     }
   });
 
@@ -258,8 +456,7 @@ async function startServer() {
 
       res.json({ success: true });
     } catch (error) {
-      console.error("Error updating registration status:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+      handleDbError(res, error, "updating registration status");
     }
   });
 
@@ -268,19 +465,91 @@ async function startServer() {
     try {
       const { username, password } = req.body;
       const [rows] = await pool.query(
-        "SELECT username, role, full_name FROM usuarios WHERE username = ? AND password = ?",
-        [username, password]
+        "SELECT id, username, role, full_name, email FROM usuarios WHERE (username = ? OR email = ?) AND password = ?",
+        [username, username, password]
       );
 
       const users = rows as any[];
       if (users.length > 0) {
-        res.json(users[0]);
+        const user = users[0];
+        // Exact match with the provided database schema
+        res.json({
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          full_name: user.full_name,
+          email: user.email
+        });
       } else {
-        res.status(401).json({ error: "Invalid credentials" });
+        res.status(401).json({ error: "Credenciales incorrectas" });
       }
+    } catch (error: any) {
+      handleDbError(res, error, "login");
+    }
+  });
+
+  // User Management API
+  app.get("/api/users", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT id, username, role, full_name, email, created_at FROM usuarios ORDER BY created_at DESC");
+      res.json(rows);
     } catch (error) {
-      console.error("Error during login:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+      handleDbError(res, error, "fetching users");
+    }
+  });
+
+  app.post("/api/users", async (req, res) => {
+    try {
+      const { username, password, role, full_name, email } = req.body;
+      await pool.query(
+        "INSERT INTO usuarios (username, password, role, full_name, email) VALUES (?, ?, ?, ?, ?)",
+        [username, password, role, full_name, email]
+      );
+      res.status(201).json({ success: true });
+    } catch (error: any) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        res.status(400).json({ error: "El nombre de usuario ya existe" });
+      } else {
+        handleDbError(res, error, "creating user");
+      }
+    }
+  });
+
+  app.put("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { username, password, role, full_name, email } = req.body;
+      
+      if (password) {
+        await pool.query(
+          "UPDATE usuarios SET username = ?, password = ?, role = ?, full_name = ?, email = ? WHERE id = ?",
+          [username, password, role, full_name, email, id]
+        );
+      } else {
+        await pool.query(
+          "UPDATE usuarios SET username = ?, role = ?, full_name = ?, email = ? WHERE id = ?",
+          [username, role, full_name, email, id]
+        );
+      }
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "updating user");
+    }
+  });
+
+  app.delete("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      // Prevent deleting the main admin
+      const [rows]: any = await pool.query("SELECT username FROM usuarios WHERE id = ?", [id]);
+      if (rows.length > 0 && rows[0].username === 'admin') {
+        return res.status(403).json({ error: "No se puede eliminar al administrador principal" });
+      }
+      
+      await pool.query("DELETE FROM usuarios WHERE id = ?", [id]);
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "deleting user");
     }
   });
 

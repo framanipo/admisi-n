@@ -1,5 +1,5 @@
 {
-  "name": "UNIQ Admisión - Preinscripción",
-  "description": "Sistema de preinscripción para la Universidad Nacional Intercultural de Quillabamba (UNIQ), permitiendo a los postulantes registrar sus datos personales y académicos.",
+  "name": "UNIQ Admisión - Inscripción",
+  "description": "Sistema de inscripción para la Universidad Nacional Intercultural de Quillabamba (UNIQ), permitiendo a los postulantes registrar sus datos personales y académicos.",
   "requestFramePermissions": []
 }

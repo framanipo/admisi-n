@@ -1,17 +1,42 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ChevronLeft, Save, BookOpen, Edit2 } from 'lucide-react';
+import { ChevronLeft, Save, BookOpen, Edit2, Upload } from 'lucide-react';
 import { Career, DEFAULT_CAREERS } from './data/defaultCareers';
 
 export const ConfiguracionCarrerasView = ({ appSettings, onSave, onBack }: { appSettings: any, onSave: (settings: any) => void, onBack: () => void }) => {
   const [careers, setCareers] = useState<Career[]>(appSettings?.careers || DEFAULT_CAREERS);
   const [selectedId, setSelectedId] = useState<string>(careers[0]?.id);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const selectedCareer = careers.find(c => c.id === selectedId) || careers[0];
 
   const handleChange = (field: keyof Career, value: string) => {
     setCareers(prev => prev.map(c => c.id === selectedId ? { ...c, [field]: value } : c));
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        handleChange('imageUrl', data.url);
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -87,8 +112,21 @@ export const ConfiguracionCarrerasView = ({ appSettings, onSave, onBack }: { app
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-stone-500">URL de la Imagen</label>
-              <input type="text" value={selectedCareer.imageUrl} onChange={e => handleChange('imageUrl', e.target.value)} className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20" />
+              <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Imagen de la Carrera</label>
+              <div className="flex gap-4">
+                <input 
+                  type="text" 
+                  value={selectedCareer.imageUrl} 
+                  onChange={e => handleChange('imageUrl', e.target.value)} 
+                  placeholder="URL de la imagen o sube una..."
+                  className="flex-1 px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20" 
+                />
+                <label className="cursor-pointer flex items-center gap-2 px-6 py-3 bg-stone-200 text-stone-700 font-bold rounded-xl hover:bg-stone-300 transition-all">
+                  <Upload size={18} />
+                  {isUploading ? 'Subiendo...' : 'Subir'}
+                  <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isUploading} />
+                </label>
+              </div>
               {selectedCareer.imageUrl && (
                 <div className="mt-2 aspect-video w-full max-w-sm rounded-xl overflow-hidden border border-stone-200">
                   <img src={selectedCareer.imageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />

@@ -34,39 +34,45 @@ import {
   Download,
   Globe,
   Check,
-  Image
+  Image,
+  Plus,
+  Edit,
+  Trash2,
+  X
 } from 'lucide-react';
 
 // --- Types ---
 
 type Step = 'personal' | 'academic' | 'career' | 'success';
-type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion' | 'config-imagenes' | 'config-cronograma' | 'config-carreras' | 'carrera-detail';
+type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion' | 'config-imagenes' | 'config-cronograma' | 'config-carreras' | 'carrera-detail' | 'inscripcion-form' | 'user-management';
 type Role = 'admin' | 'registrador' | 'visualizador';
 
 interface UserAuth {
   username: string;
   role: Role;
+  full_name?: string;
+  email?: string;
 }
 
 interface FormData {
-  documentType: 'DNI' | 'Carnet de Extranjería';
+  tipo_documento: 'DNI' | 'Carnet de Extranjería';
   dni: string;
-  names: string;
-  paternalSurname: string;
-  maternalSurname: string;
-  birthDate: string;
-  gender: string;
-  email: string;
-  phone: string;
-  department: string;
-  province: string;
-  district: string;
-  schoolName: string;
-  schoolType: string;
-  graduationYear: string;
-  career: string;
-  modality: string;
-  indigenousPeople: string;
+  nombres: string;
+  apellido_paterno: string;
+  apellido_materno: string;
+  fecha_nacimiento: string;
+  genero: string;
+  correo: string;
+  telefono: string;
+  departamento: string;
+  provincia: string;
+  distrito: string;
+  nombre_colegio: string;
+  tipo_colegio: string;
+  anio_graduacion: string;
+  carrera: string;
+  modalidad: string;
+  pueblo_indigena: string;
 }
 
 import { ConfiguracionImagenesView } from './ConfiguracionImagenesView';
@@ -78,33 +84,33 @@ import { Career, DEFAULT_CAREERS } from './data/defaultCareers';
 import { UniqLogo } from './UniqLogo';
 
 const INITIAL_DATA: FormData = {
-  documentType: 'DNI',
+  tipo_documento: 'DNI',
   dni: '',
-  names: '',
-  paternalSurname: '',
-  maternalSurname: '',
-  birthDate: '',
-  gender: '',
-  email: '',
-  phone: '',
-  department: '',
-  province: '',
-  district: '',
-  schoolName: '',
-  schoolType: 'Estatal',
-  graduationYear: '',
-  career: '',
-  modality: 'Ordinario',
-  indigenousPeople: 'No',
+  nombres: '',
+  apellido_paterno: '',
+  apellido_materno: '',
+  fecha_nacimiento: '',
+  genero: '',
+  correo: '',
+  telefono: '',
+  departamento: '',
+  provincia: '',
+  distrito: '',
+  nombre_colegio: '',
+  tipo_colegio: 'Estatal',
+  anio_graduacion: '',
+  carrera: '',
+  modalidad: 'Ordinario',
+  pueblo_indigena: 'No',
 };
 
 const CAREERS = [
-  "Ingeniería Agronómica Tropical",
-  "Ingeniería de Alimentos",
-  "Ingeniería Civil",
+  "Ingeniería agronómica tropical",
+  "Ingeniería de alimentos",
+  "Ingeniería civil",
   "Ecoturismo",
-  "Contabilidad",
-  "Economía"
+  "Economía",
+  "Contabilidad"
 ];
 
 const MODALITIES = [
@@ -208,7 +214,7 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings }: { on
                 onClick={onPreRegister}
                 className="px-10 py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-2xl shadow-stone-900/20 flex items-center justify-center gap-2 group"
               >
-                Iniciar Preinscripción
+                Iniciar Inscripción
                 <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </button>
               <button className="px-10 py-4 bg-white text-stone-800 font-bold rounded-2xl border border-stone-200 hover:border-stone-300 transition-all flex items-center justify-center gap-2">
@@ -414,17 +420,88 @@ export default function App() {
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [appSettings, setAppSettings] = useState<any>({});
+  const [cronograma, setCronograma] = useState<any[]>([]);
+  const [reglamento, setReglamento] = useState<any[]>([]);
+  const [temario, setTemario] = useState<any[]>([]);
+  const [resultados, setResultados] = useState<any[]>([]);
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [dbStatus, setDbStatus] = useState<any>(null);
   const [selectedCareer, setSelectedCareer] = useState<Career | null>(null);
 
   const fetchSettings = useCallback(async () => {
     try {
       const response = await fetch('/api/settings');
       if (response.ok) {
-        const data = await response.json();
-        setAppSettings(data);
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await response.json();
+          setAppSettings(data);
+        }
       }
+      
+      // Fetch dynamic content from DB
+      const endpoints = [
+        { url: '/api/cronograma', setter: setCronograma, name: 'cronograma' },
+        { url: '/api/reglamento', setter: setReglamento, name: 'reglamento' },
+        { url: '/api/temario', setter: setTemario, name: 'temario' },
+        { url: '/api/resultados', setter: setResultados, name: 'resultados' }
+      ];
+
+      let hasConnectionError = false;
+      let serverIp = "34.34.229.105";
+
+      try {
+        const ipRes = await fetch('/api/my-ip');
+        if (ipRes.ok) {
+          const ipData = await ipRes.json();
+          serverIp = ipData.ip;
+        }
+      } catch (e) {
+        console.error("Error fetching server IP:", e);
+      }
+
+      await Promise.all(endpoints.map(async ({ url, setter, name }) => {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+              const data = await res.json();
+              setter(data);
+            } else {
+              hasConnectionError = true;
+            }
+          } else if (res.status === 503 || res.status === 500) {
+            hasConnectionError = true;
+          }
+        } catch (err) {
+          console.error(`Error fetching ${name}:`, err);
+          hasConnectionError = true;
+        }
+      }));
+
+      if (hasConnectionError) {
+        setDbError(`Error de Conexión: El servidor de base de datos rechaza la conexión desde esta IP (${serverIp}). Debe autorizar esta IP en cPanel (Remote MySQL).`);
+      } else {
+        setDbError(null);
+      }
+      
+      // Fetch DB status for admin
+      try {
+        const dbRes = await fetch('/api/db-status');
+        if (dbRes.ok) {
+          const status = await dbRes.json();
+          setDbStatus(status);
+        } else {
+          const err = await dbRes.json();
+          setDbStatus({ status: 'error', ...err });
+        }
+      } catch (e) {
+        setDbStatus({ status: 'error', message: 'No se pudo contactar con el backend' });
+      }
+      
     } catch (error) {
-      console.error('Error fetching settings:', error);
+      console.error('Error fetching settings or dynamic content:', error);
     }
   }, []);
 
@@ -447,7 +524,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user && (user.role === 'admin' || user.role === 'visualizador' || user.role === 'registrador')) {
+    if (user && (user.rol === 'admin' || user.rol === 'visualizador' || user.rol === 'registrador')) {
       fetchRegistrations();
     }
   }, [user, fetchRegistrations]);
@@ -457,18 +534,52 @@ export default function App() {
       const response = await fetch(`/api/registrations/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, changedBy: user?.full_name || user?.username }),
       });
       if (response.ok) {
-        setRegistrations(prev => prev.map(reg => reg.id === id ? { ...reg, estado: status } : reg));
+        setRegistrations(prev => prev.map(reg => reg.id === id ? { ...reg, estado: status, changed_by: user?.full_name || user?.username } : reg));
       }
     } catch (error) {
       console.error('Error updating status:', error);
     }
   };
 
-  const handleLogin = (username: string, role: Role) => {
-    setUser({ username, role });
+  const handlePreRegister = async (data: FormData) => {
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/registrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, changedBy: user?.full_name || user?.username }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        const newRegistration = {
+          ...data,
+          id: result.id,
+          estado: 'Pendiente',
+          changed_by: user?.full_name || user?.username,
+          created_at: new Date().toISOString()
+        };
+        
+        setRegistrations(prev => [newRegistration, ...prev]);
+        return true;
+      } else {
+        alert('Error al enviar la inscripción.');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      alert('Error de conexión con el servidor.');
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleLogin = (username: string, role: Role, full_name?: string, email?: string) => {
+    setUser({ username, role, full_name, email });
     if (role === 'admin' || role === 'visualizador') setView('admin-dashboard');
     else if (role === 'registrador') setView('preinscripcion');
     else setView('guia');
@@ -484,8 +595,8 @@ export default function App() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
-    if (name === 'documentType') {
-      setFormData(prev => ({ ...prev, documentType: value as 'DNI' | 'Carnet de Extranjería', dni: '' }));
+    if (name === 'tipo_documento') {
+      setFormData(prev => ({ ...prev, tipo_documento: value as 'DNI' | 'Carnet de Extranjería', dni: '' }));
       setErrors(prev => {
         const newErrors = { ...prev };
         delete newErrors.dni;
@@ -496,7 +607,7 @@ export default function App() {
 
     // Validar DNI o CE
     if (name === 'dni') {
-      if (formData.documentType === 'DNI') {
+      if (formData.tipo_documento === 'DNI') {
         const onlyNums = value.replace(/[^0-9]/g, '');
         if (onlyNums.length <= 8) {
           setFormData(prev => ({ ...prev, [name]: onlyNums }));
@@ -542,8 +653,8 @@ export default function App() {
 
     if (step === 'personal') {
       const requiredFields: (keyof FormData)[] = [
-        'dni', 'names', 'paternalSurname', 'maternalSurname', 
-        'birthDate', 'gender', 'email', 'phone', 'indigenousPeople'
+        'dni', 'nombres', 'apellido_paterno', 'apellido_materno', 
+        'fecha_nacimiento', 'genero', 'correo', 'telefono', 'pueblo_indigena'
       ];
       
       requiredFields.forEach(field => {
@@ -552,9 +663,9 @@ export default function App() {
         }
       });
 
-      const requiredLength = formData.documentType === 'DNI' ? 8 : 12;
+      const requiredLength = formData.tipo_documento === 'DNI' ? 8 : 12;
       if (formData.dni && formData.dni.length !== requiredLength) {
-        newErrors.dni = `El ${formData.documentType === 'DNI' ? 'DNI' : 'Carnet de Extranjería'} debe tener exactamente ${requiredLength} ${formData.documentType === 'DNI' ? 'dígitos' : 'caracteres'}`;
+        newErrors.dni = `El ${formData.tipo_documento === 'DNI' ? 'DNI' : 'Carnet de Extranjería'} debe tener exactamente ${requiredLength} ${formData.tipo_documento === 'DNI' ? 'dígitos' : 'caracteres'}`;
       }
 
       if (Object.keys(newErrors).length > 0) {
@@ -567,8 +678,8 @@ export default function App() {
     }
     else if (step === 'academic') {
       const requiredFields: (keyof FormData)[] = [
-        'schoolName', 'schoolType', 'graduationYear', 
-        'department', 'province', 'district'
+        'nombre_colegio', 'tipo_colegio', 'anio_graduacion', 
+        'departamento', 'provincia', 'distrito'
       ];
       
       requiredFields.forEach(field => {
@@ -596,7 +707,7 @@ export default function App() {
     e.preventDefault();
     
     const newErrors: Record<string, string> = {};
-    const requiredFields: (keyof FormData)[] = ['career', 'modality'];
+    const requiredFields: (keyof FormData)[] = ['carrera', 'modalidad'];
     
     requiredFields.forEach(field => {
       if (!formData[field]) {
@@ -648,6 +759,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f8f7f4] text-stone-900 font-sans selection:bg-cyan-100 selection:text-cyan-900">
+      {dbError && (
+        <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 text-center sticky top-0 z-[60]">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 flex items-center justify-center gap-2">
+            <Info size={12} />
+            {dbError}
+          </p>
+        </div>
+      )}
       {/* Header */}
       {view !== 'login' && view !== 'landing' && (
         <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
@@ -675,7 +794,7 @@ export default function App() {
                     onClick={() => setView('preinscripcion')}
                     className={`transition-colors py-2 px-3 rounded-lg ${view === 'preinscripcion' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
                   >
-                    Preinscripción
+                    Inscripción
                   </button>
                 )}
                 {(user?.role === 'admin' || user?.role === 'registrador' || user?.role === 'visualizador') && (
@@ -725,7 +844,7 @@ export default function App() {
               <div className="flex items-center gap-3">
                 <div className="text-right">
                   <p className="text-[10px] font-bold text-stone-400 uppercase leading-none">{user?.role}</p>
-                  <p className="text-xs font-bold text-stone-800">{user?.username}</p>
+                  <p className="text-xs font-bold text-stone-800">{user?.full_name || user?.username}</p>
                 </div>
                 <button 
                   onClick={handleLogout}
@@ -827,90 +946,90 @@ export default function App() {
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <SelectField
+                      <SelectField 
                         label="Tipo de Documento"
-                        name="documentType"
-                        value={formData.documentType}
+                        name="tipo_documento"
+                        value={formData.tipo_documento}
                         onChange={handleChange}
                         icon={IdCard}
                         options={['DNI', 'Carnet de Extranjería']}
                       />
                       <InputField 
-                        label={formData.documentType === 'DNI' ? "DNI" : "Carnet de Extranjería"} 
+                        label={formData.tipo_documento === 'DNI' ? "DNI" : "Carnet de Extranjería"} 
                         name="dni" 
                         value={formData.dni} 
                         onChange={handleChange} 
-                        placeholder={formData.documentType === 'DNI' ? "8 dígitos" : "12 caracteres"}
+                        placeholder={formData.tipo_documento === 'DNI' ? "8 dígitos" : "12 caracteres"}
                         icon={IdCard}
                         error={errors.dni}
-                        maxLength={formData.documentType === 'DNI' ? 8 : 12}
+                        maxLength={formData.tipo_documento === 'DNI' ? 8 : 12}
                       />
                       <InputField 
                         label="Nombres" 
-                        name="names" 
-                        value={formData.names} 
+                        name="nombres" 
+                        value={formData.nombres} 
                         onChange={handleChange} 
                         placeholder="Nombres completos"
-                        error={errors.names}
+                        error={errors.nombres}
                       />
                       <InputField 
                         label="Apellido Paterno" 
-                        name="paternalSurname" 
-                        value={formData.paternalSurname} 
+                        name="apellido_paterno" 
+                        value={formData.apellido_paterno} 
                         onChange={handleChange} 
-                        error={errors.paternalSurname}
+                        error={errors.apellido_paterno}
                       />
                       <InputField 
                         label="Apellido Materno" 
-                        name="maternalSurname" 
-                        value={formData.maternalSurname} 
+                        name="apellido_materno" 
+                        value={formData.apellido_materno} 
                         onChange={handleChange} 
-                        error={errors.maternalSurname}
+                        error={errors.apellido_materno}
                       />
                       <InputField 
                         label="Fecha de Nacimiento" 
-                        name="birthDate" 
+                        name="fecha_nacimiento" 
                         type="date" 
-                        value={formData.birthDate} 
+                        value={formData.fecha_nacimiento} 
                         onChange={handleChange} 
                         icon={Calendar}
-                        error={errors.birthDate}
+                        error={errors.fecha_nacimiento}
                       />
                       <SelectField 
                         label="Género" 
-                        name="gender" 
-                        value={formData.gender} 
+                        name="genero" 
+                        value={formData.genero} 
                         onChange={handleChange} 
                         options={["Masculino", "Femenino", "Otro"]}
-                        error={errors.gender}
+                        error={errors.genero}
                       />
                       <InputField 
                         label="Correo Electrónico" 
-                        name="email" 
+                        name="correo" 
                         type="email" 
-                        value={formData.email} 
+                        value={formData.correo} 
                         onChange={handleChange} 
                         placeholder="ejemplo@correo.com"
                         icon={Mail}
-                        error={errors.email}
+                        error={errors.correo}
                       />
                       <InputField 
                         label="Celular" 
-                        name="phone" 
-                        value={formData.phone} 
+                        name="telefono" 
+                        value={formData.telefono} 
                         onChange={handleChange} 
                         placeholder="999 999 999"
                         icon={Phone}
-                        error={errors.phone}
+                        error={errors.telefono}
                       />
                       <SelectField 
                         label="¿Pertenece a un Pueblo Andino o Amazónico?" 
-                        name="indigenousPeople" 
-                        value={formData.indigenousPeople} 
+                        name="pueblo_indigena" 
+                        value={formData.pueblo_indigena} 
                         onChange={handleChange} 
                         options={["No", "Andino", "Amazónico"]}
                         icon={Globe}
-                        error={errors.indigenousPeople}
+                        error={errors.pueblo_indigena}
                       />
                     </div>
 
@@ -952,35 +1071,35 @@ export default function App() {
                     <div className="grid grid-cols-1 gap-6">
                       <InputField 
                         label="Nombre de la Institución Educativa" 
-                        name="schoolName" 
-                        value={formData.schoolName} 
+                        name="nombre_colegio" 
+                        value={formData.nombre_colegio} 
                         onChange={handleChange} 
                         placeholder="Nombre completo del colegio"
                         icon={School}
-                        error={errors.schoolName}
+                        error={errors.nombre_colegio}
                       />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <SelectField 
                           label="Tipo de Colegio" 
-                          name="schoolType" 
-                          value={formData.schoolType} 
+                          name="tipo_colegio" 
+                          value={formData.tipo_colegio} 
                           onChange={handleChange} 
                           options={["Estatal", "Particular"]}
-                          error={errors.schoolType}
+                          error={errors.tipo_colegio}
                         />
                         <InputField 
                           label="Año de Egreso" 
-                          name="graduationYear" 
-                          value={formData.graduationYear} 
+                          name="anio_graduacion" 
+                          value={formData.anio_graduacion} 
                           onChange={handleChange} 
                           placeholder="Ej. 2024"
-                          error={errors.graduationYear}
+                          error={errors.anio_graduacion}
                         />
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <InputField label="Departamento" name="department" value={formData.department} onChange={handleChange} icon={MapPin} error={errors.department} />
-                        <InputField label="Provincia" name="province" value={formData.province} onChange={handleChange} error={errors.province} />
-                        <InputField label="Distrito" name="district" value={formData.district} onChange={handleChange} error={errors.district} />
+                        <InputField label="Departamento" name="departamento" value={formData.departamento} onChange={handleChange} icon={MapPin} error={errors.departamento} />
+                        <InputField label="Provincia" name="provincia" value={formData.provincia} onChange={handleChange} error={errors.provincia} />
+                        <InputField label="Distrito" name="distrito" value={formData.distrito} onChange={handleChange} error={errors.distrito} />
                       </div>
                     </div>
 
@@ -1031,11 +1150,11 @@ export default function App() {
                         />
                         <SelectField 
                           label="Modalidad de Admisión" 
-                          name="modality" 
-                          value={formData.modality} 
+                          name="modalidad" 
+                          value={formData.modalidad} 
                           onChange={handleChange} 
                           options={MODALITIES}
-                          error={errors.modality}
+                          error={errors.modalidad}
                         />
                       </div>
 
@@ -1044,7 +1163,7 @@ export default function App() {
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
                             <span className="text-stone-500">Postulante:</span>
-                            <span className="font-semibold">{formData.names} {formData.paternalSurname}</span>
+                            <span className="font-semibold">{formData.nombres} {formData.apellido_paterno}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-stone-500">DNI:</span>
@@ -1052,7 +1171,7 @@ export default function App() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-stone-500">Carrera:</span>
-                            <span className="font-semibold text-cyan-700">{formData.career || 'No seleccionada'}</span>
+                            <span className="font-semibold text-cyan-700">{formData.carrera || 'No seleccionada'}</span>
                           </div>
                         </div>
                       </div>
@@ -1062,7 +1181,7 @@ export default function App() {
                           <CheckCircle size={16} />
                         </div>
                         <p className="text-xs text-amber-800 leading-relaxed">
-                          Al hacer clic en "Finalizar Preinscripción", declaro que la información proporcionada es verdadera y acepto los términos y condiciones del proceso de admisión 2026.
+                          Al hacer clic en "Finalizar Inscripción", declaro que la información proporcionada es verdadera y acepto los términos y condiciones del proceso de admisión 2026.
                         </p>
                       </div>
                     </div>
@@ -1080,7 +1199,7 @@ export default function App() {
                         disabled={isSubmitting || !formData.career}
                         className={`flex items-center gap-2 px-10 py-4 bg-stone-900 text-white font-bold rounded-xl transition-all shadow-lg shadow-stone-900/20 ${isSubmitting || !formData.career ? 'opacity-50 cursor-not-allowed' : 'hover:bg-stone-800 hover:-translate-y-0.5'}`}
                       >
-                        {isSubmitting ? 'Procesando...' : 'Finalizar Preinscripción'}
+                        {isSubmitting ? 'Procesando...' : 'Finalizar Inscripción'}
                       </button>
                     </div>
                   </motion.div>
@@ -1096,7 +1215,7 @@ export default function App() {
                     <div className="w-20 h-20 bg-cyan-100 text-cyan-600 rounded-full flex items-center justify-center mx-auto mb-8">
                       <CheckCircle size={40} />
                     </div>
-                    <h2 className="text-3xl font-bold text-stone-800 mb-4">¡Preinscripción Exitosa!</h2>
+                    <h2 className="text-3xl font-bold text-stone-800 mb-4">¡Inscripción Exitosa!</h2>
                     <p className="text-stone-600 mb-8 max-w-md mx-auto">
                       Tu registro ha sido procesado correctamente. Hemos enviado un correo de confirmación a <span className="font-bold text-stone-800">{formData.email}</span> con los siguientes pasos.
                     </p>
@@ -1126,23 +1245,44 @@ export default function App() {
             </>
           )}
         </motion.div>
+          ) : view === 'user-management' ? (
+            <UserManagementView onBack={() => setView('admin-dashboard')} />
           ) : view === 'control-preinscripcion' ? (
             <ControlPreinscripcionView 
               registrations={registrations} 
               onUpdateStatus={updateRegistrationStatus}
               userRole={user?.role}
               onBack={() => setView(user?.role === 'admin' ? 'admin-dashboard' : 'guia')}
+              onNewInscripcion={() => setView('inscripcion-form')}
+            />
+          ) : view === 'inscripcion-form' ? (
+            <InscripcionAdminFormView 
+              onSave={async (data) => {
+                await handlePreRegister(data);
+                setView('control-preinscripcion');
+              }}
+              onBack={() => setView('control-preinscripcion')}
+              currentUser={user}
             />
           ) : view === 'cronograma' ? (
-            <CronogramaView key="cronograma-view" appSettings={appSettings} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
+            <CronogramaView key="cronograma-view" cronograma={cronograma} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'reglamento' ? (
-            <ReglamentoView key="reglamento-view" onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
+            <ReglamentoView key="reglamento-view" reglamento={reglamento} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'temario' ? (
-            <TemarioView key="temario-view" onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
+            <TemarioView key="temario-view" temario={temario} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'resultados' ? (
-            <ResultadosView key="resultados-view" isAdmin={user?.role === 'admin'} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
+            <ResultadosView key="resultados-view" resultados={resultados} isAdmin={user?.role === 'admin'} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'admin-dashboard' ? (
-            <AdminDashboardView registrations={registrations} userRole={user?.role} onBack={() => setView('guia')} onConfigImages={() => setView('config-imagenes')} onConfigCronograma={() => setView('config-cronograma')} onConfigCarreras={() => setView('config-carreras')} />
+            <AdminDashboardView 
+              registrations={registrations} 
+              userRole={user?.role} 
+              dbStatus={dbStatus}
+              onBack={() => setView('guia')} 
+              onConfigImages={() => setView('config-imagenes')} 
+              onConfigCronograma={() => setView('config-cronograma')} 
+              onConfigCarreras={() => setView('config-carreras')} 
+              onConfigUsers={() => setView('user-management')}
+            />
           ) : view === 'config-imagenes' ? (
             <ConfiguracionImagenesView 
               appSettings={appSettings} 
@@ -1151,8 +1291,8 @@ export default function App() {
             />
           ) : view === 'config-cronograma' ? (
             <ConfiguracionCronogramaView 
-              appSettings={appSettings} 
-              onSave={(newSettings) => setAppSettings(newSettings)} 
+              cronograma={cronograma} 
+              onSave={() => fetchSettings()} 
               onBack={() => setView('admin-dashboard')} 
             />
           ) : view === 'config-carreras' ? (
@@ -1228,7 +1368,7 @@ export default function App() {
                 <h3 className="text-2xl font-bold mb-10 text-center">Pasos para tu Inscripción</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                   {[
-                    { step: "01", title: "Preinscripción", desc: "Completa el formulario web con tus datos." },
+                    { step: "01", title: "Inscripción", desc: "Completa el formulario web con tus datos." },
                     { step: "02", title: "Pago", desc: "Realiza el pago en el Banco de la Nación." },
                     { step: "03", title: "Validación", desc: "Sube tu voucher y documentos al sistema." },
                     { step: "04", title: "Carnet", desc: "Descarga tu carnet de postulante." }
@@ -1370,9 +1510,9 @@ export default function App() {
 
 // --- New Sub-Views ---
 
-const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void, onBack: () => void, key?: string }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+const LoginView = ({ onLogin, onBack }: { onLogin: (nu: string, r: Role, nc?: string, c?: string) => void, onBack: () => void, key?: string }) => {
+  const [nombre_usuario, setNombreUsuario] = useState('');
+  const [contrasena, setContrasena] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1385,19 +1525,29 @@ const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void,
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: nombre_usuario, password: contrasena }),
       });
 
       if (response.ok) {
-        const user = await response.json();
-        onLogin(user.username, user.role);
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const user = await response.json();
+          onLogin(user.username, user.role, user.full_name, user.email);
+        } else {
+          setError(`Respuesta inesperada: Status ${response.status}, Content-Type: ${contentType || 'desconocido'}.`);
+        }
       } else {
-        const data = await response.json();
-        setError(data.error || 'Credenciales incorrectas');
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await response.json();
+          setError(data.details || data.error || 'Credenciales incorrectas');
+        } else {
+          setError('Error de conexión con el servidor de base de datos.');
+        }
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      setError('Error de conexión: Tiempo de espera agotado (Timeout). Verifique que el servidor de base de datos permita conexiones externas en el puerto 3306.');
+      setError('No se pudo conectar con el servidor. Verifique su conexión a internet o intente más tarde.');
     } finally {
       setIsLoggingIn(false);
     }
@@ -1411,9 +1561,7 @@ const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void,
         className="w-full max-w-md bg-white p-10 rounded-[2.5rem] shadow-2xl border border-stone-100"
       >
         <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-cyan-700 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-xl shadow-cyan-900/20">
-            U
-          </div>
+          <UniqLogo className="w-20 h-20 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-stone-800">Sistema de Admisión</h2>
           <p className="text-stone-400 text-sm mt-1">Universidad Nacional Intercultural de Quillabamba</p>
         </div>
@@ -1435,8 +1583,8 @@ const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void,
               <input 
                 type="text" 
                 required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={nombre_usuario}
+                onChange={(e) => setNombreUsuario(e.target.value)}
                 className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
                 placeholder="Nombre de usuario"
               />
@@ -1450,8 +1598,8 @@ const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void,
               <input 
                 type="password" 
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={contrasena}
+                onChange={(e) => setContrasena(e.target.value)}
                 className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
                 placeholder="••••••••"
               />
@@ -1488,7 +1636,7 @@ const LoginView = ({ onLogin, onBack }: { onLogin: (u: string, r: Role) => void,
   );
 };
 
-const CronogramaView = ({ onBack, appSettings, key }: { onBack: () => void, appSettings: any, key?: string }) => (
+const CronogramaView = ({ onBack, cronograma, key }: { onBack: () => void, cronograma: any[], key?: string }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
@@ -1502,17 +1650,17 @@ const CronogramaView = ({ onBack, appSettings, key }: { onBack: () => void, appS
       </div>
 
       <div className="space-y-4">
-        {(appSettings?.cronograma || DEFAULT_CRONOGRAMA).map((item: any, i: number) => (
+        {(cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA).map((item: any, i: number) => (
           <div key={i} className="flex items-center justify-between p-5 bg-stone-50 rounded-2xl border border-stone-100 hover:border-blue-200 transition-all">
             <div className="flex items-center gap-4">
-              <div className={`w-2 h-2 rounded-full ${item.status === 'activo' ? 'bg-cyan-500 animate-pulse' : item.status === 'completado' ? 'bg-stone-300' : 'bg-blue-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${item.estado === 'activo' ? 'bg-cyan-500 animate-pulse' : item.estado === 'completado' ? 'bg-stone-300' : 'bg-blue-400'}`} />
               <div>
-                <p className="font-bold text-stone-800">{item.event}</p>
-                <p className="text-xs text-stone-500">{item.date}</p>
+                <p className="font-bold text-stone-800">{item.evento}</p>
+                <p className="text-xs text-stone-500">{item.fecha}</p>
               </div>
             </div>
-            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.status === 'activo' ? 'bg-cyan-100 text-cyan-700' : item.status === 'completado' ? 'bg-stone-200 text-stone-500' : 'bg-blue-50 text-blue-600'}`}>
-              {item.status}
+            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.estado === 'activo' ? 'bg-cyan-100 text-cyan-700' : item.estado === 'completado' ? 'bg-stone-200 text-stone-500' : 'bg-blue-50 text-blue-600'}`}>
+              {item.estado}
             </span>
           </div>
         ))}
@@ -1531,7 +1679,7 @@ const CronogramaView = ({ onBack, appSettings, key }: { onBack: () => void, appS
   </motion.div>
 );
 
-const ReglamentoView = ({ onBack, key }: { onBack: () => void, key?: string }) => (
+const ReglamentoView = ({ onBack, reglamento, key }: { onBack: () => void, reglamento: any[], key?: string }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
@@ -1545,22 +1693,33 @@ const ReglamentoView = ({ onBack, key }: { onBack: () => void, key?: string }) =
       </div>
 
       <div className="prose prose-stone max-w-none space-y-6 text-stone-600">
-        <section className="space-y-3">
-          <h3 className="text-lg font-bold text-stone-800">Capítulo I: De la Inscripción</h3>
-          <p className="text-sm leading-relaxed">Art. 15: El postulante es responsable de la veracidad de los datos consignados en su ficha de preinscripción. Cualquier falsedad detectada anulará automáticamente su participación sin derecho a reclamo.</p>
-          <p className="text-sm leading-relaxed">Art. 16: El pago por derecho de examen no es reembolsable ni transferible a otros procesos o personas.</p>
-        </section>
+        {reglamento.length > 0 ? (
+          reglamento.map((item: any, i: number) => (
+            <section key={i} className="space-y-3">
+              <h3 className="text-lg font-bold text-stone-800">{item.capitulo}: {item.titulo}</h3>
+              <p className="text-sm leading-relaxed">{item.contenido}</p>
+            </section>
+          ))
+        ) : (
+          <>
+            <section className="space-y-3">
+              <h3 className="text-lg font-bold text-stone-800">Capítulo I: De la Inscripción</h3>
+              <p className="text-sm leading-relaxed">Art. 15: El postulante es responsable de la veracidad de los datos consignados en su ficha de preinscripción. Cualquier falsedad detectada anulará automáticamente su participación sin derecho a reclamo.</p>
+              <p className="text-sm leading-relaxed">Art. 16: El pago por derecho de examen no es reembolsable ni transferible a otros procesos o personas.</p>
+            </section>
 
-        <section className="space-y-3">
-          <h3 className="text-lg font-bold text-stone-800">Capítulo II: Del Examen</h3>
-          <p className="text-sm leading-relaxed">Art. 22: El ingreso al campus universitario se realizará estrictamente entre las 07:00 y 08:30 horas. No habrá tolerancia bajo ninguna circunstancia.</p>
-          <p className="text-sm leading-relaxed">Art. 25: Está prohibido el ingreso con celulares, relojes inteligentes, calculadoras, gorras, aretes o cualquier objeto metálico.</p>
-        </section>
+            <section className="space-y-3">
+              <h3 className="text-lg font-bold text-stone-800">Capítulo II: Del Examen</h3>
+              <p className="text-sm leading-relaxed">Art. 22: El ingreso al campus universitario se realizará estrictamente entre las 07:00 y 08:30 horas. No habrá tolerancia bajo ninguna circunstancia.</p>
+              <p className="text-sm leading-relaxed">Art. 25: Está prohibido el ingreso con celulares, relojes inteligentes, calculadoras, gorras, aretes o cualquier objeto metálico.</p>
+            </section>
 
-        <section className="space-y-3">
-          <h3 className="text-lg font-bold text-stone-800">Capítulo III: De la Calificación</h3>
-          <p className="text-sm leading-relaxed">Art. 40: El sistema de calificación es por procesamiento óptico. No hay lugar a revisión de tarjetas de respuestas.</p>
-        </section>
+            <section className="space-y-3">
+              <h3 className="text-lg font-bold text-stone-800">Capítulo III: De la Calificación</h3>
+              <p className="text-sm leading-relaxed">Art. 40: El sistema de calificación es por procesamiento óptico. No hay lugar a revisión de tarjetas de respuestas.</p>
+            </section>
+          </>
+        )}
       </div>
 
       <div className="mt-10 p-6 bg-stone-900 text-white rounded-3xl flex items-center justify-between">
@@ -1584,7 +1743,7 @@ const ReglamentoView = ({ onBack, key }: { onBack: () => void, key?: string }) =
   </motion.div>
 );
 
-const TemarioView = ({ onBack, key }: { onBack: () => void, key?: string }) => (
+const TemarioView = ({ onBack, temario, key }: { onBack: () => void, temario: any[], key?: string }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
@@ -1598,29 +1757,48 @@ const TemarioView = ({ onBack, key }: { onBack: () => void, key?: string }) => (
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {[
-          { title: "Razonamiento Verbal", topics: ["Sinónimos y Antónimos", "Analogías", "Comprensión de Lectura", "Conectores Lógicos"] },
-          { title: "Razonamiento Matemático", topics: ["Sucesiones y Series", "Planteo de Ecuaciones", "Áreas y Perímetros", "Probabilidades"] },
-          { title: "Matemática", topics: ["Álgebra", "Aritmética", "Geometría", "Trigonometría"] },
-          { title: "Comunicación", topics: ["Lenguaje y Literatura", "Ortografía", "Gramática", "Redacción"] },
-          { title: "Ciencia y Tecnología", topics: ["Física", "Química", "Biología", "Ecología"] },
-          { title: "Ciencias Sociales", topics: ["Historia del Perú", "Geografía", "Economía", "Cívica"] },
-        ].map((area, i) => (
-          <div key={i} className="p-6 bg-stone-50 rounded-3xl border border-stone-100">
-            <h3 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-amber-500" />
-              {area.title}
-            </h3>
-            <ul className="space-y-2">
-              {area.topics.map((t, j) => (
-                <li key={j} className="text-sm text-stone-500 flex items-center gap-2">
-                  <ChevronRight size={12} className="text-stone-300" />
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        {temario.length > 0 ? (
+          temario.map((area, i) => (
+            <div key={i} className="p-6 bg-stone-50 rounded-3xl border border-stone-100">
+              <h3 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
+                {area.area}
+              </h3>
+              <ul className="space-y-2">
+                {(area.topicos || '').split('\n').map((t: string, j: number) => (
+                  <li key={j} className="text-sm text-stone-500 flex items-center gap-2">
+                    <ChevronRight size={12} className="text-stone-300" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        ) : (
+          [
+            { title: "Razonamiento Verbal", topics: ["Sinónimos y Antónimos", "Analogías", "Comprensión de Lectura", "Conectores Lógicos"] },
+            { title: "Razonamiento Matemático", topics: ["Sucesiones y Series", "Planteo de Ecuaciones", "Áreas y Perímetros", "Probabilidades"] },
+            { title: "Matemática", topics: ["Álgebra", "Aritmética", "Geometría", "Trigonometría"] },
+            { title: "Comunicación", topics: ["Lenguaje y Literatura", "Ortografía", "Gramática", "Redacción"] },
+            { title: "Ciencia y Tecnología", topics: ["Física", "Química", "Biología", "Ecología"] },
+            { title: "Ciencias Sociales", topics: ["Historia del Perú", "Geografía", "Economía", "Cívica"] },
+          ].map((area, i) => (
+            <div key={i} className="p-6 bg-stone-50 rounded-3xl border border-stone-100">
+              <h3 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
+                {area.title}
+              </h3>
+              <ul className="space-y-2">
+                {area.topics.map((t, j) => (
+                  <li key={j} className="text-sm text-stone-500 flex items-center gap-2">
+                    <ChevronRight size={12} className="text-stone-300" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="mt-10 pt-8 border-t border-stone-100">
@@ -1636,10 +1814,20 @@ const TemarioView = ({ onBack, key }: { onBack: () => void, key?: string }) => (
   </motion.div>
 );
 
-const ResultadosView = ({ isAdmin, onBack }: { isAdmin: boolean, onBack: () => void, key?: string }) => {
+const ResultadosView = ({ isAdmin, resultados, onBack, key }: { isAdmin: boolean, resultados: any[], onBack: () => void, key?: string }) => {
   const [search, setSearch] = useState('');
   const [uploading, setUploading] = useState(false);
   const [pdfFile, setPdfFile] = useState<string | null>(null);
+
+  const filteredResults = (resultados.length > 0 ? resultados : [
+    { posicion: 1, nombre: "GARCIA LOPEZ, MARCO", puntaje: "18.450", estado: "Ingresó" },
+    { posicion: 2, nombre: "QUISPE MAMANI, ELENA", puntaje: "17.920", estado: "Ingresó" },
+    { posicion: 3, nombre: "HUAMAN ROJAS, JORGE", puntaje: "17.100", estado: "Ingresó" },
+    { posicion: 4, nombre: "TORRES VELA, LUCIA", puntaje: "16.850", estado: "No Ingresó" },
+  ]).filter(r => 
+    r.nombre.toLowerCase().includes(search.toLowerCase()) || 
+    (r.dni && r.dni.includes(search))
+  );
 
   const handleUpload = () => {
     setUploading(true);
@@ -1716,25 +1904,20 @@ const ResultadosView = ({ isAdmin, onBack }: { isAdmin: boolean, onBack: () => v
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Estado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-100">
-              {[
-                { pos: 1, name: "GARCIA LOPEZ, MARCO", score: "18.450", status: "Ingresó" },
-                { pos: 2, name: "QUISPE MAMANI, ELENA", score: "17.920", status: "Ingresó" },
-                { pos: 3, name: "HUAMAN ROJAS, JORGE", score: "17.100", status: "Ingresó" },
-                { pos: 4, name: "TORRES VELA, LUCIA", score: "16.850", status: "No Ingresó" },
-              ].map((res, i) => (
-                <tr key={i} className="hover:bg-stone-50 transition-colors">
-                  <td className="p-4 font-mono font-bold text-stone-400">#{res.pos}</td>
-                  <td className="p-4 font-bold text-stone-800">{res.name}</td>
-                  <td className="p-4 font-mono text-cyan-700 font-bold">{res.score}</td>
-                  <td className="p-4">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${res.status === 'Ingresó' ? 'bg-cyan-100 text-cyan-700' : 'bg-red-50 text-red-600'}`}>
-                      {res.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+              <tbody className="divide-y divide-stone-100">
+                {filteredResults.map((res, i) => (
+                  <tr key={i} className="hover:bg-stone-50 transition-colors">
+                    <td className="p-4 font-mono font-bold text-stone-400">#{res.posicion}</td>
+                    <td className="p-4 font-bold text-stone-800">{res.nombre}</td>
+                    <td className="p-4 font-mono text-cyan-700 font-bold">{res.puntaje}</td>
+                    <td className="p-4">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${res.estado === 'Ingresó' ? 'bg-cyan-100 text-cyan-700' : 'bg-red-50 text-red-600'}`}>
+                        {res.estado}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
           </table>
         </div>
 
@@ -1752,7 +1935,7 @@ const ResultadosView = ({ isAdmin, onBack }: { isAdmin: boolean, onBack: () => v
   );
 };
 
-const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, onBack }: { registrations: any[], onUpdateStatus: (id: string, status: string) => void, userRole?: string, onBack: () => void }) => {
+const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, onBack, onNewInscripcion }: { registrations: any[], onUpdateStatus: (id: string, status: string) => void, userRole?: string, onBack: () => void, onNewInscripcion: () => void }) => {
   const [search, setSearch] = useState('');
   
   const filteredApplicants = registrations.filter(app => 
@@ -1764,14 +1947,25 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
-            <ListChecks size={24} />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
+              <ListChecks size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-stone-800">Control de Inscripciones</h2>
+              <p className="text-stone-500">Gestión y validación de postulantes inscritos.</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-bold text-stone-800">Control de Preinscripciones</h2>
-            <p className="text-stone-500">Gestión y validación de postulantes registrados.</p>
-          </div>
+          {userRole !== 'visualizador' && (
+            <button 
+              onClick={onNewInscripcion}
+              className="flex items-center gap-2 px-6 py-3 bg-stone-900 text-white rounded-2xl font-bold text-sm hover:bg-stone-800 transition-all shadow-lg shadow-stone-900/20"
+            >
+              <User size={18} />
+              Nueva Inscripción
+            </button>
+          )}
         </div>
 
         <div className="relative mb-8">
@@ -1795,6 +1989,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Carrera</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Pueblo</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Estado</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Modificado por</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Acciones</th>
               </tr>
             </thead>
@@ -1815,6 +2010,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
                       {app.estado}
                     </span>
                   </td>
+                  <td className="p-4 text-[10px] text-stone-500 font-medium italic">{app.modificado_por || 'Postulante'}</td>
                   <td className="p-4">
                     <div className="flex gap-2">
                       {app.estado === 'Pendiente' && userRole !== 'visualizador' && (
@@ -1861,14 +2057,14 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
   );
 };
 
-const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, onConfigCronograma, onConfigCarreras }: { registrations: any[], userRole?: string, onBack: () => void, onConfigImages: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void }) => {
+const AdminDashboardView = ({ registrations, userRole, dbStatus, onBack, onConfigImages, onConfigCronograma, onConfigCarreras, onConfigUsers }: { registrations: any[], userRole?: string, dbStatus?: any, onBack: () => void, onConfigImages: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void }) => {
   const total = registrations.length;
   const validated = registrations.filter(r => r.estado === 'Validado').length;
   const pending = registrations.filter(r => r.estado === 'Pendiente').length;
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
         <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
           <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Total Postulantes</p>
           <p className="text-4xl font-bold text-stone-800">{total.toLocaleString()}</p>
@@ -1891,6 +2087,18 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
             Por revisar
           </div>
         </div>
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Estado Base de Datos</p>
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full ${dbStatus?.status === 'connected' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]'}`} />
+            <p className={`text-xl font-bold ${dbStatus?.status === 'connected' ? 'text-emerald-600' : 'text-red-600'}`}>
+              {dbStatus?.status === 'connected' ? 'En Línea' : 'Error'}
+            </p>
+          </div>
+          <div className="mt-4 text-[10px] text-stone-400 font-bold uppercase tracking-tight">
+            {dbStatus?.status === 'connected' ? `${dbStatus.host}:${dbStatus.port}` : (dbStatus?.code || 'Desconectado')}
+          </div>
+        </div>
       </div>
 
       {userRole !== 'visualizador' && (
@@ -1900,7 +2108,7 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
             {[
               { icon: UploadCloud, label: "Subir Resultados", color: "bg-blue-50 text-blue-600" },
               { icon: FileText, label: "Reporte de Pagos", color: "bg-cyan-50 text-cyan-600" },
-              { icon: User, label: "Gestionar Usuarios", color: "bg-purple-50 text-purple-600" },
+              { icon: User, label: "Gestionar Usuarios", color: "bg-purple-50 text-purple-600", action: onConfigUsers },
               { icon: Info, label: "Editar Reglamento", color: "bg-amber-50 text-amber-600" },
               { icon: Image, label: "Configurar Inicio", color: "bg-pink-50 text-pink-600", action: onConfigImages },
               { icon: BookOpen, label: "Configurar Carreras", color: "bg-purple-50 text-purple-600", action: onConfigCarreras },
@@ -1926,6 +2134,460 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
           Volver
         </button>
       </div>
+    </motion.div>
+  );
+};
+
+const InscripcionAdminFormView = ({ onSave, onBack, currentUser }: { onSave: (data: FormData) => void, onBack: () => void, currentUser?: UserAuth }) => {
+  const [formData, setFormData] = useState<FormData>(INITIAL_DATA);
+  const [loading, setLoading] = useState(false);
+
+  const handleDniChange = async (dni: string) => {
+    setFormData(prev => ({ ...prev, dni }));
+    if (dni.length === 8) {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/registrations/dni/${dni}`);
+        if (response.ok) {
+          const data = await response.json();
+          setFormData({
+            tipo_documento: 'DNI',
+            dni: data.dni,
+            nombres: data.nombres,
+            apellido_paterno: data.apellido_paterno,
+            apellido_materno: data.apellido_materno,
+            fecha_nacimiento: data.fecha_nacimiento ? data.fecha_nacimiento.split('T')[0] : '',
+            genero: data.genero,
+            correo: data.correo,
+            telefono: data.telefono,
+            departamento: data.departamento,
+            provincia: data.provincia,
+            distrito: data.distrito,
+            nombre_colegio: data.colegio_nombre,
+            tipo_colegio: data.colegio_tipo,
+            anio_graduacion: data.anio_egreso?.toString() || '',
+            carrera: data.carrera,
+            modalidad: data.modalidad,
+            pueblo_indigena: data.pueblo_indigena,
+          });
+        }
+      } catch (e) {
+        console.error("Error fetching pre-registration:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-stone-900 text-white rounded-2xl flex items-center justify-center">
+              <User size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-stone-800">Nueva Inscripción</h2>
+              <p className="text-stone-500">Registro manual de postulantes por {currentUser?.full_name || currentUser?.username}.</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Operador</p>
+            <p className="text-sm font-bold text-stone-800">{currentUser?.full_name || currentUser?.username}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">DNI del Postulante</label>
+              <div className="relative">
+                <IdCard className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+                <input 
+                  type="text" 
+                  maxLength={8}
+                  value={formData.dni}
+                  onChange={(e) => handleDniChange(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
+                  placeholder="Ingrese DNI para cargar datos"
+                />
+                {loading && (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                    <div className="w-4 h-4 border-2 border-stone-200 border-t-cyan-500 rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombres</label>
+                <input 
+                  type="text" 
+                  value={formData.nombres}
+                  onChange={(e) => setFormData({...formData, nombres: e.target.value})}
+                  className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Apellido Paterno</label>
+                <input 
+                  type="text" 
+                  value={formData.apellido_paterno}
+                  onChange={(e) => setFormData({...formData, apellido_paterno: e.target.value})}
+                  className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Carrera</label>
+              <select 
+                value={formData.carrera}
+                onChange={(e) => setFormData({...formData, carrera: e.target.value})}
+                className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none"
+              >
+                <option value="">Seleccione Carrera</option>
+                {DEFAULT_CAREERS.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-6 bg-stone-50 p-6 rounded-[2rem] border border-stone-100">
+            <h3 className="text-sm font-bold text-stone-800 uppercase tracking-widest mb-4">Información Adicional</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Teléfono</label>
+                <input 
+                  type="text" 
+                  value={formData.telefono}
+                  onChange={(e) => setFormData({...formData, telefono: e.target.value})}
+                  className="w-full px-4 py-3 bg-white border border-stone-200 rounded-2xl outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Email</label>
+                <input 
+                  type="email" 
+                  value={formData.correo}
+                  onChange={(e) => setFormData({...formData, correo: e.target.value})}
+                  className="w-full px-4 py-3 bg-white border border-stone-200 rounded-2xl outline-none"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Modalidad</label>
+              <select 
+                value={formData.modalidad}
+                onChange={(e) => setFormData({...formData, modalidad: e.target.value})}
+                className="w-full px-4 py-3 bg-white border border-stone-200 rounded-2xl outline-none"
+              >
+                <option value="Ordinario">Ordinario</option>
+                <option value="Extraordinario">Extraordinario</option>
+                <option value="CEPRE">CEPRE</option>
+              </select>
+            </div>
+            <div className="pt-4">
+              <button 
+                onClick={() => onSave(formData)}
+                className="w-full py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-xl shadow-stone-900/20"
+              >
+                Registrar Inscripción
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-10 pt-8 border-t border-stone-100">
+          <button 
+            onClick={onBack}
+            className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all"
+          >
+            <ChevronLeft size={18} />
+            Volver
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const UserManagementView = ({ onBack }: { onBack: () => void }) => {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    username: '',
+    password: '',
+    role: 'visualizador' as Role,
+    full_name: '',
+    email: ''
+  });
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/users');
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const handleOpenModal = (user: any | null = null) => {
+    if (user) {
+      setEditingUser(user);
+      setFormData({
+        username: user.username,
+        password: '', // Don't show password
+        role: user.role,
+        full_name: user.full_name || '',
+        email: user.email || ''
+      });
+    } else {
+      setEditingUser(null);
+      setFormData({
+        username: '',
+        password: '',
+        role: 'visualizador',
+        full_name: '',
+        email: ''
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async () => {
+    const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
+    const method = editingUser ? 'PUT' : 'POST';
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      if (response.ok) {
+        setIsModalOpen(false);
+        fetchUsers();
+      } else {
+        const data = await response.json();
+        alert(data.error || "Error al guardar usuario");
+      }
+    } catch (error) {
+      console.error("Error saving user:", error);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("¿Está seguro de eliminar este usuario?")) return;
+
+    try {
+      const response = await fetch(`/api/users/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        fetchUsers();
+      } else {
+        const data = await response.json();
+        alert(data.error || "Error al eliminar usuario");
+      }
+    } catch (error) {
+      console.error("Error deleting user:", error);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center">
+              <User size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-stone-800">Gestión de Usuarios</h2>
+              <p className="text-stone-500">Administración de accesos y roles del sistema.</p>
+            </div>
+          </div>
+
+          <button 
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 px-6 py-3 bg-stone-900 text-white rounded-2xl font-bold text-sm hover:bg-stone-800 transition-all shadow-lg shadow-stone-900/20"
+          >
+            <Plus size={18} />
+            Nuevo Usuario
+          </button>
+        </div>
+
+        <div className="overflow-hidden rounded-3xl border border-stone-100">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-stone-50">
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Usuario</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Nombre Completo</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Email</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Rol</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="p-12 text-center text-stone-400 text-sm">Cargando usuarios...</td>
+                </tr>
+              ) : users.map((u) => (
+                <tr key={u.id} className="hover:bg-stone-50 transition-colors">
+                  <td className="p-4 font-bold text-stone-800">{u.username}</td>
+                  <td className="p-4 text-sm text-stone-600">{u.full_name || '-'}</td>
+                  <td className="p-4 text-sm text-stone-600">{u.email || '-'}</td>
+                  <td className="p-4">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                      u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 
+                      u.role === 'registrador' ? 'bg-cyan-100 text-cyan-700' : 
+                      'bg-stone-100 text-stone-600'
+                    }`}>
+                      {u.role}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button 
+                        onClick={() => handleOpenModal(u)}
+                        className="p-2 text-stone-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      {u.username !== 'admin' && (
+                        <button 
+                          onClick={() => handleDelete(u.id)}
+                          className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-10 pt-8 border-t border-stone-100">
+          <button 
+            onClick={onBack}
+            className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all"
+          >
+            <ChevronLeft size={18} />
+            Volver al Dashboard
+          </button>
+        </div>
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden"
+          >
+            <div className="p-8 border-b border-stone-100 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-stone-800">
+                {editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}
+              </h3>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="p-2 text-stone-400 hover:text-stone-600 rounded-full transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Usuario</label>
+                  <input 
+                    type="text" 
+                    value={formData.username}
+                    onChange={(e) => setFormData({...formData, username: e.target.value})}
+                    className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                    placeholder="Username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Contraseña</label>
+                  <input 
+                    type="password" 
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                    placeholder={editingUser ? "Dejar en blanco para no cambiar" : "Password"}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre Completo</label>
+                <input 
+                  type="text" 
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({...formData, full_name: e.target.value})}
+                  className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                  placeholder="Nombre completo"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Email</label>
+                <input 
+                  type="email" 
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                  placeholder="email@example.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Rol</label>
+                <select 
+                  value={formData.role}
+                  onChange={(e) => setFormData({...formData, role: e.target.value as Role})}
+                  className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                >
+                  <option value="admin">Administrador</option>
+                  <option value="registrador">Registrador</option>
+                  <option value="visualizador">Visualizador</option>
+                </select>
+              </div>
+
+              <div className="pt-4">
+                <button 
+                  onClick={handleSave}
+                  className="w-full py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-xl shadow-stone-900/20"
+                >
+                  {editingUser ? 'Guardar Cambios' : 'Crear Usuario'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </motion.div>
   );
 };
