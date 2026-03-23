@@ -95,7 +95,13 @@ interface FormData {
   tipoComunidad: string;
   nombreApoderado: string;
   celularApoderado: string;
+  hasSpecialConditions: boolean;
   discapacidad: boolean;
+  conadisNumber: string;
+  isDeportista: boolean;
+  isVictimaViolencia: boolean;
+  isServicioMilitar: boolean;
+  isPrimerosPuestos: boolean;
 }
 
 import { ConfiguracionImagenesView } from './ConfiguracionImagenesView';
@@ -107,6 +113,9 @@ import { CarreraDetailView } from './CarreraDetailView';
 import { Career, DEFAULT_CAREERS } from './data/defaultCareers';
 
 import { UniqLogo } from './UniqLogo';
+
+const CURRENT_YEAR = new Date().getFullYear();
+const GRADUATION_YEARS = Array.from({ length: 100 }, (_, i) => (CURRENT_YEAR - i).toString());
 
 const INITIAL_DATA: FormData = {
   documentType: 'DNI',
@@ -123,7 +132,7 @@ const INITIAL_DATA: FormData = {
   district: '',
   schoolName: '',
   schoolType: 'Estatal',
-  graduationYear: '2025',
+  graduationYear: CURRENT_YEAR.toString(),
   career: '',
   modality: 'EXAMEN ORDINARIO 2026',
   indigenousPeople: 'AMAZÓNICO',
@@ -145,7 +154,13 @@ const INITIAL_DATA: FormData = {
   tipoComunidad: '',
   nombreApoderado: '',
   celularApoderado: '',
+  hasSpecialConditions: false,
   discapacidad: false,
+  conadisNumber: '',
+  isDeportista: false,
+  isVictimaViolencia: false,
+  isServicioMilitar: false,
+  isPrimerosPuestos: false,
 };
 
 const CAREERS = [
@@ -1607,8 +1622,20 @@ const PreinscripcionForm: React.FC<{
       ['Dirección', formData.procedenciaDireccion],
       ['Apoderado', formData.nombreApoderado],
       ['Celular Apoderado', formData.celularApoderado],
-      ['Discapacidad', formData.discapacidad ? 'Sí' : 'No'],
     ];
+
+    if (formData.hasSpecialConditions) {
+      const conditions = [];
+      if (formData.discapacidad) conditions.push(`Discapacidad (CONADIS: ${formData.conadisNumber || 'N/A'})`);
+      if (formData.isDeportista) conditions.push('Deportista Calificado');
+      if (formData.isVictimaViolencia) conditions.push('Víctima de Violencia');
+      if (formData.isServicioMilitar) conditions.push('Servicio Militar');
+      if (formData.isPrimerosPuestos) conditions.push('Primeros Puestos');
+      
+      data.push(['Condiciones Especiales', conditions.length > 0 ? conditions.join(', ') : 'Sí (Sin especificar)']);
+    } else {
+      data.push(['Condiciones Especiales', 'Ninguna']);
+    }
 
     autoTable(doc, {
       startY: 50,
@@ -1780,7 +1807,7 @@ const PreinscripcionForm: React.FC<{
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <InputField label="Email" name="email" value={formData.email} onChange={handleChange} error={errors.email} />
                 <InputField label="Teléfono" name="phone" value={formData.phone} onChange={handleChange} error={errors.phone} />
-                <SelectField label="Año Egreso" name="graduationYear" value={formData.graduationYear} onChange={handleChange} options={['2025', '2024', '2023', '2022', '2021']} />
+                <SelectField label="Año Egreso" name="graduationYear" value={formData.graduationYear} onChange={handleChange} options={GRADUATION_YEARS} />
                 <InputField label="Nombre Apoderado" name="nombreApoderado" value={formData.nombreApoderado} onChange={handleChange} />
                 <InputField label="Celular Apoderado" name="celularApoderado" value={formData.celularApoderado} onChange={handleChange} />
                 <SelectField label="Idioma" name="idioma" value={formData.idioma} onChange={handleChange} options={['QUECHUA', 'MATSIGUENKA', 'CASTELLANO']} />
@@ -1809,9 +1836,57 @@ const PreinscripcionForm: React.FC<{
                 <div className="space-y-3">
                   <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Condiciones Especiales</p>
                   <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
-                    <input type="checkbox" name="discapacidad" checked={formData.discapacidad} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-cyan-600 focus:ring-cyan-500" />
-                    Discapacidad Diagnosticada
+                    <input 
+                      type="checkbox" 
+                      name="hasSpecialConditions" 
+                      checked={formData.hasSpecialConditions} 
+                      onChange={handleChange} 
+                      className="w-5 h-5 rounded border-stone-300 text-cyan-600 focus:ring-cyan-500" 
+                    />
+                    Tiene Condiciones Especiales
                   </label>
+
+                  {formData.hasSpecialConditions && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-4 p-4 bg-white rounded-xl border border-stone-100 space-y-4"
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
+                            <input type="checkbox" name="discapacidad" checked={formData.discapacidad} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-cyan-600" />
+                            Discapacidad Diagnosticada
+                          </label>
+                          {formData.discapacidad && (
+                            <InputField 
+                              label="Nro. Carnet CONADIS" 
+                              name="conadisNumber" 
+                              value={formData.conadisNumber} 
+                              onChange={handleChange} 
+                              placeholder="Ingrese nro. carnet"
+                            />
+                          )}
+                        </div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
+                          <input type="checkbox" name="isDeportista" checked={formData.isDeportista} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-cyan-600" />
+                          Deportista Calificado
+                        </label>
+                        <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
+                          <input type="checkbox" name="isVictimaViolencia" checked={formData.isVictimaViolencia} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-cyan-600" />
+                          Víctima de Violencia
+                        </label>
+                        <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
+                          <input type="checkbox" name="isServicioMilitar" checked={formData.isServicioMilitar} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-cyan-600" />
+                          Servicio Militar
+                        </label>
+                        <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
+                          <input type="checkbox" name="isPrimerosPuestos" checked={formData.isPrimerosPuestos} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-cyan-600" />
+                          Primeros Puestos
+                        </label>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2560,7 +2635,13 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser }: { onSave: (da
             tipoComunidad: data.tipo_comunidad || '',
             nombreApoderado: data.nombre_apoderado || '',
             celularApoderado: data.celular_apoderado || '',
-            discapacidad: data.discapacidad || false
+            hasSpecialConditions: !!data.has_special_conditions,
+            discapacidad: !!data.discapacidad,
+            conadisNumber: data.conadis_number || '',
+            isDeportista: !!data.is_deportista,
+            isVictimaViolencia: !!data.is_victima_violencia,
+            isServicioMilitar: !!data.is_servicio_militar,
+            isPrimerosPuestos: !!data.is_primeros_puestos,
           });
         } else {
           // If not found in pre-registrations, try the DNI API

@@ -286,9 +286,42 @@ async function startServer() {
           modalidad VARCHAR(100),
           estado ENUM('Pendiente', 'Validado', 'Observado') DEFAULT 'Pendiente',
           changed_by VARCHAR(255),
+          has_special_conditions BOOLEAN DEFAULT FALSE,
+          discapacidad BOOLEAN DEFAULT FALSE,
+          conadis_number VARCHAR(50),
+          is_deportista BOOLEAN DEFAULT FALSE,
+          is_victima_violencia BOOLEAN DEFAULT FALSE,
+          is_servicio_militar BOOLEAN DEFAULT FALSE,
+          is_primeros_puestos BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
+
+      // Add missing columns if they don't exist
+      const [preinscripcionesColumns]: any = await connection.query("SHOW COLUMNS FROM preinscripciones");
+      const columnNames = preinscripcionesColumns.map((c: any) => c.Field);
+      
+      if (!columnNames.includes('has_special_conditions')) {
+        await connection.query("ALTER TABLE preinscripciones ADD COLUMN has_special_conditions BOOLEAN DEFAULT FALSE");
+      }
+      if (!columnNames.includes('discapacidad')) {
+        await connection.query("ALTER TABLE preinscripciones ADD COLUMN discapacidad BOOLEAN DEFAULT FALSE");
+      }
+      if (!columnNames.includes('conadis_number')) {
+        await connection.query("ALTER TABLE preinscripciones ADD COLUMN conadis_number VARCHAR(50)");
+      }
+      if (!columnNames.includes('is_deportista')) {
+        await connection.query("ALTER TABLE preinscripciones ADD COLUMN is_deportista BOOLEAN DEFAULT FALSE");
+      }
+      if (!columnNames.includes('is_victima_violencia')) {
+        await connection.query("ALTER TABLE preinscripciones ADD COLUMN is_victima_violencia BOOLEAN DEFAULT FALSE");
+      }
+      if (!columnNames.includes('is_servicio_militar')) {
+        await connection.query("ALTER TABLE preinscripciones ADD COLUMN is_servicio_militar BOOLEAN DEFAULT FALSE");
+      }
+      if (!columnNames.includes('is_primeros_puestos')) {
+        await connection.query("ALTER TABLE preinscripciones ADD COLUMN is_primeros_puestos BOOLEAN DEFAULT FALSE");
+      }
 
       // 2. INSERT INITIAL DATA
       
@@ -655,6 +688,13 @@ async function startServer() {
         career,
         modality,
         changedBy,
+        hasSpecialConditions,
+        discapacidad,
+        conadisNumber,
+        isDeportista,
+        isVictimaViolencia,
+        isServicioMilitar,
+        isPrimerosPuestos,
       } = req.body;
 
       // Validate if student is in the master list (registrados)
@@ -673,12 +713,16 @@ async function startServer() {
         `INSERT INTO preinscripciones (
           nombres, apellido_paterno, apellido_materno, dni, email, telefono, 
           fecha_nacimiento, genero, pueblo_indigena, departamento, provincia, 
-          distrito, colegio_nombre, colegio_tipo, anio_egreso, carrera, modalidad, estado, changed_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?)`,
+          distrito, colegio_nombre, colegio_tipo, anio_egreso, carrera, modalidad, estado, changed_by,
+          has_special_conditions, discapacidad, conadis_number, is_deportista, 
+          is_victima_violencia, is_servicio_militar, is_primeros_puestos
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           names, paternalSurname, maternalSurname, dni, email, phone,
           birthDate, gender, indigenousPeople, department, province,
-          district, schoolName, schoolType, graduationYear, career, modality, changedBy
+          district, schoolName, schoolType, graduationYear, career, modality, changedBy,
+          hasSpecialConditions ? 1 : 0, discapacidad ? 1 : 0, conadisNumber, isDeportista ? 1 : 0,
+          isVictimaViolencia ? 1 : 0, isServicioMilitar ? 1 : 0, isPrimerosPuestos ? 1 : 0
         ]
       );
 
