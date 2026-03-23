@@ -6,8 +6,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import fs from "fs/promises";
+import multer from "multer";
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,28 +19,80 @@ async function startServer() {
 
   app.use(express.json());
   
-  // Request Logger Middleware
+  // Ensure uploads directory exists
+  const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+  try {
+    await fs.mkdir(uploadsDir, { recursive: true });
+  } catch (err) {
+    console.error("Error creating uploads directory:", err);
+  }
+
+  // Multer configuration
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadsDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+  const upload = multer({ storage: storage });
+
+  app.use('/uploads', express.static(uploadsDir));
+
   app.use((req, res, next) => {
-    console.log(`[REQUEST] ${req.method} ${req.url}`);
+    console.log(`[HTTP] ${req.method} ${req.url}`);
     next();
   });
 
-  // Database connection pool
-  const dbConfig = {
-    host: process.env.DB_HOST || "161.132.41.68",
-    port: parseInt(process.env.DB_PORT || "3306"),
-    user: process.env.DB_USER || "uniq_admision",
-    password: process.env.DB_PASSWORD || "M1c4s1t4TI.2026",
-    database: process.env.DB_NAME || "uniq_admision",
+  // Database connection pool configuration
+  const DB_CONFIG_FILE = path.join(process.cwd(), 'data', 'db-config.json');
+
+  async function getDbConfig() {
+    try {
+      const data = await fs.readFile(DB_CONFIG_FILE, 'utf-8');
+      return JSON.parse(data);
+    } catch (e) {
+      return {
+        host: process.env.DB_HOST || "155.248.226.7",
+        port: parseInt(process.env.DB_PORT || "3306"),
+        user: process.env.DB_USER || "uniq_admision",
+        password: process.env.DB_PASSWORD || "M1c4s1t4TI.2026",
+        database: process.env.DB_NAME || "uniq_admision",
+      };
+    }
+  }
+
+  let dbSettings = await getDbConfig();
+  let pool = mysql.createPool({
+    ...dbSettings,
     waitForConnections: true,
     connectionLimit: 5,
     queueLimit: 0,
-    connectTimeout: 30000, // Increased to 30 seconds
+    connectTimeout: 5000,
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
-  };
+  });
 
-  const pool = mysql.createPool(dbConfig);
+  // Function to update pool
+  const updatePool = async (newConfig: any) => {
+    const oldPool = pool;
+    pool = mysql.createPool({
+      ...newConfig,
+      waitForConnections: true,
+      connectionLimit: 5,
+      queueLimit: 0,
+      connectTimeout: 5000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
+    });
+    try {
+      await oldPool.end();
+    } catch (e) {
+      console.error("Error closing old pool:", e);
+    }
+  };
 
   // Email Transporter Configuration
   const transporter = nodemailer.createTransport({
@@ -76,7 +129,6 @@ async function startServer() {
   const testConnection = async (retries = 3) => {
     for (let i = 0; i < retries; i++) {
       try {
-        console.log(`[DB] Attempt ${i + 1}: Connecting to ${dbConfig.host}:${dbConfig.port}...`);
         const connection = await pool.getConnection();
         console.log("[DB] SUCCESS: Connected to MySQL database");
         connection.release();
@@ -92,7 +144,7 @@ async function startServer() {
           console.error("[DB] 1. Check if the MySQL service is running.");
           console.error(`[DB] 2. Check if port ${dbConfig.port} is open in your server's firewall (iptables/ufw/cloud security groups).`);
           console.error("[DB] 3. Ensure MySQL is configured to listen on all interfaces (bind-address = 0.0.0.0).");
-          console.error("[DB] 4. IMPORTANT: In cPanel, add IP 34.34.229.3 to 'Remote MySQL' allowed hosts.");
+          console.error("[DB] 4. IMPORTANT: In cPanel, add IP 34.34.229.10 to 'Remote MySQL' allowed hosts.");
         }
       }
     }
@@ -116,8 +168,7 @@ async function startServer() {
           password VARCHAR(255) NOT NULL,
           role ENUM('admin', 'registrador', 'visualizador') DEFAULT 'visualizador',
           full_name VARCHAR(255),
-          email VARCHAR(255),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          email VARCHAR(255)
         )
       `);
 
@@ -125,6 +176,14 @@ async function startServer() {
       await connection.query(`
         INSERT IGNORE INTO usuarios (username, password, role, full_name, email)
         VALUES ('admin', 'admin123', 'admin', 'Administrador UNIQ', 'admision@uniq.edu.pe')
+      `);
+
+      // Insert sample registered students
+      await connection.query(`
+        INSERT IGNORE INTO registrados (dni, nombres, apellido_paterno, apellido_materno, email, telefono)
+        VALUES 
+        ('12345678', 'JUAN PABLO', 'PEREZ', 'GARCIA', 'juan.pablo@gmail.com', '987654321'),
+        ('87654321', 'MARIA ELENA', 'RODRIGUEZ', 'LOPEZ', 'maria.elena@gmail.com', '912345678')
       `);
 
       // Table for Cronograma
@@ -182,6 +241,34 @@ async function startServer() {
         )
       `);
 
+      // Table for Modalidades
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS modalidades (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          nombre VARCHAR(255) NOT NULL,
+          fecha_inicio DATE,
+          fecha_fin DATE,
+          precio_nacional DECIMAL(10, 2),
+          precio_privado DECIMAL(10, 2),
+          precio_amazonico DECIMAL(10, 2),
+          deshabilitado BOOLEAN DEFAULT FALSE,
+          es_descentralizado BOOLEAN DEFAULT FALSE
+        )
+      `);
+
+      // Table for Registrados (Master list of eligible students)
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS registrados (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          dni VARCHAR(20) NOT NULL UNIQUE,
+          nombres VARCHAR(255) NOT NULL,
+          apellido_paterno VARCHAR(255) NOT NULL,
+          apellido_materno VARCHAR(255) NOT NULL,
+          email VARCHAR(255),
+          telefono VARCHAR(20)
+        )
+      `);
+
       // Table for Preinscripciones
       await connection.query(`
         CREATE TABLE IF NOT EXISTS preinscripciones (
@@ -200,12 +287,35 @@ async function startServer() {
           distrito VARCHAR(100),
           colegio_nombre VARCHAR(255),
           colegio_tipo VARCHAR(50),
+          anio_egreso INT,
           carrera VARCHAR(255),
           modalidad VARCHAR(100),
           estado ENUM('Pendiente', 'Validado', 'Observado') DEFAULT 'Pendiente',
+          changed_by VARCHAR(255),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
+
+      // Ensure columns exist if table was already created
+      const columns = [
+        "ALTER TABLE preinscripciones ADD COLUMN anio_egreso INT",
+        "ALTER TABLE preinscripciones ADD COLUMN carrera VARCHAR(255)",
+        "ALTER TABLE preinscripciones ADD COLUMN changed_by VARCHAR(255)",
+        "ALTER TABLE preinscripciones ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE usuarios ADD COLUMN full_name VARCHAR(255)",
+        "ALTER TABLE usuarios ADD COLUMN email VARCHAR(255)",
+        "ALTER TABLE cronograma ADD COLUMN order_index INT DEFAULT 0",
+        "ALTER TABLE reglamento ADD COLUMN order_index INT DEFAULT 0",
+        "ALTER TABLE temario ADD COLUMN order_index INT DEFAULT 0"
+      ];
+
+      for (const sql of columns) {
+        try {
+          await connection.query(sql);
+        } catch (e) {
+          // Ignore if already exists
+        }
+      }
 
       console.log("[DB] Tables initialized successfully");
     } catch (error) {
@@ -252,8 +362,12 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  app.get("/api/test-json", (req, res) => {
-    res.json({ message: "JSON is working", timestamp: new Date().toISOString() });
+  app.post("/api/upload", upload.single('file'), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const url = `/uploads/${req.file.filename}`;
+    res.json({ url });
   });
 
   app.get("/api/my-ip", async (req, res) => {
@@ -262,20 +376,41 @@ async function startServer() {
       const data = await response.json();
       res.json(data);
     } catch (error) {
-      res.json({ ip: "No se pudo determinar (use 34.34.229.3)" });
+      res.json({ ip: "No se pudo determinar (use 34.34.229.10)" });
+    }
+  });
+
+  app.get("/api/db-config", async (req, res) => {
+    const config = await getDbConfig();
+    res.json(config);
+  });
+
+  app.post("/api/db-config", async (req, res) => {
+    try {
+      const newConfig = req.body;
+      await fs.mkdir(path.dirname(DB_CONFIG_FILE), { recursive: true });
+      await fs.writeFile(DB_CONFIG_FILE, JSON.stringify(newConfig, null, 2));
+      await updatePool(newConfig);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
   app.get("/api/db-status", async (req, res) => {
     try {
+      const config = await getDbConfig();
       const connection = await pool.getConnection();
       connection.release();
-      res.json({ status: "connected", host: dbConfig.host, port: dbConfig.port });
+      res.json({ status: "connected", host: config.host, port: config.port });
     } catch (error: any) {
+      const config = await getDbConfig();
       res.status(500).json({ 
         status: "error", 
         code: error.code, 
         message: error.message,
+        host: config.host,
+        port: config.port,
         details: "El servidor de base de datos no responde. Verifique el firewall y la configuración de red."
       });
     }
@@ -286,7 +421,7 @@ async function startServer() {
     if (error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED' || error.code === 'ER_HOST_NOT_PRIVILEGED' || error.code === 'ER_ACCESS_DENIED_ERROR') {
       res.status(503).json({ 
         error: "Database Connection Error", 
-        details: "El servidor de base de datos no responde o el acceso fue denegado. Asegúrese de autorizar la IP 34.34.229.3 en cPanel (Remote MySQL)." 
+        details: "El servidor de base de datos no responde o el acceso fue denegado. Asegúrese de autorizar la IP 34.34.229.10 en cPanel (Remote MySQL)." 
       });
     } else {
       res.status(500).json({ error: "Internal Server Error" });
@@ -343,6 +478,21 @@ async function startServer() {
     }
   });
 
+  // Get registration by DNI
+  app.get("/api/registrations/dni/:dni", async (req, res) => {
+    try {
+      const { dni } = req.params;
+      const [rows] = await pool.query("SELECT * FROM preinscripciones WHERE dni = ? ORDER BY created_at DESC LIMIT 1", [dni]);
+      const results = rows as any[];
+      if (results.length === 0) {
+        return res.status(404).json({ error: "No se encontró preinscripción con ese DNI" });
+      }
+      res.json(results[0]);
+    } catch (error) {
+      handleDbError(res, error, "fetching registration by DNI");
+    }
+  });
+
   // Get all registrations
   app.get("/api/registrations", async (req, res) => {
     try {
@@ -374,18 +524,31 @@ async function startServer() {
         graduationYear,
         career,
         modality,
+        changedBy,
       } = req.body;
+
+      // Validate if student is in the master list (registrados)
+      const [registeredRows]: any = await pool.query(
+        "SELECT * FROM registrados WHERE dni = ?",
+        [dni]
+      );
+
+      if (registeredRows.length === 0) {
+        return res.status(403).json({ 
+          error: "El DNI ingresado no se encuentra en la lista de postulantes habilitados. Por favor, verifique sus datos o contacte con soporte." 
+        });
+      }
 
       const [result] = await pool.query(
         `INSERT INTO preinscripciones (
           nombres, apellido_paterno, apellido_materno, dni, email, telefono, 
           fecha_nacimiento, genero, pueblo_indigena, departamento, provincia, 
-          distrito, colegio_nombre, colegio_tipo, anio_egreso, carrera, modalidad, estado
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente')`,
+          distrito, colegio_nombre, colegio_tipo, anio_egreso, carrera, modalidad, estado, changed_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?)`,
         [
           names, paternalSurname, maternalSurname, dni, email, phone,
           birthDate, gender, indigenousPeople, department, province,
-          district, schoolName, schoolType, graduationYear, career, modality
+          district, schoolName, schoolType, graduationYear, career, modality, changedBy
         ]
       );
 
@@ -394,12 +557,12 @@ async function startServer() {
       // Send confirmation email
       await sendEmail(
         email,
-        "Confirmación de Preinscripción - UNIQ Admisión",
+        "Confirmación de Inscripción - UNIQ Admisión",
         `
         <div style="font-family: sans-serif; color: #333;">
-          <h2 style="color: #047857;">¡Preinscripción Recibida!</h2>
+          <h2 style="color: #047857;">¡Inscripción Recibida!</h2>
           <p>Hola <strong>${names}</strong>,</p>
-          <p>Hemos recibido correctamente tu solicitud de preinscripción para el proceso de admisión de la <strong>Universidad Nacional Intercultural de Quillabamba</strong>.</p>
+          <p>Hemos recibido correctamente tu solicitud de inscripción para el proceso de admisión de la <strong>Universidad Nacional Intercultural de Quillabamba</strong>.</p>
           <p><strong>Detalles de tu solicitud:</strong></p>
           <ul>
             <li><strong>DNI:</strong> ${dni}</li>
@@ -424,14 +587,14 @@ async function startServer() {
   app.patch("/api/registrations/:id/status", async (req, res) => {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const { status, changedBy } = req.body;
 
       // Fetch user info before update to send email
       const [rows]: any = await pool.query("SELECT nombres, email, carrera FROM preinscripciones WHERE id = ?", [id]);
       
       if (rows.length > 0) {
         const registration = rows[0];
-        await pool.query("UPDATE preinscripciones SET estado = ? WHERE id = ?", [status, id]);
+        await pool.query("UPDATE preinscripciones SET estado = ?, changed_by = ? WHERE id = ?", [status, changedBy, id]);
 
         // Send status update email
         const statusColor = status === "Validado" ? "#047857" : "#b91c1c";
@@ -440,7 +603,7 @@ async function startServer() {
           `Actualización de Estado: ${status} - UNIQ Admisión`,
           `
           <div style="font-family: sans-serif; color: #333;">
-            <h2 style="color: ${statusColor};">Actualización de tu Preinscripción</h2>
+            <h2 style="color: ${statusColor};">Actualización de tu Inscripción</h2>
             <p>Hola <strong>${registration.nombres}</strong>,</p>
             <p>El estado de tu solicitud para la carrera de <strong>${registration.carrera}</strong> ha sido actualizado:</p>
             <div style="padding: 15px; background-color: #f9fafb; border-radius: 8px; border-left: 4px solid ${statusColor}; margin: 20px 0;">
@@ -462,6 +625,7 @@ async function startServer() {
 
   // Login
   app.post("/api/login", async (req, res) => {
+    console.log("[API] Login attempt for user:", req.body.username);
     try {
       const { username, password } = req.body;
       const [rows] = await pool.query(
@@ -491,7 +655,7 @@ async function startServer() {
   // User Management API
   app.get("/api/users", async (req, res) => {
     try {
-      const [rows] = await pool.query("SELECT id, username, role, full_name, email, created_at FROM usuarios ORDER BY created_at DESC");
+      const [rows] = await pool.query("SELECT id, username, role, full_name, email FROM usuarios");
       res.json(rows);
     } catch (error) {
       handleDbError(res, error, "fetching users");
@@ -501,17 +665,13 @@ async function startServer() {
   app.post("/api/users", async (req, res) => {
     try {
       const { username, password, role, full_name, email } = req.body;
-      await pool.query(
+      const [result] = await pool.query(
         "INSERT INTO usuarios (username, password, role, full_name, email) VALUES (?, ?, ?, ?, ?)",
         [username, password, role, full_name, email]
       );
-      res.status(201).json({ success: true });
-    } catch (error: any) {
-      if (error.code === 'ER_DUP_ENTRY') {
-        res.status(400).json({ error: "El nombre de usuario ya existe" });
-      } else {
-        handleDbError(res, error, "creating user");
-      }
+      res.status(201).json({ id: (result as any).insertId });
+    } catch (error) {
+      handleDbError(res, error, "creating user");
     }
   });
 
@@ -520,17 +680,18 @@ async function startServer() {
       const { id } = req.params;
       const { username, password, role, full_name, email } = req.body;
       
+      let query = "UPDATE usuarios SET username = ?, role = ?, full_name = ?, email = ?";
+      let params = [username, role, full_name, email];
+      
       if (password) {
-        await pool.query(
-          "UPDATE usuarios SET username = ?, password = ?, role = ?, full_name = ?, email = ? WHERE id = ?",
-          [username, password, role, full_name, email, id]
-        );
-      } else {
-        await pool.query(
-          "UPDATE usuarios SET username = ?, role = ?, full_name = ?, email = ? WHERE id = ?",
-          [username, role, full_name, email, id]
-        );
+        query += ", password = ?";
+        params.push(password);
       }
+      
+      query += " WHERE id = ?";
+      params.push(id);
+      
+      await pool.query(query, params);
       res.json({ success: true });
     } catch (error) {
       handleDbError(res, error, "updating user");
@@ -550,6 +711,98 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       handleDbError(res, error, "deleting user");
+    }
+  });
+
+  app.get("/api/debug/tables", async (req, res) => {
+    try {
+      const [rows]: any = await pool.query("SHOW TABLES");
+      const tables = rows.map((row: any) => Object.values(row)[0]);
+      res.json({ tables });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Registrados Endpoints ---
+
+  app.get("/api/registrados", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT * FROM registrados ORDER BY id DESC");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "fetching registrados");
+    }
+  });
+
+  app.post("/api/registrados", async (req, res) => {
+    try {
+      const { dni, nombres, apellido_paterno, apellido_materno, email, telefono } = req.body;
+      await pool.query(
+        "INSERT INTO registrados (dni, nombres, apellido_paterno, apellido_materno, email, telefono) VALUES (?, ?, ?, ?, ?, ?)",
+        [dni, nombres, apellido_paterno, apellido_materno, email, telefono]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "adding registrado");
+    }
+  });
+
+  app.delete("/api/registrados/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await pool.query("DELETE FROM registrados WHERE id = ?", [id]);
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "deleting registrado");
+    }
+  });
+
+  // --- Modalidades Endpoints ---
+
+  app.get("/api/modalidades", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT * FROM modalidades ORDER BY id DESC");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "fetching modalidades");
+    }
+  });
+
+  app.post("/api/modalidades", async (req, res) => {
+    try {
+      const { nombre, fecha_inicio, fecha_fin, precio_nacional, precio_privado, precio_amazonico, deshabilitado, es_descentralizado } = req.body;
+      await pool.query(
+        "INSERT INTO modalidades (nombre, fecha_inicio, fecha_fin, precio_nacional, precio_privado, precio_amazonico, deshabilitado, es_descentralizado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [nombre, fecha_inicio, fecha_fin, precio_nacional, precio_privado, precio_amazonico, deshabilitado ? 1 : 0, es_descentralizado ? 1 : 0]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "adding modalidad");
+    }
+  });
+
+  app.put("/api/modalidades/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { nombre, fecha_inicio, fecha_fin, precio_nacional, precio_privado, precio_amazonico, deshabilitado, es_descentralizado } = req.body;
+      await pool.query(
+        "UPDATE modalidades SET nombre = ?, fecha_inicio = ?, fecha_fin = ?, precio_nacional = ?, precio_privado = ?, precio_amazonico = ?, deshabilitado = ?, es_descentralizado = ? WHERE id = ?",
+        [nombre, fecha_inicio, fecha_fin, precio_nacional, precio_privado, precio_amazonico, deshabilitado ? 1 : 0, es_descentralizado ? 1 : 0, id]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "updating modalidad");
+    }
+  });
+
+  app.delete("/api/modalidades/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await pool.query("DELETE FROM modalidades WHERE id = ?", [id]);
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "deleting modalidad");
     }
   });
 
