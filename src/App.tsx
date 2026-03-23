@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -48,7 +48,7 @@ import {
 // --- Types ---
 
 type Step = 'personal' | 'academic' | 'career' | 'success';
-type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion' | 'config-imagenes' | 'config-cronograma' | 'config-carreras' | 'carrera-detail' | 'inscripcion-form' | 'user-management' | 'registrados-management';
+type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion' | 'config-imagenes' | 'config-cronograma' | 'config-carreras' | 'carrera-detail' | 'inscripcion-form' | 'user-management' | 'registrados-management' | 'config-dni';
 type Role = 'admin' | 'registrador' | 'visualizador';
 
 interface UserAuth {
@@ -61,7 +61,6 @@ interface UserAuth {
 interface FormData {
   documentType: 'DNI' | 'Carnet de Extranjería';
   dni: string;
-  confirmDni: string;
   names: string;
   paternalSurname: string;
   maternalSurname: string;
@@ -112,7 +111,6 @@ import { UniqLogo } from './UniqLogo';
 const INITIAL_DATA: FormData = {
   documentType: 'DNI',
   dni: '',
-  confirmDni: '',
   names: '',
   paternalSurname: '',
   maternalSurname: '',
@@ -205,6 +203,19 @@ const SelectField = ({ label, icon: Icon, options, error, ...props }: any) => (
 );
 
 const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronograma }: { onPreRegister: () => void, onLogin: () => void, onViewCareer: (career: Career) => void, appSettings: any, cronograma: any[] }) => {
+  const currentStatus = useMemo(() => {
+    const items = cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA;
+    const activeItem = items.find(item => item.status === 'activo');
+    if (activeItem) {
+      return activeItem.event;
+    }
+    const hasPending = items.some(item => item.status === 'pendiente');
+    if (hasPending) {
+      return "Próximo Proceso de Admisión";
+    }
+    return "Proceso de Admisión Finalizado";
+  }, [cronograma]);
+
   return (
     <div className="min-h-screen bg-[#f8f7f4]">
       {/* Navigation */}
@@ -247,7 +258,7 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
               </span>
-              Proceso de Admisión Abierto
+              {currentStatus}
             </div>
             <h2 className="text-5xl md:text-7xl font-bold text-stone-900 leading-[1.1] tracking-tight">
               Tu futuro comienza <span className="text-cyan-600">aquí.</span>
@@ -364,11 +375,22 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
               <p className="text-stone-400 text-lg">
                 No pierdas la oportunidad de postular. Revisa las fechas clave del proceso actual.
               </p>
-              <div className="space-y-4">
-                {(cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA).slice(0, 3).map((item: any, i: number) => (
-                  <div key={i} className="flex items-center gap-6 p-4 bg-white/5 rounded-2xl border border-white/10">
-                    <div className="text-cyan-400 font-mono font-bold">{item.date}</div>
-                    <div className="font-bold">{item.event}</div>
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar">
+                {(cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA).map((item: any, i: number) => (
+                  <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all group">
+                    <div className="flex items-center gap-6">
+                      <div className="text-cyan-400 font-mono font-bold text-sm whitespace-nowrap">{item.date}</div>
+                      <div className="font-bold text-stone-100 group-hover:text-white transition-colors">{item.event}</div>
+                    </div>
+                    <div className={`
+                      px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border
+                      ${item.status === 'completado' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                        item.status === 'activo' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse' : 
+                        'bg-stone-500/10 text-stone-400 border-stone-500/20'}
+                    `}>
+                      {item.status === 'completado' ? 'Finalizado' : 
+                       item.status === 'activo' ? 'En Curso' : 'Pendiente'}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1007,6 +1029,13 @@ export default function App() {
               onCheckDb={checkDbStatus}
               isCheckingDb={isCheckingDb}
               dbCheckResult={dbCheckResult}
+              onConfigDni={() => setView('config-dni')}
+            />
+          ) : view === 'config-dni' ? (
+            <ConfigDniApiView 
+              settings={appSettings}
+              onSave={setAppSettings}
+              onBack={() => setView('admin-dashboard')}
             />
           ) : view === 'config-imagenes' ? (
             <ConfiguracionImagenesView 
@@ -1017,6 +1046,7 @@ export default function App() {
           ) : view === 'config-cronograma' ? (
             <ConfiguracionCronogramaView 
               onBack={() => setView('admin-dashboard')} 
+              onUpdate={fetchSettings}
             />
           ) : view === 'config-carreras' ? (
             <ConfiguracionCarrerasView 
@@ -1027,6 +1057,7 @@ export default function App() {
           ) : view === 'config-modalidades' ? (
             <ConfiguracionModalidadesView 
               onBack={() => setView('admin-dashboard')} 
+              onUpdate={fetchSettings}
             />
           ) : view === 'config-database' ? (
             <ConfiguracionDatabaseView 
@@ -1074,7 +1105,7 @@ export default function App() {
                 </div>
 
                 <div className="bg-white p-8 rounded-3xl shadow-lg border border-stone-100">
-                  <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
+                  <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center mb-6">
                     <Clock size={24} />
                   </div>
                   <h3 className="text-xl font-bold text-stone-800 mb-4">Cronograma de Admisión</h3>
@@ -1406,6 +1437,72 @@ const PreinscripcionForm: React.FC<{
   const [currentStep, setCurrentStep] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [modalidades, setModalidades] = useState<any[]>([]);
+  const [isSearchingDni, setIsSearchingDni] = useState(false);
+  const [lastSearchedDni, setLastSearchedDni] = useState('');
+
+  useEffect(() => {
+    const lookupDni = async () => {
+      // If DNI is cleared or not 8 digits, reset lastSearchedDni and clear personal data
+      if (formData.dni.length !== 8) {
+        if (lastSearchedDni !== '') {
+          setLastSearchedDni('');
+          setFormData(prev => ({
+            ...prev,
+            names: '',
+            paternalSurname: '',
+            maternalSurname: ''
+          }));
+        }
+        return;
+      }
+
+      // Only lookup if DNI is exactly 8 digits and different from last searched
+      if (formData.dni.length === 8 && formData.dni !== lastSearchedDni) {
+        setIsSearchingDni(true);
+        setLastSearchedDni(formData.dni);
+        try {
+          const response = await fetch(`/api/dni/${formData.dni}`);
+          const data = await response.json();
+          
+          if (response.ok && data && (data.nombres || data.nombre)) {
+            const nombres = data.nombres || data.nombre;
+            const apPaterno = data.apellidoPaterno || data.paterno || '';
+            const apMaterno = data.apellidoMaterno || data.materno || '';
+            
+            setFormData(prev => ({
+              ...prev,
+              names: nombres,
+              paternalSurname: apPaterno,
+              maternalSurname: apMaterno
+            }));
+            
+            // Clear DNI error if any
+            setErrors(prev => {
+              const newErrors = { ...prev };
+              delete newErrors.dni;
+              return newErrors;
+            });
+          } else {
+            const errorMsg = data.message || data.error || 'DNI no encontrado';
+            setErrors(prev => ({ ...prev, dni: errorMsg }));
+            // Clear personal data if DNI not found
+            setFormData(prev => ({
+              ...prev,
+              names: '',
+              paternalSurname: '',
+              maternalSurname: ''
+            }));
+          }
+        } catch (error) {
+          console.error("Error looking up DNI:", error);
+          setErrors(prev => ({ ...prev, dni: 'Error de conexión' }));
+        } finally {
+          setIsSearchingDni(false);
+        }
+      }
+    };
+    lookupDni();
+  }, [formData.dni, setFormData, lastSearchedDni]);
 
   useEffect(() => {
     fetch('/api/modalidades')
@@ -1420,18 +1517,15 @@ const PreinscripcionForm: React.FC<{
       })
   }, []);
 
-  const validateStep1 = () => {
+  const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    
+    // Step 1 fields (Inscripción)
     if (!formData.modality) newErrors.modality = "Seleccione una modalidad";
     if (!formData.career) newErrors.career = "Seleccione una carrera";
     if (!formData.dni || formData.dni.length !== 8) newErrors.dni = "DNI inválido (8 dígitos)";
-    if (formData.dni !== formData.confirmDni) newErrors.confirmDni = "Los DNIs no coinciden";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validateStep2 = () => {
-    const newErrors: Record<string, string> = {};
+    
+    // Step 2 fields (Personales)
     if (!formData.names) newErrors.names = "Requerido";
     if (!formData.paternalSurname) newErrors.paternalSurname = "Requerido";
     if (!formData.maternalSurname) newErrors.maternalSurname = "Requerido";
@@ -1439,24 +1533,42 @@ const PreinscripcionForm: React.FC<{
     if (!formData.gender) newErrors.gender = "Requerido";
     if (!formData.email) newErrors.email = "Requerido";
     if (!formData.phone) newErrors.phone = "Requerido";
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleNext = () => {
-    if (currentStep === 1 && validateStep1()) setCurrentStep(2);
-    else if (currentStep === 2 && validateStep2()) {
-      handleSubmit();
+    if (currentStep === 1) {
+      if (validateForm()) {
+        handleSubmit();
+      }
     }
   };
 
   const handleSubmit = async () => {
     const success = await onSubmit(formData);
-    if (success) setCurrentStep(3);
+    if (success) setCurrentStep(2);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
+    
+    if (name === 'dni') {
+      const onlyNums = value.replace(/[^0-9]/g, '');
+      if (onlyNums.length <= 8) {
+        setFormData(prev => ({ 
+          ...prev, 
+          [name]: onlyNums,
+          // Liberar datos personales si el DNI cambia
+          names: '',
+          paternalSurname: '',
+          maternalSurname: ''
+        }));
+      }
+      return;
+    }
+
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData(prev => ({ ...prev, [name]: checked }));
@@ -1469,7 +1581,7 @@ const PreinscripcionForm: React.FC<{
     const doc = new jsPDF();
     
     // Header
-    doc.setFillColor(0, 128, 128);
+    doc.setFillColor(8, 145, 178); // cyan-600
     doc.rect(0, 0, 210, 40, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
@@ -1503,7 +1615,7 @@ const PreinscripcionForm: React.FC<{
       head: [['Campo', 'Información']],
       body: data,
       theme: 'striped',
-      headStyles: { fillColor: [0, 128, 128] },
+      headStyles: { fillColor: [8, 145, 178] }, // cyan-600
     });
 
     doc.setFontSize(10);
@@ -1517,19 +1629,18 @@ const PreinscripcionForm: React.FC<{
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header Title */}
       <div className="bg-white border border-stone-200 p-4 rounded-xl mb-8 text-center">
-        <h2 className="text-2xl font-bold text-emerald-600 uppercase tracking-wide">Formulario de Pre-Inscripción</h2>
+        <h2 className="text-2xl font-bold text-cyan-600 uppercase tracking-wide">Formulario de Pre-Inscripción</h2>
       </div>
 
       {/* Steps Indicator */}
-      <div className="flex items-center justify-between mb-12 relative">
+      <div className="flex items-center justify-center mb-12 relative max-w-2xl mx-auto">
         <div className="absolute top-1/2 left-0 w-full h-0.5 bg-stone-200 -z-10 -translate-y-1/2"></div>
         {[
-          { n: 1, label: 'DATOS PRINCIPALES' },
-          { n: 2, label: 'DATOS GENERALES' },
-          { n: 3, label: 'REPORTE DE FICHA EN PDF' }
+          { n: 1, label: 'DATOS DEL POSTULANTE' },
+          { n: 2, label: 'REPORTE DE FICHA' }
         ].map((s) => (
-          <div key={s.n} className="flex items-center gap-3 bg-[#f8f7f4] px-4">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${currentStep >= s.n ? 'bg-blue-600 border-blue-600 text-white' : 'bg-stone-400 border-stone-400 text-white'}`}>
+          <div key={s.n} className="flex items-center gap-3 bg-[#f8f7f4] px-6">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${currentStep >= s.n ? 'bg-cyan-600 border-cyan-600 text-white' : 'bg-stone-400 border-stone-400 text-white'}`}>
               {s.n}
             </div>
             <span className={`text-[10px] font-bold uppercase tracking-widest ${currentStep >= s.n ? 'text-stone-800' : 'text-stone-400'}`}>
@@ -1546,159 +1657,177 @@ const PreinscripcionForm: React.FC<{
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="bg-white p-10 rounded-3xl shadow-xl border border-stone-100 space-y-8"
+            className="bg-white p-10 rounded-3xl shadow-xl border border-stone-100 space-y-12"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <SelectField
-                label="Seleccionar Modalidad de Examen"
-                name="modality"
-                value={formData.modality}
-                onChange={handleChange}
-                options={modalidades.map(m => m.nombre)}
-                error={errors.modality}
-              />
-              <SelectField
-                label="Seleccionar Carrera"
-                name="career"
-                value={formData.career}
-                onChange={handleChange}
-                options={CAREERS}
-                error={errors.career}
-              />
-              <InputField
-                label="DNI"
-                name="dni"
-                value={formData.dni}
-                onChange={handleChange}
-                placeholder="12345678"
-                maxLength={8}
-                error={errors.dni}
-              />
-              <InputField
-                label="Confirmar DNI"
-                name="confirmDni"
-                value={formData.confirmDni}
-                onChange={handleChange}
-                placeholder="12345678"
-                maxLength={8}
-                error={errors.confirmDni}
-              />
-            </div>
-            <div className="flex justify-start">
-              <button 
-                onClick={handleNext}
-                className="px-12 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 uppercase text-sm"
-              >
-                Continuar
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {currentStep === 2 && (
-          <motion.div
-            key="step2"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="bg-white p-10 rounded-3xl shadow-xl border border-stone-100 space-y-10"
-          >
-            {/* Personal Data */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <InputField label="Nombres" name="names" value={formData.names} onChange={handleChange} error={errors.names} />
-              <InputField label="Apellido Paterno" name="paternalSurname" value={formData.paternalSurname} onChange={handleChange} error={errors.paternalSurname} />
-              <InputField label="Apellido Materno" name="maternalSurname" value={formData.maternalSurname} onChange={handleChange} error={errors.maternalSurname} />
-              <InputField label="Fecha de Nacimiento" name="birthDate" type="date" value={formData.birthDate} onChange={handleChange} error={errors.birthDate} />
-              <SelectField label="Sexo" name="gender" value={formData.gender} onChange={handleChange} options={['MASCULINO', 'FEMENINO']} error={errors.gender} />
-              <SelectField label="Lugar de inscripción" name="lugarInscripcion" value={formData.lugarInscripcion} onChange={handleChange} options={['QUILLABAMBA', 'CUSCO', 'PICHARI']} />
-            </div>
-
-            {/* Colegio de Procedencia */}
-            <div className="space-y-4">
-              <h3 className="font-bold text-stone-800 border-b pb-2">Colegio de Procedencia</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <SelectField label="Seleccionar Región" name="colegioRegion" value={formData.colegioRegion} onChange={handleChange} options={['CUSCO', 'LIMA', 'AREQUIPA']} />
-                <InputField label="Seleccionar Provincia" name="colegioProvincia" value={formData.colegioProvincia} onChange={handleChange} />
-                <InputField label="Seleccionar Distrito" name="colegioDistrito" value={formData.colegioDistrito} onChange={handleChange} />
-                <div className="md:col-span-3">
-                  <InputField label="Nombre de la Institución Educativa" name="schoolName" value={formData.schoolName} onChange={handleChange} />
+            {/* Section 1: Datos de Inscripción */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
+                <div className="w-8 h-8 bg-cyan-50 text-cyan-600 rounded-lg flex items-center justify-center">
+                  <BookOpen size={18} />
+                </div>
+                <h3 className="text-lg font-bold text-stone-800">Datos de Inscripción</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <SelectField
+                  label="Seleccionar Modalidad de Examen"
+                  name="modality"
+                  value={formData.modality}
+                  onChange={handleChange}
+                  options={modalidades.map(m => m.nombre)}
+                  error={errors.modality}
+                />
+                <SelectField
+                  label="Seleccionar Carrera"
+                  name="career"
+                  value={formData.career}
+                  onChange={handleChange}
+                  options={CAREERS}
+                  error={errors.career}
+                />
+                <div className="relative">
+                  <InputField
+                    label="DNI"
+                    name="dni"
+                    value={formData.dni}
+                    onChange={handleChange}
+                    placeholder="12345678"
+                    maxLength={8}
+                    error={errors.dni}
+                  />
+                  {isSearchingDni && (
+                    <div className="absolute right-3 top-9">
+                      <RefreshCw size={16} className="animate-spin text-cyan-600" />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Lugar de Procedencia */}
-            <div className="space-y-4">
-              <h3 className="font-bold text-stone-800 border-b pb-2">Lugar de Procedencia</h3>
+            {/* Section 2: Datos Personales */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
+                <div className="w-8 h-8 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center">
+                  <User size={18} />
+                </div>
+                <h3 className="text-lg font-bold text-stone-800">Datos Personales</h3>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <SelectField label="Seleccionar Región" name="procedenciaRegion" value={formData.procedenciaRegion} onChange={handleChange} options={['CUSCO', 'LIMA', 'AREQUIPA']} />
-                <InputField label="Seleccionar Provincia" name="procedenciaProvincia" value={formData.procedenciaProvincia} onChange={handleChange} />
-                <InputField label="Seleccionar Distrito" name="procedenciaDistrito" value={formData.procedenciaDistrito} onChange={handleChange} />
-                <div className="md:col-span-3">
-                  <InputField label="Dirección de Origen" name="procedenciaDireccion" value={formData.procedenciaDireccion} onChange={handleChange} />
+                <InputField label="Nombres" name="names" value={formData.names} onChange={handleChange} error={errors.names} />
+                <InputField label="Apellido Paterno" name="paternalSurname" value={formData.paternalSurname} onChange={handleChange} error={errors.paternalSurname} />
+                <InputField label="Apellido Materno" name="maternalSurname" value={formData.maternalSurname} onChange={handleChange} error={errors.maternalSurname} />
+                <InputField label="Fecha de Nacimiento" name="birthDate" type="date" value={formData.birthDate} onChange={handleChange} error={errors.birthDate} />
+                <SelectField label="Sexo" name="gender" value={formData.gender} onChange={handleChange} options={['MASCULINO', 'FEMENINO']} error={errors.gender} />
+                <SelectField label="Lugar de inscripción" name="lugarInscripcion" value={formData.lugarInscripcion} onChange={handleChange} options={['QUILLABAMBA', 'CUSCO', 'PICHARI']} />
+              </div>
+            </div>
+
+            {/* Section 3: Ubicación y Educación */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
+                  <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
+                    <MapPin size={18} />
+                  </div>
+                  <h3 className="text-lg font-bold text-stone-800">Lugar de Procedencia</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <SelectField label="Región" name="procedenciaRegion" value={formData.procedenciaRegion} onChange={handleChange} options={['CUSCO', 'LIMA', 'AREQUIPA']} />
+                  <InputField label="Provincia" name="procedenciaProvincia" value={formData.procedenciaProvincia} onChange={handleChange} />
+                  <InputField label="Distrito" name="procedenciaDistrito" value={formData.procedenciaDistrito} onChange={handleChange} />
+                  <InputField label="Dirección" name="procedenciaDireccion" value={formData.procedenciaDireccion} onChange={handleChange} />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
+                  <div className="w-8 h-8 bg-lime-50 text-lime-600 rounded-lg flex items-center justify-center">
+                    <School size={18} />
+                  </div>
+                  <h3 className="text-lg font-bold text-stone-800">Colegio de Procedencia</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <SelectField label="Región" name="colegioRegion" value={formData.colegioRegion} onChange={handleChange} options={['CUSCO', 'LIMA', 'AREQUIPA']} />
+                  <InputField label="Provincia" name="colegioProvincia" value={formData.colegioProvincia} onChange={handleChange} />
+                  <InputField label="Distrito" name="colegioDistrito" value={formData.colegioDistrito} onChange={handleChange} />
+                  <InputField label="Nombre I.E." name="schoolName" value={formData.schoolName} onChange={handleChange} />
                 </div>
               </div>
             </div>
 
-            {/* Lugar de Nacimiento */}
-            <div className="space-y-4">
-              <h3 className="font-bold text-stone-800 border-b pb-2">Lugar de Nacimiento</h3>
+            {/* Section 4: Lugar de Nacimiento */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
+                <div className="w-8 h-8 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center">
+                  <Globe size={18} />
+                </div>
+                <h3 className="text-lg font-bold text-stone-800">Lugar de Nacimiento</h3>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <SelectField label="Seleccionar Región" name="nacimientoRegion" value={formData.nacimientoRegion} onChange={handleChange} options={['CUSCO', 'LIMA', 'AREQUIPA']} />
-                <InputField label="Seleccionar Provincia" name="nacimientoProvincia" value={formData.nacimientoProvincia} onChange={handleChange} />
-                <InputField label="Seleccionar Distrito" name="nacimientoDistrito" value={formData.nacimientoDistrito} onChange={handleChange} />
+                <SelectField label="Región" name="nacimientoRegion" value={formData.nacimientoRegion} onChange={handleChange} options={['CUSCO', 'LIMA', 'AREQUIPA']} />
+                <InputField label="Provincia" name="nacimientoProvincia" value={formData.nacimientoProvincia} onChange={handleChange} />
+                <InputField label="Distrito" name="nacimientoDistrito" value={formData.nacimientoDistrito} onChange={handleChange} />
               </div>
             </div>
 
-            {/* Idioma and Others */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-              <div className="md:col-span-2">
-                <SelectField label="Seleccionar Idioma" name="idioma" value={formData.idioma} onChange={handleChange} options={['QUECHUA', 'MATSIGUENKA', 'CASTELLANO']} />
+            {/* Section 5: Otros Datos */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
+                <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center">
+                  <Info size={18} />
+                </div>
+                <h3 className="text-lg font-bold text-stone-800">Información Adicional</h3>
               </div>
-              <div className="flex items-center gap-4 pb-3">
-                <label className="flex items-center gap-2 text-xs font-bold text-stone-500">
-                  <input type="checkbox" name="idiomaLee" checked={formData.idiomaLee} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500" />
-                  LEE
-                </label>
-                <label className="flex items-center gap-2 text-xs font-bold text-stone-500">
-                  <input type="checkbox" name="idiomaHabla" checked={formData.idiomaHabla} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500" />
-                  HABLA
-                </label>
-                <label className="flex items-center gap-2 text-xs font-bold text-stone-500">
-                  <input type="checkbox" name="idiomaEscribe" checked={formData.idiomaEscribe} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500" />
-                  ESCRIBE
-                </label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <InputField label="Email" name="email" value={formData.email} onChange={handleChange} error={errors.email} />
+                <InputField label="Teléfono" name="phone" value={formData.phone} onChange={handleChange} error={errors.phone} />
+                <SelectField label="Año Egreso" name="graduationYear" value={formData.graduationYear} onChange={handleChange} options={['2025', '2024', '2023', '2022', '2021']} />
+                <InputField label="Nombre Apoderado" name="nombreApoderado" value={formData.nombreApoderado} onChange={handleChange} />
+                <InputField label="Celular Apoderado" name="celularApoderado" value={formData.celularApoderado} onChange={handleChange} />
+                <SelectField label="Idioma" name="idioma" value={formData.idioma} onChange={handleChange} options={['QUECHUA', 'MATSIGUENKA', 'CASTELLANO']} />
+                <SelectField label="Pueblo Indígena" name="indigenousPeople" value={formData.indigenousPeople} onChange={handleChange} options={['AMAZÓNICO', 'ANDINO', 'OTROS']} />
+                <InputField label="Tipo de Comunidad" name="tipoComunidad" value={formData.tipoComunidad} onChange={handleChange} />
+              </div>
+              
+              <div className="flex flex-wrap gap-8 bg-stone-50 p-6 rounded-2xl border border-stone-100">
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Habilidades Idioma</p>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
+                      <input type="checkbox" name="idiomaLee" checked={formData.idiomaLee} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-cyan-600 focus:ring-cyan-500" />
+                      Lee
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
+                      <input type="checkbox" name="idiomaHabla" checked={formData.idiomaHabla} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-cyan-600 focus:ring-cyan-500" />
+                      Habla
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
+                      <input type="checkbox" name="idiomaEscribe" checked={formData.idiomaEscribe} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-cyan-600 focus:ring-cyan-500" />
+                      Escribe
+                    </label>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Condiciones Especiales</p>
+                  <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
+                    <input type="checkbox" name="discapacidad" checked={formData.discapacidad} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-cyan-600 focus:ring-cyan-500" />
+                    Discapacidad Diagnosticada
+                  </label>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <SelectField label="Seleccionar Pueblo Indígena" name="indigenousPeople" value={formData.indigenousPeople} onChange={handleChange} options={['AMAZÓNICO', 'ANDINO', 'OTROS']} />
-              <InputField label="Tipo de Comunidad" name="tipoComunidad" value={formData.tipoComunidad} onChange={handleChange} />
-              <InputField label="Nombres del Apoderado" name="nombreApoderado" value={formData.nombreApoderado} onChange={handleChange} />
-              <InputField label="Celular del Apoderado" name="celularApoderado" value={formData.celularApoderado} onChange={handleChange} />
-              <SelectField label="Año de egreso de la secundaria" name="graduationYear" value={formData.graduationYear} onChange={handleChange} options={['2025', '2024', '2023', '2022', '2021']} />
-              <InputField label="Teléfono o Celular" name="phone" value={formData.phone} onChange={handleChange} error={errors.phone} />
-              <InputField label="Correo Electrónico" name="email" value={formData.email} onChange={handleChange} error={errors.email} />
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-stone-500">Señale si tiene alguna discapacidad diagnosticada</p>
-              <label className="flex items-center gap-2 text-xs font-bold text-stone-700 bg-stone-50 p-3 rounded-xl border border-stone-200 w-fit">
-                <input type="checkbox" name="discapacidad" checked={formData.discapacidad} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500" />
-                Discapacidad
-              </label>
-            </div>
-
-            <div className="flex gap-4 pt-6">
+            <div className="flex gap-4 pt-8 border-t border-stone-100">
               <button 
                 onClick={handleNext}
                 disabled={isSubmitting}
-                className="px-10 py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 uppercase text-sm disabled:opacity-50"
+                className="px-12 py-4 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20 uppercase text-sm disabled:opacity-50 flex items-center gap-2"
               >
-                {isSubmitting ? 'Guardando...' : 'Guardar Inscripción'}
+                {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : null}
+                {isSubmitting ? 'Guardando...' : 'Finalizar Pre-Inscripción'}
               </button>
               <button 
                 onClick={onCancel}
-                className="px-10 py-3 bg-white text-stone-600 font-bold rounded-lg border border-stone-200 hover:bg-stone-50 transition-all uppercase text-sm"
+                className="px-12 py-4 bg-white text-stone-600 font-bold rounded-xl border border-stone-200 hover:bg-stone-50 transition-all uppercase text-sm"
               >
                 Cancelar
               </button>
@@ -1706,40 +1835,34 @@ const PreinscripcionForm: React.FC<{
           </motion.div>
         )}
 
-        {currentStep === 3 && (
+        {currentStep === 2 && (
           <motion.div
             key="step3"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white p-12 rounded-3xl shadow-xl border border-stone-100 text-center space-y-8"
+            className="bg-white p-12 rounded-[3rem] shadow-2xl border border-stone-100 text-center space-y-8"
           >
-            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-              <Check size={40} />
+            <div className="w-24 h-24 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle size={48} />
             </div>
-            <div>
-              <h2 className="text-3xl font-bold text-stone-800">¡Pre-inscripción Exitosa!</h2>
-              <p className="text-stone-500 mt-2">Tus datos han sido registrados correctamente en nuestro sistema.</p>
+            <div className="space-y-2">
+              <h2 className="text-3xl font-bold text-stone-800">¡Pre-Inscripción Exitosa!</h2>
+              <p className="text-stone-500 max-w-md mx-auto">Su registro ha sido procesado correctamente. Por favor, descargue su ficha de pre-inscripción.</p>
             </div>
             
-            <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 max-w-md mx-auto">
-              <p className="text-sm text-blue-800 font-medium">
-                Ahora puedes descargar tu ficha de pre-inscripción. Recuerda que este documento es necesario para los siguientes pasos del proceso.
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col md:flex-row gap-4 justify-center">
               <button 
                 onClick={generatePDF}
-                className="flex items-center justify-center gap-2 px-8 py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-xl shadow-stone-900/20"
+                className="flex items-center justify-center gap-3 px-10 py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-xl shadow-stone-900/20"
               >
                 <Download size={20} />
                 Descargar Ficha PDF
               </button>
               <button 
                 onClick={onCancel}
-                className="px-8 py-4 bg-white text-stone-800 font-bold rounded-2xl border border-stone-200 hover:bg-stone-50 transition-all"
+                className="flex items-center justify-center gap-3 px-10 py-4 bg-white text-stone-600 font-bold rounded-2xl border border-stone-200 hover:bg-stone-50 transition-all"
               >
-                Volver al Inicio
+                Ir al Inicio
               </button>
             </div>
           </motion.div>
@@ -1753,7 +1876,7 @@ const CronogramaView: React.FC<{ onBack: () => void, cronograma: any[] }> = ({ o
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
+        <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
           <Clock size={24} />
         </div>
         <div>
@@ -1764,15 +1887,15 @@ const CronogramaView: React.FC<{ onBack: () => void, cronograma: any[] }> = ({ o
 
       <div className="space-y-4">
         {(cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA).map((item: any, i: number) => (
-          <div key={i} className="flex items-center justify-between p-5 bg-stone-50 rounded-2xl border border-stone-100 hover:border-blue-200 transition-all">
+          <div key={i} className="flex items-center justify-between p-5 bg-stone-50 rounded-2xl border border-stone-100 hover:border-cyan-200 transition-all">
             <div className="flex items-center gap-4">
-              <div className={`w-2 h-2 rounded-full ${item.status === 'activo' ? 'bg-cyan-500 animate-pulse' : item.status === 'completado' ? 'bg-stone-300' : 'bg-blue-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${item.status === 'activo' ? 'bg-cyan-500 animate-pulse' : item.status === 'completado' ? 'bg-stone-300' : 'bg-cyan-400'}`} />
               <div>
                 <p className="font-bold text-stone-800">{item.event}</p>
                 <p className="text-xs text-stone-500">{item.date}</p>
               </div>
             </div>
-            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.status === 'activo' ? 'bg-cyan-100 text-cyan-700' : item.status === 'completado' ? 'bg-stone-200 text-stone-500' : 'bg-blue-50 text-blue-600'}`}>
+            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.status === 'activo' ? 'bg-cyan-100 text-cyan-700' : item.status === 'completado' ? 'bg-stone-200 text-stone-500' : 'bg-cyan-50 text-cyan-600'}`}>
               {item.status}
             </span>
           </div>
@@ -2177,7 +2300,89 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
   );
 };
 
-const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult }: { registrations: any[], userRole?: string, onBack: () => void, onConfigImages: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any }) => {
+const ConfigDniApiView = ({ settings, onSave, onBack }: { settings: any, onSave: (newSettings: any) => void, onBack: () => void }) => {
+  const [dniApiUrl, setDniApiUrl] = useState(settings.dniApiUrl || "https://dniruc.apisperu.com/api/v1/dni/");
+  const [dniApiToken, setDniApiToken] = useState(settings.dniApiToken || "");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dniApiUrl, dniApiToken })
+      });
+      if (response.ok) {
+        onSave({ ...settings, dniApiUrl, dniApiToken });
+        onBack();
+      }
+    } catch (error) {
+      console.error("Error saving DNI API settings:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+      <div className="flex items-center gap-4 mb-8">
+        <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
+          <Globe size={24} />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-stone-800">Configuración API DNI</h2>
+          <p className="text-stone-500 text-sm">Configure el servicio externo para validación de DNI</p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div>
+          <label className="block text-sm font-bold text-stone-700 mb-2">URL del Servicio (Base)</label>
+          <input 
+            type="text" 
+            value={dniApiUrl}
+            onChange={(e) => setDniApiUrl(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-cyan-500 outline-none transition-all"
+            placeholder="https://dniruc.apisperu.com/api/v1/dni/"
+          />
+          <p className="mt-1 text-xs text-stone-400">La URL base donde se consultará el DNI. Se le concatenará el número de DNI al final.</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-stone-700 mb-2">Token de API (Bearer Token)</label>
+          <input 
+            type="password" 
+            value={dniApiToken}
+            onChange={(e) => setDniApiToken(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-cyan-500 outline-none transition-all"
+            placeholder="Ingrese su token de API"
+          />
+          <p className="mt-1 text-xs text-stone-400">Token proporcionado por el proveedor del servicio (apisperu.com u otro).</p>
+        </div>
+
+        <div className="pt-6 flex gap-4">
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-8 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all flex items-center gap-2 disabled:opacity-50"
+          >
+            {isSaving ? <RefreshCw size={18} className="animate-spin" /> : <Check size={18} />}
+            Guardar Configuración
+          </button>
+          <button 
+            onClick={onBack}
+            className="px-8 py-3 border border-stone-200 text-stone-600 font-bold rounded-xl hover:bg-stone-50 transition-all"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult, onConfigDni }: { registrations: any[], userRole?: string, onBack: () => void, onConfigImages: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any, onConfigDni: () => void }) => {
   useEffect(() => {
     onCheckDb();
   }, []);
@@ -2235,30 +2440,60 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
       </div>
 
       {userRole !== 'visualizador' && (
-        <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
-          <h3 className="text-xl font-bold text-stone-800 mb-6">Acciones Rápidas de Administrador</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { icon: UploadCloud, label: "Subir Resultados", color: "bg-blue-50 text-blue-600" },
-              { icon: FileText, label: "Reporte de Pagos", color: "bg-cyan-50 text-cyan-600" },
-              { icon: User, label: "Gestionar Usuarios", color: "bg-purple-50 text-purple-600", action: onConfigUsers },
-              { icon: ShieldCheck, label: "Habilitar Postulantes", color: "bg-emerald-50 text-emerald-600", action: onConfigRegistrados },
-              { icon: Info, label: "Editar Reglamento", color: "bg-amber-50 text-amber-600" },
-              { icon: Image, label: "Configurar Inicio", color: "bg-pink-50 text-pink-600", action: onConfigImages },
-              { icon: BookOpen, label: "Configurar Carreras", color: "bg-purple-50 text-purple-600", action: onConfigCarreras },
-              { icon: BookOpen, label: "Configurar Modalidades", color: "bg-emerald-50 text-emerald-600", action: onConfigModalidades },
-              { icon: Database, label: "Configurar Base Datos", color: "bg-indigo-50 text-indigo-600", action: onConfigDatabase },
-              { icon: Clock, label: "Configurar Cronograma", color: "bg-indigo-50 text-indigo-600", action: onConfigCronograma },
-              { icon: ShieldCheck, label: isCheckingDb ? "Verificando..." : "Probar Conexión DB", color: "bg-emerald-50 text-emerald-600", action: onCheckDb },
-            ].map((action, i) => (
-              <button key={i} onClick={action.action} className="p-6 rounded-3xl border border-stone-100 hover:border-stone-200 hover:bg-stone-50 transition-all text-left group">
-                <div className={`w-10 h-10 ${action.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <action.icon size={20} />
-                </div>
-                <p className="font-bold text-stone-800 text-sm">{action.label}</p>
-              </button>
-            ))}
-          </div>
+        <div className="space-y-8">
+          {[
+            {
+              title: "Gestión de Postulantes",
+              description: "Administración de registros, pagos y resultados del proceso.",
+              actions: [
+                { icon: ShieldCheck, label: "Habilitar Postulantes", color: "bg-lime-50 text-lime-600", action: onConfigRegistrados },
+                { icon: FileText, label: "Reporte de Pagos", color: "bg-cyan-50 text-cyan-600" },
+                { icon: UploadCloud, label: "Subir Resultados", color: "bg-cyan-50 text-cyan-600" },
+              ]
+            },
+            {
+              title: "Configuración del Portal",
+              description: "Personalización de la información pública y parámetros del examen.",
+              actions: [
+                { icon: Image, label: "Configurar Inicio", color: "bg-pink-50 text-pink-600", action: onConfigImages },
+                { icon: BookOpen, label: "Configurar Carreras", color: "bg-purple-50 text-purple-600", action: onConfigCarreras },
+                { icon: BookOpen, label: "Configurar Modalidades", color: "bg-lime-50 text-lime-600", action: onConfigModalidades },
+                { icon: Clock, label: "Configurar Cronograma", color: "bg-indigo-50 text-indigo-600", action: onConfigCronograma },
+                { icon: Info, label: "Editar Reglamento", color: "bg-amber-50 text-amber-600" },
+              ]
+            },
+            {
+              title: "Administración y Sistema",
+              description: "Gestión de usuarios, base de datos y servicios externos.",
+              actions: [
+                { icon: User, label: "Gestionar Usuarios", color: "bg-purple-50 text-purple-600", action: onConfigUsers },
+                { icon: Database, label: "Configurar Base Datos", color: "bg-indigo-50 text-indigo-600", action: onConfigDatabase },
+                { icon: Globe, label: "Configurar API DNI", color: "bg-cyan-50 text-cyan-600", action: onConfigDni },
+                { icon: RefreshCw, label: isCheckingDb ? "Verificando..." : "Probar Conexión DB", color: "bg-emerald-50 text-emerald-600", action: onCheckDb },
+              ]
+            }
+          ].map((category, idx) => (
+            <div key={idx} className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+              <div className="mb-8">
+                <h3 className="text-xl font-bold text-stone-800">{category.title}</h3>
+                <p className="text-sm text-stone-500 mt-1">{category.description}</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {category.actions.map((action, i) => (
+                  <button 
+                    key={i} 
+                    onClick={action.action} 
+                    className="p-6 rounded-3xl border border-stone-100 hover:border-stone-200 hover:bg-stone-50 transition-all text-left group flex flex-col h-full"
+                  >
+                    <div className={`w-10 h-10 ${action.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shrink-0`}>
+                      <action.icon size={20} className={action.label === "Verificando..." ? "animate-spin" : ""} />
+                    </div>
+                    <p className="font-bold text-stone-800 text-sm leading-tight">{action.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -2284,9 +2519,10 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser }: { onSave: (da
     if (dni.length === 8) {
       setLoading(true);
       try {
-        const response = await fetch(`/api/registrations/dni/${dni}`);
-        if (response.ok) {
-          const data = await response.json();
+        // First try to fetch existing pre-registration
+        const regResponse = await fetch(`/api/registrations/dni/${dni}`);
+        if (regResponse.ok) {
+          const data = await regResponse.json();
           setFormData({
             documentType: 'DNI',
             dni: data.dni,
@@ -2306,10 +2542,43 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser }: { onSave: (da
             career: data.carrera,
             modality: data.modalidad,
             indigenousPeople: data.pueblo_indigena,
+            lugarInscripcion: data.lugar_inscripcion || 'QUILLABAMBA',
+            colegioRegion: data.colegio_region || '',
+            colegioProvincia: data.colegio_provincia || '',
+            colegioDistrito: data.colegio_distrito || '',
+            procedenciaRegion: data.procedencia_region || '',
+            procedenciaProvincia: data.procedencia_provincia || '',
+            procedenciaDistrito: data.procedencia_distrito || '',
+            procedenciaDireccion: data.procedencia_direccion || '',
+            nacimientoRegion: data.nacimiento_region || '',
+            nacimientoProvincia: data.nacimiento_provincia || '',
+            nacimientoDistrito: data.nacimiento_distrito || '',
+            idioma: data.idioma || '',
+            idiomaLee: data.idioma_lee || false,
+            idiomaHabla: data.idioma_habla || false,
+            idiomaEscribe: data.idioma_escribe || false,
+            tipoComunidad: data.tipo_comunidad || '',
+            nombreApoderado: data.nombre_apoderado || '',
+            celularApoderado: data.celular_apoderado || '',
+            discapacidad: data.discapacidad || false
           });
+        } else {
+          // If not found in pre-registrations, try the DNI API
+          const dniResponse = await fetch(`/api/dni/${dni}`);
+          if (dniResponse.ok) {
+            const data = await dniResponse.json();
+            if (data.nombres) {
+              setFormData(prev => ({
+                ...prev,
+                names: data.nombres,
+                paternalSurname: data.apellidoPaterno,
+                maternalSurname: data.apellidoMaterno,
+              }));
+            }
+          }
         }
       } catch (e) {
-        console.error("Error fetching pre-registration:", e);
+        console.error("Error fetching data for DNI:", e);
       } finally {
         setLoading(false);
       }
@@ -2805,7 +3074,7 @@ const RegistradosManagementView: React.FC<{ onBack: () => void }> = ({ onBack })
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
               <ShieldCheck size={24} />
             </div>
             <div>

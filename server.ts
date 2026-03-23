@@ -160,6 +160,8 @@ async function startServer() {
 
       connection = await pool.getConnection();
       
+      // 1. CREATE TABLES
+      
       // Table for Usuarios
       await connection.query(`
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -172,18 +174,17 @@ async function startServer() {
         )
       `);
 
-      // Insert default admin if not exists
+      // Table for Registrados (Master list of eligible students)
       await connection.query(`
-        INSERT IGNORE INTO usuarios (username, password, role, full_name, email)
-        VALUES ('admin', 'admin123', 'admin', 'Administrador UNIQ', 'admision@uniq.edu.pe')
-      `);
-
-      // Insert sample registered students
-      await connection.query(`
-        INSERT IGNORE INTO registrados (dni, nombres, apellido_paterno, apellido_materno, email, telefono)
-        VALUES 
-        ('12345678', 'JUAN PABLO', 'PEREZ', 'GARCIA', 'juan.pablo@gmail.com', '987654321'),
-        ('87654321', 'MARIA ELENA', 'RODRIGUEZ', 'LOPEZ', 'maria.elena@gmail.com', '912345678')
+        CREATE TABLE IF NOT EXISTS registrados (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          dni VARCHAR(20) NOT NULL UNIQUE,
+          nombres VARCHAR(255) NOT NULL,
+          apellido_paterno VARCHAR(255) NOT NULL,
+          apellido_materno VARCHAR(255) NOT NULL,
+          email VARCHAR(255),
+          telefono VARCHAR(20)
+        )
       `);
 
       // Table for Cronograma
@@ -252,16 +253,13 @@ async function startServer() {
         )
       `);
 
-      // Table for Registrados (Master list of eligible students)
+      // Table for DNI API Config
       await connection.query(`
-        CREATE TABLE IF NOT EXISTS registrados (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          dni VARCHAR(20) NOT NULL UNIQUE,
-          nombres VARCHAR(255) NOT NULL,
-          apellido_paterno VARCHAR(255) NOT NULL,
-          apellido_materno VARCHAR(255) NOT NULL,
-          email VARCHAR(255),
-          telefono VARCHAR(20)
+        CREATE TABLE IF NOT EXISTS config_api_dni (
+          id INT PRIMARY KEY DEFAULT 1,
+          api_url VARCHAR(255) NOT NULL,
+          api_token TEXT NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
       `);
 
@@ -292,7 +290,29 @@ async function startServer() {
         )
       `);
 
-      // Ensure columns exist if table was already created
+      // 2. INSERT INITIAL DATA
+      
+      // Insert default admin if not exists
+      await connection.query(`
+        INSERT IGNORE INTO usuarios (username, password, role, full_name, email)
+        VALUES ('admin', 'admin123', 'admin', 'Administrador UNIQ', 'admision@uniq.edu.pe')
+      `);
+
+      // Insert sample registered students
+      await connection.query(`
+        INSERT IGNORE INTO registrados (dni, nombres, apellido_paterno, apellido_materno, email, telefono)
+        VALUES 
+        ('12345678', 'JUAN PABLO', 'PEREZ', 'GARCIA', 'juan.pablo@gmail.com', '987654321'),
+        ('87654321', 'MARIA ELENA', 'RODRIGUEZ', 'LOPEZ', 'maria.elena@gmail.com', '912345678')
+      `);
+
+      // Insert default DNI config if not exists
+      await connection.query(`
+        INSERT IGNORE INTO config_api_dni (id, api_url, api_token)
+        VALUES (1, 'https://dniruc.apisperu.com/api/v1/dni/', 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImZyYW50aGt4eEBnbWFpbC5jb20ifQ.Sd5HK5UM_F5cGwv3iqpVaY5LmntjWOQMEvmDs-vPbjk')
+      `);
+
+      // 3. ALTER TABLES (MIGRATIONS)
       const columns = [
         "ALTER TABLE preinscripciones ADD COLUMN anio_egreso INT",
         "ALTER TABLE preinscripciones ADD COLUMN carrera VARCHAR(255)",
@@ -343,11 +363,46 @@ async function startServer() {
 
   app.get("/api/settings", async (req, res) => {
     const settings = await getSettings();
+    
+    // Merge DNI config from DB
+    try {
+      const [rows]: any = await pool.query("SELECT api_url, api_token FROM config_api_dni WHERE id = 1");
+      if (rows.length > 0) {
+        settings.dniApiUrl = rows[0].api_url;
+        settings.dniApiToken = rows[0].api_token;
+      }
+    } catch (e) {
+      console.error("Error fetching DNI config from DB:", e);
+    }
+    
     res.json(settings);
   });
 
   app.post("/api/settings", async (req, res) => {
     const newSettings = req.body;
+    
+    // Save DNI config to DB if present
+    if (newSettings.dniApiUrl !== undefined || newSettings.dniApiToken !== undefined) {
+      try {
+        const [rows]: any = await pool.query("SELECT api_url, api_token FROM config_api_dni WHERE id = 1");
+        const currentDniConfig = rows[0] || { api_url: '', api_token: '' };
+        
+        const apiUrl = newSettings.dniApiUrl !== undefined ? newSettings.dniApiUrl : currentDniConfig.api_url;
+        const apiToken = newSettings.dniApiToken !== undefined ? newSettings.dniApiToken : currentDniConfig.api_token;
+        
+        await pool.query(
+          "INSERT INTO config_api_dni (id, api_url, api_token) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE api_url = ?, api_token = ?",
+          [apiUrl, apiToken, apiUrl, apiToken]
+        );
+        
+        // Remove from JSON settings to avoid duplication
+        delete newSettings.dniApiUrl;
+        delete newSettings.dniApiToken;
+      } catch (e) {
+        console.error("Error saving DNI config to DB:", e);
+      }
+    }
+
     const currentSettings = await getSettings();
     await saveSettings({ ...currentSettings, ...newSettings });
     res.json({ success: true });
@@ -882,6 +937,41 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       handleDbError(res, error, "deleting modalidad");
+    }
+  });
+
+  // DNI Lookup Proxy
+  app.get("/api/dni/:dni", async (req, res) => {
+    try {
+      const { dni } = req.params;
+      
+      // Fetch config from DB
+      const [rows]: any = await pool.query("SELECT api_url, api_token FROM config_api_dni WHERE id = 1");
+      const config = rows[0];
+      
+      const apiUrl = config?.api_url || "https://dniruc.apisperu.com/api/v1/dni/";
+      const apiToken = config?.api_token;
+
+      if (!apiToken) {
+        return res.status(400).json({ error: "Token de API DNI no configurado en la base de datos" });
+      }
+
+      // Construct URL: baseUrl + dni + ?token=token
+      const fullUrl = `${apiUrl}${dni}?token=${apiToken}`;
+      
+      console.log(`[DNI PROXY] Querying from DB config: ${apiUrl}${dni}`);
+      
+      const response = await fetch(fullUrl);
+      const data = await response.json();
+
+      if (!response.ok) {
+        return res.status(response.status).json(data);
+      }
+
+      res.json(data);
+    } catch (error: any) {
+      console.error("[DNI PROXY ERROR]", error);
+      res.status(500).json({ error: "Error al consultar el servicio de DNI", details: error.message });
     }
   });
 

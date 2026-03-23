@@ -19,7 +19,7 @@ export const DEFAULT_CRONOGRAMA: CronogramaItem[] = [
   { id: '6', event: "Entrega de Constancias", date: "25 - 27 de Marzo", status: "pendiente" },
 ];
 
-export const ConfiguracionCronogramaView = ({ onBack }: { onBack: () => void }) => {
+export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () => void, onUpdate?: () => void }) => {
   const [items, setItems] = useState<CronogramaItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -84,6 +84,7 @@ export const ConfiguracionCronogramaView = ({ onBack }: { onBack: () => void }) 
         body: JSON.stringify({ events: items })
       });
       if (response.ok) {
+        if (onUpdate) onUpdate();
         onBack();
       }
     } catch (e) {

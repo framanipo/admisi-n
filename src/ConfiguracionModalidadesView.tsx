@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ChevronLeft, Save, Plus, Trash2, Edit2, Check, X } from 'lucide-react';
 
-export const ConfiguracionModalidadesView = ({ onBack }: { onBack: () => void }) => {
+export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () => void, onUpdate?: () => void }) => {
   const [modalidades, setModalidades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +49,7 @@ export const ConfiguracionModalidadesView = ({ onBack }: { onBack: () => void })
       });
       if (response.ok) {
         fetchModalidades();
+        if (onUpdate) onUpdate();
         setEditingId(null);
         setEditForm({});
       }
@@ -62,8 +63,11 @@ export const ConfiguracionModalidadesView = ({ onBack }: { onBack: () => void })
   const handleDelete = async (id: number) => {
     if (!confirm('¿Estás seguro de eliminar esta modalidad?')) return;
     try {
-      await fetch(`/api/modalidades/${id}`, { method: 'DELETE' });
-      fetchModalidades();
+      const response = await fetch(`/api/modalidades/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        fetchModalidades();
+        if (onUpdate) onUpdate();
+      }
     } catch (e) {
       console.error(e);
     }
