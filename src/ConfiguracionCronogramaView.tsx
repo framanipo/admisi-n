@@ -1,39 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { ChevronLeft, Save, Clock, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, Save, Clock, Plus, Trash2, Info } from 'lucide-react';
 
 export interface CronogramaItem {
   id: string;
-  evento: string;
-  fecha: string;
-  fecha_inicio?: string;
-  fecha_fin?: string;
-  estado: 'completado' | 'activo' | 'pendiente';
+  event: string;
+  date: string;
+  status: 'completado' | 'activo' | 'pendiente';
+  isAutomatic?: boolean;
 }
 
 export const DEFAULT_CRONOGRAMA: CronogramaItem[] = [
-  { id: '1', evento: "Lanzamiento de Convocatoria", fecha: "15 de Enero", estado: "completado" },
-  { id: '2', evento: "Inscripciones Ordinario y Extraordinario", fecha: "01 Feb - 15 Mar", estado: "activo" },
-  { id: '3', evento: "Cierre de Inscripciones", fecha: "15 de Marzo", estado: "pendiente" },
-  { id: '4', evento: "Examen de Admisión Ordinario", fecha: "22 de Marzo", estado: "pendiente" },
-  { id: '5', evento: "Publicación de Resultados", fecha: "23 de Marzo", estado: "pendiente" },
-  { id: '6', evento: "Entrega de Constancias", fecha: "25 - 27 de Marzo", estado: "pendiente" },
+  { id: '1', event: "Lanzamiento de Convocatoria", date: "15 de Enero", status: "completado" },
+  { id: '2', event: "Inscripciones Ordinario y Extraordinario", date: "01 Feb - 15 Mar", status: "activo" },
+  { id: '3', event: "Cierre de Inscripciones", date: "15 de Marzo", status: "pendiente" },
+  { id: '4', event: "Examen de Admisión Ordinario", date: "22 de Marzo", status: "pendiente" },
+  { id: '5', event: "Publicación de Resultados", date: "23 de Marzo", status: "pendiente" },
+  { id: '6', event: "Entrega de Constancias", date: "25 - 27 de Marzo", status: "pendiente" },
 ];
 
-export const ConfiguracionCronogramaView = ({ cronograma, onSave, onBack }: { cronograma: CronogramaItem[], onSave: () => void, onBack: () => void }) => {
-  const [items, setItems] = useState<CronogramaItem[]>(cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA);
+export const ConfiguracionCronogramaView = ({ onBack }: { onBack: () => void }) => {
+  const [items, setItems] = useState<CronogramaItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/cronograma')
+      .then(res => res.json())
+      .then(data => {
+        setItems(data.length > 0 ? data : DEFAULT_CRONOGRAMA);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
+  }, []);
 
   const handleItemChange = (id: string, field: keyof CronogramaItem, value: string) => {
-    setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const updated = { ...item, [field]: value };
+        if (field === 'date') {
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+          if (dateRegex.test(value)) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const eventDate = new Date(value + 'T00:00:00');
+            eventDate.setHours(0, 0, 0, 0);
+
+            if (today > eventDate) updated.status = 'completado';
+            else if (today.getTime() === eventDate.getTime()) updated.status = 'activo';
+            else updated.status = 'pendiente';
+          }
+        }
+        return updated;
+      }
+      return item;
+    }));
   };
 
   const handleAddItem = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
     const newItem: CronogramaItem = {
       id: Date.now().toString(),
-      evento: 'Nuevo Evento',
-      fecha: 'Fecha',
-      estado: 'pendiente'
+      event: 'Nuevo Evento',
+      date: todayStr,
+      status: 'activo'
     };
     setItems([...items, newItem]);
   };
@@ -45,13 +78,12 @@ export const ConfiguracionCronogramaView = ({ cronograma, onSave, onBack }: { cr
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const response = await fetch('/api/cronograma', {
+      const response = await fetch('/api/cronograma/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(items)
+        body: JSON.stringify({ events: items })
       });
       if (response.ok) {
-        onSave();
         onBack();
       }
     } catch (e) {
@@ -60,6 +92,10 @@ export const ConfiguracionCronogramaView = ({ cronograma, onSave, onBack }: { cr
       setIsSaving(false);
     }
   };
+
+  if (loading) {
+    return <div className="p-10 text-center">Cargando cronograma...</div>;
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
@@ -85,68 +121,77 @@ export const ConfiguracionCronogramaView = ({ cronograma, onSave, onBack }: { cr
 
         <div className="space-y-4">
           {items.map((item, index) => (
-            <div key={item.id} className="flex flex-col md:flex-row gap-4 p-6 bg-stone-50 rounded-2xl border border-stone-200 items-start md:items-center">
+            <div key={item.id} className={`flex flex-col md:flex-row gap-4 p-6 rounded-2xl border items-start md:items-center ${item.isAutomatic ? 'bg-blue-50/50 border-blue-100' : 'bg-stone-50 border-stone-200'}`}>
               <div className="flex-grow space-y-4 w-full">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Evento</label>
                     <input 
                       type="text" 
-                      value={item.evento}
-                      onChange={(e) => handleItemChange(item.id, 'evento', e.target.value)}
-                      className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      list={`eventos-predefinidos-${item.id}`}
+                      value={item.event}
+                      onChange={(e) => handleItemChange(item.id, 'event', e.target.value)}
+                      disabled={item.isAutomatic}
+                      className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:bg-stone-100 disabled:text-stone-500"
+                      placeholder="Selecciona o escribe un evento"
                     />
+                    <datalist id={`eventos-predefinidos-${item.id}`}>
+                      <option value="Lanzamiento de Convocatoria" />
+                      <option value="Cierre de Inscripciones" />
+                      <option value="Examen de Admisión Extraordinario" />
+                      <option value="Examen de Admisión Ordinario" />
+                      <option value="Publicación de Resultados" />
+                      <option value="Entrega de Constancias de Ingreso" />
+                      <option value="Inicio de Clases" />
+                    </datalist>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Fecha (Texto)</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Fecha</label>
                     <input 
-                      type="text" 
-                      value={item.fecha}
-                      onChange={(e) => handleItemChange(item.id, 'fecha', e.target.value)}
-                      className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      type={item.isAutomatic ? "text" : "date"} 
+                      value={item.date}
+                      onChange={(e) => handleItemChange(item.id, 'date', e.target.value)}
+                      disabled={item.isAutomatic}
+                      className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:bg-stone-100 disabled:text-stone-500"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Fecha Inicio (Auto-Estado)</label>
-                    <input 
-                      type="date" 
-                      value={item.fecha_inicio || ''}
-                      onChange={(e) => handleItemChange(item.id, 'fecha_inicio', e.target.value)}
-                      className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
-                    />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Estado</label>
+                    {item.isAutomatic ? (
+                      <span className="text-[10px] font-bold uppercase text-blue-500 flex items-center gap-1 bg-blue-100 px-2 py-0.5 rounded-full">
+                        <Info size={10} />
+                        Automático (Modalidad)
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold uppercase text-emerald-500 flex items-center gap-1 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        <Info size={10} />
+                        Auto-calculado
+                      </span>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Fecha Fin (Auto-Estado)</label>
-                    <input 
-                      type="date" 
-                      value={item.fecha_fin || ''}
-                      onChange={(e) => handleItemChange(item.id, 'fecha_fin', e.target.value)}
-                      className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Estado Manual</label>
-                    <select
-                      value={item.estado}
-                      onChange={(e) => handleItemChange(item.id, 'estado', e.target.value as any)}
-                      className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
-                    >
-                      <option value="pendiente">Pendiente</option>
-                      <option value="activo">Activo</option>
-                      <option value="completado">Completado</option>
-                    </select>
-                  </div>
+                  <select
+                    value={item.status}
+                    onChange={(e) => handleItemChange(item.id, 'status', e.target.value as any)}
+                    disabled={true}
+                    className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:bg-stone-100 disabled:text-stone-500"
+                  >
+                    <option value="pendiente">Pendiente</option>
+                    <option value="activo">Activo</option>
+                    <option value="completado">Completado</option>
+                  </select>
                 </div>
               </div>
-              <button 
-                onClick={() => handleRemoveItem(item.id)}
-                className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all self-end md:self-center mt-4 md:mt-0"
-                title="Eliminar evento"
-              >
-                <Trash2 size={20} />
-              </button>
+              {!item.isAutomatic && (
+                <button 
+                  onClick={() => handleRemoveItem(item.id)}
+                  className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all self-end md:self-center mt-4 md:mt-0"
+                  title="Eliminar evento"
+                >
+                  <Trash2 size={20} />
+                </button>
+              )}
             </div>
           ))}
           {items.length === 0 && (

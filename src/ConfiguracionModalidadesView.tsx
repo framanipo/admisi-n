@@ -36,7 +36,16 @@ export const ConfiguracionModalidadesView = ({ onBack }: { onBack: () => void })
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify({
+          nombre: editForm.nombre,
+          fecha_inicio: editForm.fecha_inicio,
+          fecha_fin: editForm.fecha_fin,
+          precio_nacional: editForm.precio_nacional || 0,
+          precio_privado: editForm.precio_privado || 0,
+          precio_amazonico: editForm.precio_amazonico || 0,
+          deshabilitado: editForm.deshabilitado,
+          es_descentralizado: editForm.es_descentralizado || false
+        })
       });
       if (response.ok) {
         fetchModalidades();
@@ -78,7 +87,7 @@ export const ConfiguracionModalidadesView = ({ onBack }: { onBack: () => void })
               <p className="text-stone-500">Gestiona las modalidades de examen y sus precios.</p>
             </div>
           </div>
-          <button onClick={() => startEdit({ nombre: '', precio_nacional: 0, precio_privado: 0, precio_amazonico: 0, deshabilitado: false, es_descentralizado: false })} className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all">
+          <button onClick={() => startEdit({ nombre: '', fecha_inicio: '', fecha_fin: '', precio_nacional: 0, precio_privado: 0, precio_amazonico: 0, deshabilitado: false, es_descentralizado: false })} className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all">
             <Plus size={18} /> Nueva Modalidad
           </button>
         </div>
@@ -92,8 +101,6 @@ export const ConfiguracionModalidadesView = ({ onBack }: { onBack: () => void })
                 <tr className="border-b border-stone-200">
                   <th className="p-4 text-xs font-bold uppercase text-stone-500">Nombre</th>
                   <th className="p-4 text-xs font-bold uppercase text-stone-500">Fechas</th>
-                  <th className="p-4 text-xs font-bold uppercase text-stone-500">Precios (Nac/Priv/Ama)</th>
-                  <th className="p-4 text-xs font-bold uppercase text-stone-500">Descentralizado</th>
                   <th className="p-4 text-xs font-bold uppercase text-stone-500">Estado</th>
                   <th className="p-4 text-xs font-bold uppercase text-stone-500">Acciones</th>
                 </tr>
@@ -108,24 +115,16 @@ export const ConfiguracionModalidadesView = ({ onBack }: { onBack: () => void })
                           <input type="date" value={editForm.fecha_inicio?.split('T')[0]} onChange={e => setEditForm({...editForm, fecha_inicio: e.target.value})} className="w-full p-1 border rounded text-xs" />
                           <input type="date" value={editForm.fecha_fin?.split('T')[0]} onChange={e => setEditForm({...editForm, fecha_fin: e.target.value})} className="w-full p-1 border rounded text-xs mt-1" />
                         </td>
-                        <td className="p-4 flex gap-1">
-                          <input type="number" value={editForm.precio_nacional} onChange={e => setEditForm({...editForm, precio_nacional: e.target.value})} className="w-16 p-2 border rounded" />
-                          <input type="number" value={editForm.precio_privado} onChange={e => setEditForm({...editForm, precio_privado: e.target.value})} className="w-16 p-2 border rounded" />
-                          <input type="number" value={editForm.precio_amazonico} onChange={e => setEditForm({...editForm, precio_amazonico: e.target.value})} className="w-16 p-2 border rounded" />
-                        </td>
-                        <td className="p-4"><input type="checkbox" checked={editForm.es_descentralizado} onChange={e => setEditForm({...editForm, es_descentralizado: e.target.checked})} /></td>
                         <td className="p-4"><input type="checkbox" checked={editForm.deshabilitado} onChange={e => setEditForm({...editForm, deshabilitado: e.target.checked})} /></td>
                         <td className="p-4 flex gap-2">
-                          <button onClick={() => handleSave(m.id)} className="p-2 text-emerald-600"><Check size={18} /></button>
-                          <button onClick={() => setEditingId(null)} className="p-2 text-red-600"><X size={18} /></button>
+                          <button onClick={() => handleSave(m.id)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Guardar</button>
+                          <button onClick={() => setEditingId(null)} className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300">Cancelar</button>
                         </td>
                       </>
                     ) : (
                       <>
                         <td className="p-4 font-bold text-stone-800">{m.nombre}</td>
                         <td className="p-4 text-xs text-stone-500">{m.fecha_inicio?.split('T')[0]} - {m.fecha_fin?.split('T')[0]}</td>
-                        <td className="p-4 text-xs text-stone-600">S/ {m.precio_nacional} / S/ {m.precio_privado} / S/ {m.precio_amazonico}</td>
-                        <td className="p-4">{m.es_descentralizado ? 'Sí' : 'No'}</td>
                         <td className="p-4">{m.deshabilitado ? <span className="text-red-500 font-bold text-xs">Deshabilitado</span> : <span className="text-emerald-500 font-bold text-xs">Activo</span>}</td>
                         <td className="p-4 flex gap-2">
                           <button onClick={() => startEdit(m)} className="p-2 text-stone-500 hover:text-stone-800"><Edit2 size={18} /></button>
@@ -142,16 +141,10 @@ export const ConfiguracionModalidadesView = ({ onBack }: { onBack: () => void })
                       <input type="date" value={editForm.fecha_inicio} onChange={e => setEditForm({...editForm, fecha_inicio: e.target.value})} className="w-full p-1 border rounded text-xs" />
                       <input type="date" value={editForm.fecha_fin} onChange={e => setEditForm({...editForm, fecha_fin: e.target.value})} className="w-full p-1 border rounded text-xs mt-1" />
                     </td>
-                    <td className="p-4 flex gap-1">
-                      <input type="number" value={editForm.precio_nacional} onChange={e => setEditForm({...editForm, precio_nacional: e.target.value})} className="w-16 p-2 border rounded" />
-                      <input type="number" value={editForm.precio_privado} onChange={e => setEditForm({...editForm, precio_privado: e.target.value})} className="w-16 p-2 border rounded" />
-                      <input type="number" value={editForm.precio_amazonico} onChange={e => setEditForm({...editForm, precio_amazonico: e.target.value})} className="w-16 p-2 border rounded" />
-                    </td>
-                    <td className="p-4"><input type="checkbox" checked={editForm.es_descentralizado} onChange={e => setEditForm({...editForm, es_descentralizado: e.target.checked})} /></td>
                     <td className="p-4"><input type="checkbox" checked={editForm.deshabilitado} onChange={e => setEditForm({...editForm, deshabilitado: e.target.checked})} /></td>
                     <td className="p-4 flex gap-2">
-                      <button onClick={() => handleSave(null)} className="p-2 text-emerald-600"><Check size={18} /></button>
-                      <button onClick={() => setEditingId(null)} className="p-2 text-red-600"><X size={18} /></button>
+                      <button onClick={() => handleSave(null)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Guardar</button>
+                      <button onClick={() => setEditingId(null)} className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300">Cancelar</button>
                     </td>
                   </tr>
                 )}

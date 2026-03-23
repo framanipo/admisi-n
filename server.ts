@@ -140,9 +140,9 @@ async function startServer() {
           await new Promise(resolve => setTimeout(resolve, 3000));
         } else {
           console.error("[DB] CRITICAL: All connection attempts timed out.");
-          console.error(`[DB] TROUBLESHOOTING: This ETIMEDOUT error means your MySQL server at ${dbConfig.host} is not responding.`);
+          console.error(`[DB] TROUBLESHOOTING: This ETIMEDOUT error means your MySQL server at ${dbSettings.host} is not responding.`);
           console.error("[DB] 1. Check if the MySQL service is running.");
-          console.error(`[DB] 2. Check if port ${dbConfig.port} is open in your server's firewall (iptables/ufw/cloud security groups).`);
+          console.error(`[DB] 2. Check if port ${dbSettings.port} is open in your server's firewall (iptables/ufw/cloud security groups).`);
           console.error("[DB] 3. Ensure MySQL is configured to listen on all interfaces (bind-address = 0.0.0.0).");
           console.error("[DB] 4. IMPORTANT: In cPanel, add IP 34.34.229.10 to 'Remote MySQL' allowed hosts.");
         }
@@ -248,11 +248,7 @@ async function startServer() {
           nombre VARCHAR(255) NOT NULL,
           fecha_inicio DATE,
           fecha_fin DATE,
-          precio_nacional DECIMAL(10, 2),
-          precio_privado DECIMAL(10, 2),
-          precio_amazonico DECIMAL(10, 2),
-          deshabilitado BOOLEAN DEFAULT FALSE,
-          es_descentralizado BOOLEAN DEFAULT FALSE
+          deshabilitado BOOLEAN DEFAULT FALSE
         )
       `);
 
@@ -431,10 +427,89 @@ async function startServer() {
   // Cronograma API
   app.get("/api/cronograma", async (req, res) => {
     try {
-      const [rows] = await pool.query("SELECT * FROM cronograma ORDER BY order_index ASC");
-      res.json(rows);
+      const [manualEventsRaw]: any = await pool.query("SELECT * FROM cronograma ORDER BY order_index ASC");
+      const [modalidades]: any = await pool.query("SELECT * FROM modalidades WHERE deshabilitado = 0");
+      
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      const manualEvents = manualEventsRaw.map((ev: any) => {
+        let status = ev.status;
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (dateRegex.test(ev.date)) {
+          const eventDate = new Date(ev.date + 'T00:00:00');
+          eventDate.setHours(0, 0, 0, 0);
+          if (now > eventDate) status = 'completado';
+          else if (now.getTime() === eventDate.getTime()) status = 'activo';
+          else status = 'pendiente';
+        }
+        return {
+          id: ev.id.toString(),
+          event: ev.event,
+          date: ev.date,
+          status: status
+        };
+      });
+
+      const automaticEvents = modalidades.map((m: any) => {
+        const inicio = new Date(m.fecha_inicio);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = new Date(m.fecha_fin);
+        fin.setHours(0, 0, 0, 0);
+        
+        let status = 'pendiente';
+        if (now > fin) status = 'completado';
+        else if (now >= inicio) status = 'activo';
+        
+        const inicioStr = m.fecha_inicio ? new Date(m.fecha_inicio).toISOString().split('T')[0] : '';
+        const finStr = m.fecha_fin ? new Date(m.fecha_fin).toISOString().split('T')[0] : '';
+        
+        return {
+          id: `modalidad-${m.id}`,
+          event: m.nombre,
+          date: `${inicioStr} - ${finStr}`,
+          status: status,
+          isAutomatic: true
+        };
+      });
+      
+      res.json([...manualEvents, ...automaticEvents]);
     } catch (error) {
       handleDbError(res, error, "cronograma");
+    }
+  });
+
+  app.post("/api/cronograma/bulk", async (req, res) => {
+    try {
+      const { events } = req.body;
+      
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        await connection.query("DELETE FROM cronograma");
+        
+        let manualIdCounter = 1;
+        for (let i = 0; i < events.length; i++) {
+          const ev = events[i];
+          // Only save manual events
+          if (!ev.isAutomatic) {
+            await connection.query(
+              "INSERT INTO cronograma (id, event, date, status, order_index) VALUES (?, ?, ?, ?, ?)",
+              [manualIdCounter++, ev.event, ev.date, ev.status, i]
+            );
+          }
+        }
+        
+        await connection.commit();
+        res.json({ success: true });
+      } catch (err) {
+        await connection.rollback();
+        throw err;
+      } finally {
+        connection.release();
+      }
+    } catch (error) {
+      handleDbError(res, error, "saving cronograma");
     }
   });
 
@@ -771,10 +846,12 @@ async function startServer() {
 
   app.post("/api/modalidades", async (req, res) => {
     try {
-      const { nombre, fecha_inicio, fecha_fin, precio_nacional, precio_privado, precio_amazonico, deshabilitado, es_descentralizado } = req.body;
+      const { nombre, fecha_inicio, fecha_fin, deshabilitado } = req.body;
+      const fmt_fecha_inicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
+      const fmt_fecha_fin = fecha_fin ? fecha_fin.split('T')[0] : null;
       await pool.query(
-        "INSERT INTO modalidades (nombre, fecha_inicio, fecha_fin, precio_nacional, precio_privado, precio_amazonico, deshabilitado, es_descentralizado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [nombre, fecha_inicio, fecha_fin, precio_nacional, precio_privado, precio_amazonico, deshabilitado ? 1 : 0, es_descentralizado ? 1 : 0]
+        "INSERT INTO modalidades (nombre, fecha_inicio, fecha_fin, deshabilitado) VALUES (?, ?, ?, ?)",
+        [nombre, fmt_fecha_inicio, fmt_fecha_fin, deshabilitado ? 1 : 0]
       );
       res.json({ success: true });
     } catch (error) {
@@ -785,10 +862,12 @@ async function startServer() {
   app.put("/api/modalidades/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { nombre, fecha_inicio, fecha_fin, precio_nacional, precio_privado, precio_amazonico, deshabilitado, es_descentralizado } = req.body;
+      const { nombre, fecha_inicio, fecha_fin, deshabilitado } = req.body;
+      const fmt_fecha_inicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
+      const fmt_fecha_fin = fecha_fin ? fecha_fin.split('T')[0] : null;
       await pool.query(
-        "UPDATE modalidades SET nombre = ?, fecha_inicio = ?, fecha_fin = ?, precio_nacional = ?, precio_privado = ?, precio_amazonico = ?, deshabilitado = ?, es_descentralizado = ? WHERE id = ?",
-        [nombre, fecha_inicio, fecha_fin, precio_nacional, precio_privado, precio_amazonico, deshabilitado ? 1 : 0, es_descentralizado ? 1 : 0, id]
+        "UPDATE modalidades SET nombre = ?, fecha_inicio = ?, fecha_fin = ?, deshabilitado = ? WHERE id = ?",
+        [nombre, fmt_fecha_inicio, fmt_fecha_fin, deshabilitado ? 1 : 0, id]
       );
       res.json({ success: true });
     } catch (error) {

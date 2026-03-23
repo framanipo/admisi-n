@@ -40,7 +40,9 @@ import {
   Plus,
   Edit,
   Trash2,
-  X
+  X,
+  Database,
+  RefreshCw
 } from 'lucide-react';
 
 // --- Types ---
@@ -101,6 +103,7 @@ import { ConfiguracionImagenesView } from './ConfiguracionImagenesView';
 import { ConfiguracionCronogramaView, DEFAULT_CRONOGRAMA } from './ConfiguracionCronogramaView';
 import { ConfiguracionCarrerasView } from './ConfiguracionCarrerasView';
 import { ConfiguracionModalidadesView } from './ConfiguracionModalidadesView';
+import { ConfiguracionDatabaseView } from './ConfiguracionDatabaseView';
 import { CarreraDetailView } from './CarreraDetailView';
 import { Career, DEFAULT_CAREERS } from './data/defaultCareers';
 
@@ -201,7 +204,7 @@ const SelectField = ({ label, icon: Icon, options, error, ...props }: any) => (
   </div>
 );
 
-const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings }: { onPreRegister: () => void, onLogin: () => void, onViewCareer: (career: Career) => void, appSettings: any }) => {
+const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronograma }: { onPreRegister: () => void, onLogin: () => void, onViewCareer: (career: Career) => void, appSettings: any, cronograma: any[] }) => {
   return (
     <div className="min-h-screen bg-[#f8f7f4]">
       {/* Navigation */}
@@ -362,7 +365,7 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings }: { on
                 No pierdas la oportunidad de postular. Revisa las fechas clave del proceso actual.
               </p>
               <div className="space-y-4">
-                {(appSettings?.cronograma || DEFAULT_CRONOGRAMA).slice(0, 3).map((item: any, i: number) => (
+                {(cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA).slice(0, 3).map((item: any, i: number) => (
                   <div key={i} className="flex items-center gap-6 p-4 bg-white/5 rounded-2xl border border-white/10">
                     <div className="text-cyan-400 font-mono font-bold">{item.date}</div>
                     <div className="font-bold">{item.event}</div>
@@ -480,8 +483,9 @@ export default function App() {
       const response = await fetch('/api/db-status');
       const data = await response.json();
       if (response.ok && data.status === 'connected') {
-        setDbCheckResult({ success: true, message: `Conexión exitosa con el servidor MySQL (${data.host})` });
+        setDbCheckResult({ success: true, message: `Conectado exitosamente a la base de datos` });
         setDbError(null);
+        setTimeout(() => setDbCheckResult(null), 3000);
       } else {
         setDbCheckResult({ 
           success: false, 
@@ -924,6 +928,7 @@ export default function App() {
                 setView('carrera-detail');
               }}
               appSettings={appSettings}
+              cronograma={cronograma}
             />
           ) : view === 'carrera-detail' && selectedCareer ? (
             <CarreraDetailView career={selectedCareer} onBack={() => setView('landing')} />
@@ -980,7 +985,7 @@ export default function App() {
           ) : view === 'cronograma' ? (
             <CronogramaView key="cronograma-view" cronograma={cronograma} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'reglamento' ? (
-            <ReglamentoView key="reglamento-view" reglamento={reglamento} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
+            <ReglamentoView reglamento={reglamento} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'temario' ? (
             <TemarioView key="temario-view" temario={temario} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'resultados' ? (
@@ -996,6 +1001,7 @@ export default function App() {
               onConfigCronograma={() => setView('config-cronograma')} 
               onConfigCarreras={() => setView('config-carreras')} 
               onConfigModalidades={() => setView('config-modalidades')}
+              onConfigDatabase={() => setView('config-database')}
               onConfigUsers={() => setView('user-management')}
               onConfigRegistrados={() => setView('registrados-management')}
               onCheckDb={checkDbStatus}
@@ -1010,8 +1016,6 @@ export default function App() {
             />
           ) : view === 'config-cronograma' ? (
             <ConfiguracionCronogramaView 
-              appSettings={appSettings} 
-              onSave={(newSettings) => setAppSettings(newSettings)} 
               onBack={() => setView('admin-dashboard')} 
             />
           ) : view === 'config-carreras' ? (
@@ -1022,6 +1026,10 @@ export default function App() {
             />
           ) : view === 'config-modalidades' ? (
             <ConfiguracionModalidadesView 
+              onBack={() => setView('admin-dashboard')} 
+            />
+          ) : view === 'config-database' ? (
+            <ConfiguracionDatabaseView 
               onBack={() => setView('admin-dashboard')} 
             />
           ) : (
@@ -1071,7 +1079,7 @@ export default function App() {
                   </div>
                   <h3 className="text-xl font-bold text-stone-800 mb-4">Cronograma de Admisión</h3>
                   <div className="space-y-4">
-                    {(appSettings?.cronograma || DEFAULT_CRONOGRAMA).slice(0, 3).map((item: any, i: number) => (
+                    {(cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA).slice(0, 3).map((item: any, i: number) => (
                       <div key={i} className="flex justify-between items-center p-3 bg-stone-50 rounded-xl">
                         <div>
                           <p className="text-xs font-bold text-stone-400 uppercase">{item.event}</p>
@@ -1402,7 +1410,14 @@ const PreinscripcionForm: React.FC<{
   useEffect(() => {
     fetch('/api/modalidades')
       .then(res => res.json())
-      .then(data => setModalidades(data.filter((m: any) => !m.deshabilitado)));
+      .then(data => {
+        if (Array.isArray(data)) {
+          setModalidades(data.filter((m: any) => !m.deshabilitado));
+        } else {
+          console.error("Modalidades data is not an array:", data);
+          setModalidades([]);
+        }
+      })
   }, []);
 
   const validateStep1 = () => {
@@ -1777,7 +1792,7 @@ const CronogramaView: React.FC<{ onBack: () => void, cronograma: any[] }> = ({ o
   </motion.div>
 );
 
-const ReglamentoView = ({ onBack, reglamento, key }: { onBack: () => void, reglamento: any[], key?: string }) => (
+const ReglamentoView = ({ onBack, reglamento }: { onBack: () => void, reglamento: any[] }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
@@ -2162,7 +2177,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
   );
 };
 
-const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onCheckDb, isCheckingDb, dbCheckResult }: { registrations: any[], userRole?: string, onBack: () => void, onConfigImages: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any }) => {
+const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult }: { registrations: any[], userRole?: string, onBack: () => void, onConfigImages: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any }) => {
   useEffect(() => {
     onCheckDb();
   }, []);
@@ -2172,6 +2187,17 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      {isCheckingDb && (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="p-4 rounded-2xl border bg-blue-50 border-blue-100 text-blue-800 flex items-center gap-3"
+        >
+          <RefreshCw size={20} className="animate-spin" />
+          <p className="text-sm font-bold">Validando conexión a la base de datos...</p>
+        </motion.div>
+      )}
+
       {dbCheckResult && (
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
@@ -2221,6 +2247,7 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
               { icon: Image, label: "Configurar Inicio", color: "bg-pink-50 text-pink-600", action: onConfigImages },
               { icon: BookOpen, label: "Configurar Carreras", color: "bg-purple-50 text-purple-600", action: onConfigCarreras },
               { icon: BookOpen, label: "Configurar Modalidades", color: "bg-emerald-50 text-emerald-600", action: onConfigModalidades },
+              { icon: Database, label: "Configurar Base Datos", color: "bg-indigo-50 text-indigo-600", action: onConfigDatabase },
               { icon: Clock, label: "Configurar Cronograma", color: "bg-indigo-50 text-indigo-600", action: onConfigCronograma },
               { icon: ShieldCheck, label: isCheckingDb ? "Verificando..." : "Probar Conexión DB", color: "bg-emerald-50 text-emerald-600", action: onCheckDb },
             ].map((action, i) => (
