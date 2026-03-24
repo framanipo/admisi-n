@@ -42,13 +42,14 @@ import {
   Trash2,
   X,
   Database,
-  RefreshCw
+  RefreshCw,
+  LayoutDashboard
 } from 'lucide-react';
 
 // --- Types ---
 
 type Step = 'personal' | 'academic' | 'career' | 'success';
-type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion' | 'config-imagenes' | 'config-cronograma' | 'config-carreras' | 'carrera-detail' | 'inscripcion-form' | 'user-management' | 'registrados-management' | 'config-dni';
+type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion' | 'config-imagenes' | 'config-cronograma' | 'config-carreras' | 'carrera-detail' | 'inscripcion-form' | 'user-management' | 'registrados-management' | 'config-dni' | 'config-inicio';
 type Role = 'admin' | 'registrador' | 'visualizador';
 
 interface UserAuth {
@@ -105,6 +106,7 @@ interface FormData {
 }
 
 import { ConfiguracionImagenesView } from './ConfiguracionImagenesView';
+import { ConfiguracionInicioView } from './ConfiguracionInicioView';
 import { ConfiguracionCronogramaView, DEFAULT_CRONOGRAMA } from './ConfiguracionCronogramaView';
 import { ConfiguracionCarrerasView } from './ConfiguracionCarrerasView';
 import { ConfiguracionModalidadesView } from './ConfiguracionModalidadesView';
@@ -163,14 +165,6 @@ const INITIAL_DATA: FormData = {
   isPrimerosPuestos: false,
 };
 
-const CAREERS = [
-  "Ingeniería Agronómica Tropical",
-  "Ingeniería de Alimentos",
-  "Ingeniería Civil",
-  "Ecoturismo",
-  "Contabilidad",
-  "Economía"
-];
 
 const MODALITIES = [
   "EXAMEN ORDINARIO 2026",
@@ -217,7 +211,29 @@ const SelectField = ({ label, icon: Icon, options, error, ...props }: any) => (
   </div>
 );
 
-const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronograma }: { onPreRegister: () => void, onLogin: () => void, onViewCareer: (career: Career) => void, appSettings: any, cronograma: any[] }) => {
+const renderTitle = (title: string) => {
+  if (!title.toLowerCase().includes('aquí')) {
+    return title;
+  }
+  const parts = title.split(/(aquí)/gi);
+  return parts.map((part, i) => {
+    if (part.toLowerCase() === 'aquí') {
+      return (
+        <motion.span
+          key={i}
+          className="text-cyan-600"
+          animate={{ color: ['#0891b2', '#06b6d4', '#0891b2'] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          {part}
+        </motion.span>
+      );
+    }
+    return part;
+  });
+};
+
+const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronograma, carrerasDetalladas }: { onPreRegister: () => void, onLogin: () => void, onViewCareer: (career: Career) => void, appSettings: any, cronograma: any[], carrerasDetalladas: any[] }) => {
   const currentStatus = useMemo(() => {
     const items = cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA;
     const activeItem = items.find(item => item.status === 'activo');
@@ -276,10 +292,10 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
               {currentStatus}
             </div>
             <h2 className="text-5xl md:text-7xl font-bold text-stone-900 leading-[1.1] tracking-tight">
-              Tu futuro comienza <span className="text-cyan-600">aquí.</span>
+              {renderTitle(appSettings?.configuracionInicio?.titulo || "Tu futuro comienza aquí.")}
             </h2>
             <p className="text-lg text-stone-500 leading-relaxed max-w-lg">
-              Únete a la Universidad Nacional Intercultural de Quillabamba y sé parte de una comunidad académica que valora la excelencia y la diversidad cultural.
+              {appSettings?.configuracionInicio?.subtitulo || "Únete a la Universidad Nacional Intercultural de Quillabamba y sé parte de una comunidad académica que valora la excelencia y la diversidad cultural."}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <button 
@@ -302,7 +318,7 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
           >
             <div className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-2xl">
               <img 
-                src={appSettings?.heroImage || "https://picsum.photos/seed/uniq-campus-quillabamba/800/1000"} 
+                src={appSettings?.configuracionInicio?.imagen_url || "https://picsum.photos/seed/uniq-campus-quillabamba/800/1000"} 
                 alt="UNIQ Campus Principal" 
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
@@ -323,6 +339,28 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
         </div>
       </section>
 
+      {/* Carreras Detalladas Section */}
+      <section className="py-20 px-6 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <h3 className="text-3xl font-bold text-stone-900 mb-12 text-center">Nuestras Carreras</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {carrerasDetalladas.map((carrera: any) => (
+              <div key={carrera.id} className="bg-stone-50 p-8 rounded-3xl border border-stone-100 space-y-4">
+                <img src={carrera.imagen_url} alt={carrera.nombre} className="w-full h-48 object-cover rounded-2xl" referrerPolicy="no-referrer" />
+                <h4 className="text-xl font-bold text-stone-800">{carrera.nombre}</h4>
+                <p className="text-sm text-stone-600">{carrera.descripcion_corta}</p>
+                <button 
+                  onClick={() => onViewCareer(carrera)}
+                  className="text-cyan-600 font-bold text-sm flex items-center gap-2 hover:gap-3 transition-all"
+                >
+                  Ver más <ChevronRight size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Stats Section */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-6">
@@ -338,44 +376,6 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
                 <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{stat.label}</p>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Carreras Section */}
-      <section className="py-24 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16 space-y-4">
-            <h2 className="text-3xl md:text-5xl font-bold text-stone-900">Nuestras Carreras</h2>
-            <p className="text-stone-500 max-w-2xl mx-auto">
-              Formamos profesionales líderes con visión intercultural y compromiso social.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {(appSettings?.careers || DEFAULT_CAREERS).map((career: Career) => {
-              return (
-              <motion.div 
-                key={career.id}
-                whileHover={{ y: -10 }}
-                className="bg-white rounded-[2rem] overflow-hidden shadow-lg border border-stone-100 group"
-              >
-                <div className="aspect-video overflow-hidden">
-                  <img 
-                    src={career.imageUrl} 
-                    alt={career.name} 
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-                <div className="p-8">
-                  <h3 className="font-bold text-xl text-stone-800 mb-3 leading-tight">{career.name}</h3>
-                  <p className="text-sm text-stone-500 mb-6 leading-relaxed">{career.shortDesc}</p>
-                  <button onClick={() => onViewCareer(career)} className="text-cyan-600 font-bold text-xs uppercase tracking-widest flex items-center gap-2 group-hover:gap-3 transition-all">
-                    Ver más <ChevronRight size={14} />
-                  </button>
-                </div>
-              </motion.div>
-            )})}
           </div>
         </div>
       </section>
@@ -507,6 +507,7 @@ export default function App() {
   const [reglamento, setReglamento] = useState<any[]>([]);
   const [temario, setTemario] = useState<any[]>([]);
   const [resultados, setResultados] = useState<any[]>([]);
+  const [carrerasDetalladas, setCarrerasDetalladas] = useState<any[]>([]);
   const [dbError, setDbError] = useState<string | null>(null);
   const [selectedCareer, setSelectedCareer] = useState<Career | null>(null);
   const [lastRegistrationId, setLastRegistrationId] = useState<number | null>(null);
@@ -552,7 +553,10 @@ export default function App() {
         { url: '/api/cronograma', setter: setCronograma, name: 'cronograma' },
         { url: '/api/reglamento', setter: setReglamento, name: 'reglamento' },
         { url: '/api/temario', setter: setTemario, name: 'temario' },
-        { url: '/api/resultados', setter: setResultados, name: 'resultados' }
+        { url: '/api/resultados', setter: setResultados, name: 'resultados' },
+        { url: '/api/carreras-detalladas', setter: setCarrerasDetalladas, name: 'carreras-detalladas' },
+        { url: '/api/carreras', setter: (data: any) => setAppSettings((prev: any) => ({ ...prev, careers: data })), name: 'carreras' },
+        { url: '/api/configuracion-inicio', setter: (data: any) => setAppSettings((prev: any) => ({ ...prev, configuracionInicio: data })), name: 'configuracion-inicio' }
       ];
 
       let hasConnectionError = false;
@@ -966,6 +970,7 @@ export default function App() {
               }}
               appSettings={appSettings}
               cronograma={cronograma}
+              carrerasDetalladas={carrerasDetalladas}
             />
           ) : view === 'carrera-detail' && selectedCareer ? (
             <CarreraDetailView career={selectedCareer} onBack={() => setView('landing')} />
@@ -997,6 +1002,7 @@ export default function App() {
                     setFormData(INITIAL_DATA);
                   }}
                   isSubmitting={isSubmitting}
+                  careers={appSettings.careers || []}
                 />
               )}
             </div>
@@ -1045,12 +1051,18 @@ export default function App() {
               isCheckingDb={isCheckingDb}
               dbCheckResult={dbCheckResult}
               onConfigDni={() => setView('config-dni')}
+              onConfigInicio={() => setView('config-inicio')}
             />
           ) : view === 'config-dni' ? (
             <ConfigDniApiView 
               settings={appSettings}
               onSave={setAppSettings}
               onBack={() => setView('admin-dashboard')}
+            />
+          ) : view === 'config-inicio' ? (
+            <ConfiguracionInicioView 
+              onBack={() => setView('admin-dashboard')} 
+              onUpdate={fetchSettings}
             />
           ) : view === 'config-imagenes' ? (
             <ConfiguracionImagenesView 
@@ -1065,9 +1077,8 @@ export default function App() {
             />
           ) : view === 'config-carreras' ? (
             <ConfiguracionCarrerasView 
-              appSettings={appSettings} 
-              onSave={(newSettings) => setAppSettings(newSettings)} 
               onBack={() => setView('admin-dashboard')} 
+              onUpdate={fetchSettings}
             />
           ) : view === 'config-modalidades' ? (
             <ConfiguracionModalidadesView 
@@ -1163,12 +1174,12 @@ export default function App() {
               <div>
                 <h3 className="text-2xl font-bold text-stone-800 mb-8 text-center">Nuestras Carreras Profesionales</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {CAREERS.map((c, i) => (
+                  {(appSettings.careers || []).map((c: any, i: number) => (
                     <div key={i} className="bg-white p-6 rounded-2xl shadow-md border border-stone-100 hover:border-cyan-500 transition-all group cursor-pointer">
                       <div className="w-10 h-10 bg-stone-50 text-stone-400 rounded-xl flex items-center justify-center mb-4 group-hover:bg-cyan-50 group-hover:text-cyan-600 transition-all">
                         <BookOpen size={20} />
                       </div>
-                      <h4 className="font-bold text-sm text-stone-800 leading-tight">{c}</h4>
+                      <h4 className="font-bold text-sm text-stone-800 leading-tight">{c.codigo} - {c.name}</h4>
                     </div>
                   ))}
                 </div>
@@ -1447,13 +1458,36 @@ const PreinscripcionForm: React.FC<{
   setFormData: React.Dispatch<React.SetStateAction<FormData>>,
   onSubmit: (data: FormData) => Promise<boolean>,
   onCancel: () => void,
-  isSubmitting: boolean
-}> = ({ formData, setFormData, onSubmit, onCancel, isSubmitting }) => {
+  isSubmitting: boolean,
+  careers: any[]
+}> = ({ formData, setFormData, onSubmit, onCancel, isSubmitting, careers }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [modalidades, setModalidades] = useState<any[]>([]);
+  const [isLoadingModalidades, setIsLoadingModalidades] = useState(true);
   const [isSearchingDni, setIsSearchingDni] = useState(false);
   const [lastSearchedDni, setLastSearchedDni] = useState('');
+  const [places, setPlaces] = useState<any[]>([]);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+
+  const handlePlacesSearch = async (input: string) => {
+    if (input.length < 3) {
+      setPlaces([]);
+      return;
+    }
+    setIsSearchingPlaces(true);
+    try {
+      const response = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(input)}`);
+      const data = await response.json();
+      if (data.predictions) {
+        setPlaces(data.predictions);
+      }
+    } catch (error) {
+      console.error("Error searching places:", error);
+    } finally {
+      setIsSearchingPlaces(false);
+    }
+  };
 
   useEffect(() => {
     const lookupDni = async () => {
@@ -1520,6 +1554,7 @@ const PreinscripcionForm: React.FC<{
   }, [formData.dni, setFormData, lastSearchedDni]);
 
   useEffect(() => {
+    setIsLoadingModalidades(true);
     fetch('/api/modalidades')
       .then(res => res.json())
       .then(data => {
@@ -1530,6 +1565,13 @@ const PreinscripcionForm: React.FC<{
           setModalidades([]);
         }
       })
+      .catch(err => {
+        console.error("Error fetching modalidades:", err);
+        setModalidades([]);
+      })
+      .finally(() => {
+        setIsLoadingModalidades(false);
+      });
   }, []);
 
   const validateForm = () => {
@@ -1652,6 +1694,37 @@ const PreinscripcionForm: React.FC<{
     doc.save(`Ficha_Preinscripcion_${formData.dni}.pdf`);
   };
 
+  if (isLoadingModalidades) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-32 text-center">
+        <div className="w-12 h-12 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-stone-500 font-medium">Cargando modalidades de examen...</p>
+      </div>
+    );
+  }
+
+  if (modalidades.length === 0) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-16 text-center">
+        <div className="bg-white border border-stone-200 p-12 rounded-[2.5rem] shadow-xl max-w-2xl mx-auto">
+          <div className="w-24 h-24 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Info size={48} className="text-amber-500" />
+          </div>
+          <h2 className="text-3xl font-bold text-stone-800 mb-4">Inscripciones Cerradas</h2>
+          <p className="text-stone-600 mb-8 text-lg">
+            Actualmente no hay ninguna modalidad de examen activa. Por favor, manténgase atento a nuestros canales oficiales para conocer las próximas fechas de inscripción.
+          </p>
+          <button
+            onClick={onCancel}
+            className="px-8 py-4 bg-stone-100 text-stone-700 rounded-2xl font-bold hover:bg-stone-200 transition-colors"
+          >
+            Volver al Inicio
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header Title */}
@@ -1708,8 +1781,15 @@ const PreinscripcionForm: React.FC<{
                   name="career"
                   value={formData.career}
                   onChange={handleChange}
-                  options={CAREERS}
+                  options={careers.map(c => c.name)}
                   error={errors.career}
+                />
+                <InputField
+                  label="Código de Carrera"
+                  name="careerCode"
+                  value={careers.find(c => c.name === formData.career)?.codigo || ''}
+                  onChange={() => {}}
+                  disabled
                 />
                 <div className="relative">
                   <InputField
@@ -1744,7 +1824,39 @@ const PreinscripcionForm: React.FC<{
                 <InputField label="Apellido Materno" name="maternalSurname" value={formData.maternalSurname} onChange={handleChange} error={errors.maternalSurname} />
                 <InputField label="Fecha de Nacimiento" name="birthDate" type="date" value={formData.birthDate} onChange={handleChange} error={errors.birthDate} />
                 <SelectField label="Sexo" name="gender" value={formData.gender} onChange={handleChange} options={['MASCULINO', 'FEMENINO']} error={errors.gender} />
-                <SelectField label="Lugar de inscripción" name="lugarInscripcion" value={formData.lugarInscripcion} onChange={handleChange} options={['QUILLABAMBA', 'CUSCO', 'PICHARI']} />
+                <div className="relative">
+                  <InputField
+                    label="Lugar de inscripción"
+                    name="lugarInscripcion"
+                    value={formData.lugarInscripcion}
+                    onChange={(e) => {
+                      handleChange(e);
+                      handlePlacesSearch(e.target.value);
+                    }}
+                    placeholder="Escriba el lugar..."
+                  />
+                  {places.length > 0 && (
+                    <div className="absolute z-10 w-full bg-white border border-stone-200 rounded-xl shadow-lg mt-1 max-h-60 overflow-y-auto">
+                      {places.map((place: any) => (
+                        <div
+                          key={place.place_id}
+                          className="px-4 py-2 hover:bg-cyan-50 cursor-pointer"
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, lugarInscripcion: place.description }));
+                            setPlaces([]);
+                          }}
+                        >
+                          {place.description}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {isSearchingPlaces && (
+                    <div className="absolute right-3 top-9">
+                      <RefreshCw size={16} className="animate-spin text-cyan-600" />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -2457,7 +2569,7 @@ const ConfigDniApiView = ({ settings, onSave, onBack }: { settings: any, onSave:
   );
 };
 
-const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult, onConfigDni }: { registrations: any[], userRole?: string, onBack: () => void, onConfigImages: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any, onConfigDni: () => void }) => {
+const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult, onConfigDni, onConfigInicio }: { registrations: any[], userRole?: string, onBack: () => void, onConfigImages: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any, onConfigDni: () => void, onConfigInicio: () => void }) => {
   useEffect(() => {
     onCheckDb();
   }, []);
@@ -2530,7 +2642,8 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
               title: "Configuración del Portal",
               description: "Personalización de la información pública y parámetros del examen.",
               actions: [
-                { icon: Image, label: "Configurar Inicio", color: "bg-pink-50 text-pink-600", action: onConfigImages },
+                { icon: LayoutDashboard, label: "Configurar Inicio", color: "bg-pink-50 text-pink-600", action: onConfigInicio },
+                { icon: Image, label: "Configurar Imágenes", color: "bg-pink-50 text-pink-600", action: onConfigImages },
                 { icon: BookOpen, label: "Configurar Carreras", color: "bg-purple-50 text-purple-600", action: onConfigCarreras },
                 { icon: BookOpen, label: "Configurar Modalidades", color: "bg-lime-50 text-lime-600", action: onConfigModalidades },
                 { icon: Clock, label: "Configurar Cronograma", color: "bg-indigo-50 text-indigo-600", action: onConfigCronograma },

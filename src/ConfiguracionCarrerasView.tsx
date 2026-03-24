@@ -1,13 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { ChevronLeft, Save, BookOpen, Edit2, Upload } from 'lucide-react';
+import { ChevronLeft, Save, BookOpen, Edit2, Upload, Loader2 } from 'lucide-react';
 import { Career, DEFAULT_CAREERS } from './data/defaultCareers';
 
-export const ConfiguracionCarrerasView = ({ appSettings, onSave, onBack }: { appSettings: any, onSave: (settings: any) => void, onBack: () => void }) => {
-  const [careers, setCareers] = useState<Career[]>(appSettings?.careers || DEFAULT_CAREERS);
-  const [selectedId, setSelectedId] = useState<string>(careers[0]?.id);
+export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => void, onUpdate: () => void }) => {
+  const [careers, setCareers] = useState<Career[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/carreras-detalladas')
+      .then(res => res.json())
+      .then(data => {
+        const formattedCareers: Career[] = data.map((c: any) => ({
+          id: c.carrera_id.toString(),
+          name: c.nombre,
+          shortDesc: c.descripcion_corta,
+          fullDesc: c.descripcion_completa,
+          profile: c.perfil_egresado,
+          field: c.campo_laboral,
+          imageUrl: c.imagen_url
+        }));
+        setCareers(formattedCareers);
+        setSelectedId(formattedCareers[0]?.id);
+        setLoading(false);
+      });
+  }, []);
 
   const selectedCareer = careers.find(c => c.id === selectedId) || careers[0];
 
@@ -40,16 +60,24 @@ export const ConfiguracionCarrerasView = ({ appSettings, onSave, onBack }: { app
   };
 
   const handleSave = async () => {
+    if (!selectedCareer) return;
     setIsSaving(true);
-    const newSettings = { ...appSettings, careers };
     try {
-      const response = await fetch('/api/settings', {
+      const response = await fetch('/api/carreras', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSettings)
+        body: JSON.stringify({
+          carrera_id: selectedCareer.id,
+          nombre: selectedCareer.name,
+          descripcion_corta: selectedCareer.shortDesc,
+          descripcion_completa: selectedCareer.fullDesc,
+          perfil_egresado: selectedCareer.profile,
+          campo_laboral: selectedCareer.field,
+          imagen_url: selectedCareer.imageUrl
+        })
       });
       if (response.ok) {
-        onSave(newSettings);
+        onUpdate();
         onBack();
       }
     } catch (e) {
@@ -58,6 +86,8 @@ export const ConfiguracionCarrerasView = ({ appSettings, onSave, onBack }: { app
       setIsSaving(false);
     }
   };
+
+  if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin" /></div>;
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">

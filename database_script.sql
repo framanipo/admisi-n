@@ -7,12 +7,12 @@ USE uniq_admision;
 -- Tabla de Usuarios (Administradores, Registradores y Visualizadores)
 CREATE TABLE IF NOT EXISTS usuarios (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'registrador', 'visualizador') NOT NULL,
-    full_name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    nombre_usuario VARCHAR(50) NOT NULL UNIQUE,
+    contrasena VARCHAR(255) NOT NULL,
+    rol ENUM('admin', 'registrador', 'visualizador') NOT NULL,
+    nombre_completo VARCHAR(100) NOT NULL,
+    correo VARCHAR(100) NOT NULL UNIQUE,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Tabla de Carreras
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS preinscripciones (
     apellido_materno VARCHAR(100) NOT NULL,
     fecha_nacimiento DATE NOT NULL,
     genero ENUM('Masculino', 'Femenino', 'Otro') NOT NULL,
-    email VARCHAR(100) NOT NULL,
+    correo VARCHAR(100) NOT NULL,
     telefono VARCHAR(20) NOT NULL,
     pueblo_indigena VARCHAR(100),
     discapacidad VARCHAR(100),
@@ -71,7 +71,7 @@ INSERT INTO carreras (nombre, descripcion, vacantes) VALUES
 
 -- Insertar Usuario Administrador por defecto
 -- Nota: La contraseña 'admin123' debería ser hasheada en un sistema real
-INSERT INTO usuarios (username, password, role, full_name, email) VALUES
+INSERT INTO usuarios (nombre_usuario, contrasena, rol, nombre_completo, correo) VALUES
 ('admin', 'admin123', 'admin', 'Administrador Principal', 'admin@uniq.edu.pe'),
 ('registrador1', 'reg123', 'registrador', 'Juan Pérez', 'jperez@uniq.edu.pe'),
 ('visualizador1', 'vis123', 'visualizador', 'Maria Garcia', 'mgarcia@uniq.edu.pe');
@@ -79,8 +79,9 @@ INSERT INTO usuarios (username, password, role, full_name, email) VALUES
 -- Insertar algunas preinscripciones de ejemplo
 INSERT INTO preinscripciones (
     codigo_registro, documento_tipo, documento_numero, nombres, apellido_paterno, apellido_materno, 
-    fecha_nacimiento, genero, email, telefono, colegio_nombre, colegio_tipo, egreso_anio, 
+    fecha_nacimiento, genero, correo, telefono, colegio_nombre, colegio_tipo, egreso_anio, 
     departamento, provincia, distrito, carrera_id, modalidad
 ) VALUES
 ('UNIQ-1234', 'DNI', '70654321', 'Ana Maria', 'Quispe', 'Mamani', '2005-05-15', 'Femenino', 'ana.quispe@gmail.com', '987654321', 'I.E. Manco II', 'Estatal', 2023, 'Cusco', 'La Convención', 'Santa Ana', 1, 'Ordinario'),
 ('UNIQ-5678', 'DNI', '71234567', 'Carlos Alberto', 'Condori', 'Flores', '2006-02-20', 'Masculino', 'carlos.condori@gmail.com', '912345678', 'I.E. La Inmaculada', 'Particular', 2024, 'Cusco', 'La Convención', 'Santa Ana', 2, 'Primeros Puestos');
+
