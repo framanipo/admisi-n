@@ -25,7 +25,7 @@ export const CarreraDetailView = ({ career, onBack }: { career: any, onBack: () 
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-stone-50 p-8 rounded-3xl border border-stone-100">
-              <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center mb-6">
+              <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center mb-6">
                 <GraduationCap size={24} />
               </div>
               <h3 className="text-xl font-bold text-stone-800 mb-4">Perfil del Egresado</h3>
@@ -33,7 +33,7 @@ export const CarreraDetailView = ({ career, onBack }: { career: any, onBack: () 
             </div>
 
             <div className="bg-stone-50 p-8 rounded-3xl border border-stone-100">
-              <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center mb-6">
+              <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center mb-6">
                 <Briefcase size={24} />
               </div>
               <h3 className="text-xl font-bold text-stone-800 mb-4">Campo Laboral</h3>

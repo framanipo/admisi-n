@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as LucideIcons from 'lucide-react';
 import { 
   User, 
   BookOpen, 
@@ -36,7 +37,6 @@ import {
   Download,
   Globe,
   Check,
-  Image,
   Plus,
   Edit,
   Trash2,
@@ -57,6 +57,7 @@ interface UserAuth {
   role: Role;
   full_name?: string;
   email?: string;
+  activos?: boolean;
 }
 
 interface FormData {
@@ -105,9 +106,8 @@ interface FormData {
   isPrimerosPuestos: boolean;
 }
 
-import { ConfiguracionImagenesView } from './ConfiguracionImagenesView';
 import { ConfiguracionInicioView } from './ConfiguracionInicioView';
-import { ConfiguracionCronogramaView, DEFAULT_CRONOGRAMA } from './ConfiguracionCronogramaView';
+import { ConfiguracionCronogramaView } from './ConfiguracionCronogramaView';
 import { ConfiguracionCarrerasView } from './ConfiguracionCarrerasView';
 import { ConfiguracionModalidadesView } from './ConfiguracionModalidadesView';
 import { ConfiguracionDatabaseView } from './ConfiguracionDatabaseView';
@@ -136,7 +136,7 @@ const INITIAL_DATA: FormData = {
   schoolType: 'Estatal',
   graduationYear: CURRENT_YEAR.toString(),
   career: '',
-  modality: 'EXAMEN ORDINARIO 2026',
+  modality: '',
   indigenousPeople: 'AMAZÓNICO',
   lugarInscripcion: '',
   colegioRegion: 'CUSCO',
@@ -167,7 +167,7 @@ const INITIAL_DATA: FormData = {
 
 
 const MODALITIES = [
-  "EXAMEN ORDINARIO 2026",
+  "EXAMEN ORDINARIO",
   "PRIMEROS PUESTOS",
   "GRADUADOS Y TITULADOS",
   "TRASLADO EXTERNO",
@@ -221,9 +221,9 @@ const renderTitle = (title: string) => {
       return (
         <motion.span
           key={i}
-          className="text-cyan-600"
-          animate={{ color: ['#0891b2', '#06b6d4', '#0891b2'] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          className="text-uniq-cyan"
+          animate={{ color: ['#0891b2', '#eab308', '#84cc16', '#0891b2'] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
         >
           {part}
         </motion.span>
@@ -235,12 +235,12 @@ const renderTitle = (title: string) => {
 
 const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronograma, carrerasDetalladas }: { onPreRegister: () => void, onLogin: () => void, onViewCareer: (career: Career) => void, appSettings: any, cronograma: any[], carrerasDetalladas: any[] }) => {
   const currentStatus = useMemo(() => {
-    const items = cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA;
-    const activeItem = items.find(item => item.status === 'activo');
+    const items = cronograma;
+    const activeItem = items.find(item => item.status === 'activo' && item.habilitado !== false);
     if (activeItem) {
       return activeItem.event;
     }
-    const hasPending = items.some(item => item.status === 'pendiente');
+    const hasPending = items.some(item => item.status === 'pendiente' && item.habilitado !== false);
     if (hasPending) {
       return "Próximo Proceso de Admisión";
     }
@@ -248,15 +248,19 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
   }, [cronograma]);
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4]">
+    <div className="min-h-screen bg-[#f8f7f4] selection:bg-uniq-cyan/30">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-stone-100">
+      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-xl z-50 border-b border-stone-100/50 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <UniqLogo className="h-12 w-12" />
+            {appSettings?.imagenPortalUrl ? (
+              <img src={appSettings.imagenPortalUrl} alt="Logo" className="h-12 w-12 object-contain" referrerPolicy="no-referrer" />
+            ) : (
+              <UniqLogo className="h-12 w-12" />
+            )}
             <div className="hidden sm:block">
               <h1 className="font-bold text-stone-800 leading-tight text-sm max-w-[250px]">Universidad Nacional Intercultural de Quillabamba</h1>
-              <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Admisión 2026</p>
+              <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">{appSettings?.textoLogo || "Admisión 2026"}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -268,7 +272,7 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
             </button>
             <button 
               onClick={onPreRegister}
-              className="px-6 py-2.5 bg-cyan-600 text-white font-bold text-sm rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20"
+              className="px-6 py-2.5 bg-uniq-cyan text-white font-bold text-sm rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-uniq-cyan/20"
             >
               Preinscripción
             </button>
@@ -277,63 +281,86 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <section className="pt-40 pb-24 px-6 relative overflow-hidden min-h-[90vh] flex items-center">
+        {/* Background Image and Overlay */}
+        <div className="absolute inset-0 z-0">
+          <img 
+            src={appSettings?.configuracionInicio?.imagen_url || "https://picsum.photos/seed/uniq-hero/1920/1080"} 
+            alt="Fondo Principal" 
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+          <div 
+            className="absolute inset-0" 
+            style={{ 
+              backgroundColor: appSettings?.configuracionInicio?.overlay_color || '#000000', 
+              opacity: appSettings?.configuracionInicio?.overlay_opacity ?? 0.5 
+            }} 
+          />
+          {/* Gradient for better text readability */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-transparent" />
+        </div>
+
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="space-y-8"
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-cyan-50 text-cyan-700 rounded-full text-[10px] font-bold uppercase tracking-widest border border-cyan-100">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md text-white rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/20">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-uniq-cyan/40 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-uniq-cyan"></span>
               </span>
               {currentStatus}
             </div>
-            <h2 className="text-5xl md:text-7xl font-bold text-stone-900 leading-[1.1] tracking-tight">
+            <h2 className="text-5xl md:text-7xl font-bold text-white leading-[1.1] tracking-tight">
               {renderTitle(appSettings?.configuracionInicio?.titulo || "Tu futuro comienza aquí.")}
             </h2>
-            <p className="text-lg text-stone-500 leading-relaxed max-w-lg">
+            <p className="text-lg text-white/80 leading-relaxed max-w-lg">
               {appSettings?.configuracionInicio?.subtitulo || "Únete a la Universidad Nacional Intercultural de Quillabamba y sé parte de una comunidad académica que valora la excelencia y la diversidad cultural."}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <button 
                 onClick={onPreRegister}
-                className="px-10 py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-2xl shadow-stone-900/20 flex items-center justify-center gap-2 group"
+                className="px-10 py-4 bg-uniq-cyan text-white font-bold rounded-2xl hover:bg-cyan-700 transition-all shadow-2xl shadow-uniq-cyan/30 flex items-center justify-center gap-2 group"
               >
                 Iniciar Inscripción
                 <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </button>
-              <button className="px-10 py-4 bg-white text-stone-800 font-bold rounded-2xl border border-stone-200 hover:border-stone-300 transition-all flex items-center justify-center gap-2">
+              <button className="px-10 py-4 bg-white/10 backdrop-blur-md text-white font-bold rounded-2xl border border-white/20 hover:bg-white/20 transition-all flex items-center justify-center gap-2 group">
                 Descargar Guía
-                <Download size={18} />
+                <Download size={18} className="group-hover:translate-y-0.5 transition-transform" />
               </button>
             </div>
           </motion.div>
+          
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="relative"
+            className="hidden lg:flex justify-end"
           >
-            <div className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-2xl">
-              <img 
-                src={appSettings?.configuracionInicio?.imagen_url || "https://picsum.photos/seed/uniq-campus-quillabamba/800/1000"} 
-                alt="UNIQ Campus Principal" 
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <div className="absolute -bottom-6 -left-6 bg-white p-6 rounded-3xl shadow-xl border border-stone-100 max-w-[240px]">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center">
-                  <GraduationCap size={18} />
+            <div className="bg-white/10 backdrop-blur-xl p-8 rounded-[3rem] border border-white/20 shadow-2xl max-w-sm">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 bg-uniq-yellow/20 text-uniq-yellow rounded-2xl flex items-center justify-center">
+                  <DynamicIcon name={appSettings?.configuracionInicio?.excelencia_icono || "GraduationCap"} size={24} />
                 </div>
-                <p className="font-bold text-stone-800 text-sm">Excelencia</p>
+                <div>
+                  <p className="font-bold text-white text-lg">{appSettings?.configuracionInicio?.excelencia_titulo || "Excelencia UNIQ"}</p>
+                  <p className="text-xs text-white/60">{appSettings?.configuracionInicio?.excelencia_subtitulo || "Formación Intercultural"}</p>
+                </div>
               </div>
-              <p className="text-xs text-stone-500 leading-relaxed">
-                Programas acreditados y docentes de primer nivel para tu formación.
-              </p>
+              <div className="space-y-4">
+                <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                  <p className="text-xs text-white/80 leading-relaxed">
+                    {appSettings?.configuracionInicio?.excelencia_descripcion || "Programas acreditados y docentes de primer nivel para tu formación profesional."}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-uniq-cyan text-xs font-bold">
+                  <DynamicIcon name={appSettings?.configuracionInicio?.excelencia_etiqueta_icono || "ShieldCheck"} size={14} />
+                  {appSettings?.configuracionInicio?.excelencia_etiqueta || "Título a nombre de la Nación"}
+                </div>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -345,13 +372,13 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
           <h3 className="text-3xl font-bold text-stone-900 mb-12 text-center">Nuestras Carreras</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {carrerasDetalladas.map((carrera: any) => (
-              <div key={carrera.id} className="bg-stone-50 p-8 rounded-3xl border border-stone-100 space-y-4">
+              <div key={carrera.carrera_id || carrera.id} className="bg-stone-50 p-8 rounded-3xl border border-stone-100 space-y-4">
                 <img src={carrera.imagen_url} alt={carrera.nombre} className="w-full h-48 object-cover rounded-2xl" referrerPolicy="no-referrer" />
                 <h4 className="text-xl font-bold text-stone-800">{carrera.nombre}</h4>
                 <p className="text-sm text-stone-600">{carrera.descripcion_corta}</p>
                 <button 
                   onClick={() => onViewCareer(carrera)}
-                  className="text-cyan-600 font-bold text-sm flex items-center gap-2 hover:gap-3 transition-all"
+                  className="text-uniq-cyan font-bold text-sm flex items-center gap-2 hover:gap-3 transition-all"
                 >
                   Ver más <ChevronRight size={16} />
                 </button>
@@ -370,9 +397,9 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
               { label: "Estudiantes", value: "1.2k+" },
               { label: "Docentes", value: "80+" },
               { label: "Años", value: "05+" },
-            ].map((stat, i) => (
-              <div key={i} className="text-center space-y-2">
-                <p className="text-4xl md:text-5xl font-bold text-stone-900">{stat.value}</p>
+            ].map((stat) => (
+              <div key={stat.label} className="text-center space-y-2">
+                <p className="text-4xl md:text-5xl font-bold text-uniq-cyan">{stat.value}</p>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{stat.label}</p>
               </div>
             ))}
@@ -381,20 +408,35 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
       </section>
 
       {/* Cronograma Preview */}
-      <section className="py-24 px-6 bg-stone-900 text-white overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-600/20 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
+      <section className="py-24 px-6 bg-stone-950 text-white overflow-hidden relative">
+        {/* Intercultural Background Elements */}
+        <div className="absolute inset-0 z-0">
+          <img 
+            src={appSettings?.cronogramaFondoUrl || "https://picsum.photos/seed/quillabamba-landscape-intercultural/1920/1080"} 
+            alt="Fondo Intercultural UNIQ" 
+            className="w-full h-full object-cover opacity-10 grayscale hover:grayscale-0 transition-all duration-1000"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-stone-950" style={{ opacity: appSettings?.cronogramaOverlayOpacity ?? 0.8 }} />
+          {/* Subtle Pattern Overlay */}
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px' }} />
+        </div>
+
+        <div className="absolute top-0 right-0 w-96 h-96 bg-uniq-cyan/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-uniq-lime/5 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2" />
+
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-8">
-              <h2 className="text-3xl md:text-5xl font-bold leading-tight">Cronograma de <br />Admisión 2026</h2>
+              <h2 className="text-3xl md:text-5xl font-bold leading-tight">Cronograma de <br />{appSettings?.textoLogo || "Admisión 2026"}</h2>
               <p className="text-stone-400 text-lg">
                 No pierdas la oportunidad de postular. Revisa las fechas clave del proceso actual.
               </p>
               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar">
-                {(cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA).map((item: any, i: number) => (
-                  <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all group">
+                {cronograma.filter((item: any) => item.habilitado !== false).map((item: any) => (
+                  <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all group">
                     <div className="flex items-center gap-6">
-                      <div className="text-cyan-400 font-mono font-bold text-sm whitespace-nowrap">{item.date}</div>
+                      <div className="text-uniq-cyan font-mono font-bold text-sm whitespace-nowrap">{item.date}</div>
                       <div className="font-bold text-stone-100 group-hover:text-white transition-colors">{item.event}</div>
                     </div>
                     <div className={`
@@ -408,9 +450,15 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
                     </div>
                   </div>
                 ))}
+                {cronograma.length === 0 && (
+                  <p className="text-stone-500 italic text-center py-10">Cargando cronograma oficial...</p>
+                )}
               </div>
             </div>
-            <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10">
+            <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 relative overflow-hidden group">
+              {/* Intercultural Accent Bar */}
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-uniq-cyan via-uniq-yellow to-uniq-lime opacity-50 group-hover:opacity-100 transition-opacity" />
+              
               <h3 className="text-xl font-bold mb-6">Requisitos de Inscripción</h3>
               <ul className="space-y-4">
                 {[
@@ -419,9 +467,9 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
                   "Comprobante de pago por derecho de examen.",
                   "Fotografía tamaño carnet a color.",
                   "Ficha de preinscripción debidamente llenada."
-                ].map((req, i) => (
-                  <li key={i} className="flex items-start gap-3 text-stone-400 text-sm">
-                    <div className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0 mt-0.5">
+                ].map((req) => (
+                  <li key={req} className="flex items-start gap-3 text-stone-400 text-sm">
+                    <div className="w-5 h-5 rounded-full bg-uniq-cyan/20 flex items-center justify-center text-uniq-cyan shrink-0 mt-0.5">
                       <Check size={12} />
                     </div>
                     {req}
@@ -445,10 +493,10 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
               Universidad Nacional Intercultural de Quillabamba. Formando profesionales para el mundo desde el corazón de la Amazonía cusqueña.
             </p>
             <div className="flex gap-4">
-              <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-stone-400 hover:bg-cyan-50 hover:text-cyan-600 transition-all cursor-pointer">
+              <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-stone-400 hover:bg-uniq-cyan/10 hover:text-uniq-cyan transition-all cursor-pointer">
                 <Shield size={20} />
               </div>
-              <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-stone-400 hover:bg-cyan-50 hover:text-cyan-600 transition-all cursor-pointer">
+              <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-stone-400 hover:bg-uniq-cyan/10 hover:text-uniq-cyan transition-all cursor-pointer">
                 <Info size={20} />
               </div>
             </div>
@@ -456,32 +504,32 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
           <div>
             <h4 className="font-bold text-stone-800 mb-6">Proceso</h4>
             <ul className="space-y-4 text-sm text-stone-500">
-              <li className="hover:text-cyan-600 cursor-pointer">Guía del Postulante</li>
-              <li className="hover:text-cyan-600 cursor-pointer">Cronograma</li>
-              <li className="hover:text-cyan-600 cursor-pointer">Reglamento</li>
-              <li className="hover:text-cyan-600 cursor-pointer">Resultados</li>
+              <li className="hover:text-uniq-cyan cursor-pointer">Guía del Postulante</li>
+              <li className="hover:text-uniq-cyan cursor-pointer">Cronograma</li>
+              <li className="hover:text-uniq-cyan cursor-pointer">Reglamento</li>
+              <li className="hover:text-uniq-cyan cursor-pointer">Resultados</li>
             </ul>
           </div>
           <div>
             <h4 className="font-bold text-stone-800 mb-6">Contacto</h4>
             <ul className="space-y-4 text-sm text-stone-500">
               <li className="flex items-center gap-3">
-                <Mail size={16} className="text-cyan-600" />
+                <Mail size={16} className="text-uniq-cyan" />
                 admision@uniq.edu.pe
               </li>
               <li className="flex items-center gap-3">
-                <Phone size={16} className="text-cyan-600" />
+                <Phone size={16} className="text-uniq-cyan" />
                 (084) 282728
               </li>
               <li className="flex items-center gap-3">
-                <MapPin size={16} className="text-cyan-600" />
+                <MapPin size={16} className="text-uniq-cyan" />
                 Quillabamba, Cusco
               </li>
             </ul>
           </div>
         </div>
         <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-stone-100 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-stone-400">
-          <p>© 2026 Universidad Nacional Intercultural de Quillabamba. Todos los derechos reservados.</p>
+          <p>© {CURRENT_YEAR} Universidad Nacional Intercultural de Quillabamba. Todos los derechos reservados.</p>
           <div className="flex gap-8">
             <a href="#" className="hover:text-stone-600">Privacidad</a>
             <a href="#" className="hover:text-stone-600">Términos</a>
@@ -491,6 +539,13 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
       </footer>
     </div>
   );
+};
+
+// Helper component to render dynamic icons
+const DynamicIcon = ({ name, size = 24, className = "" }: { name: string, size?: number, className?: string }) => {
+  const IconComponent = (LucideIcons as any)[name];
+  if (!IconComponent) return null;
+  return <IconComponent size={size} className={className} />;
 };
 
 export default function App() {
@@ -550,13 +605,13 @@ export default function App() {
       
       // Fetch dynamic content from DB
       const endpoints = [
-        { url: '/api/cronograma', setter: setCronograma, name: 'cronograma' },
+        { url: '/api/cronograma', setter: (data: any) => setCronograma(data.sort((a: any, b: any) => (a.indice_orden || 0) - (b.indice_orden || 0))), name: 'cronograma' },
         { url: '/api/reglamento', setter: setReglamento, name: 'reglamento' },
         { url: '/api/temario', setter: setTemario, name: 'temario' },
         { url: '/api/resultados', setter: setResultados, name: 'resultados' },
         { url: '/api/carreras-detalladas', setter: setCarrerasDetalladas, name: 'carreras-detalladas' },
         { url: '/api/carreras', setter: (data: any) => setAppSettings((prev: any) => ({ ...prev, careers: data })), name: 'carreras' },
-        { url: '/api/configuracion-inicio', setter: (data: any) => setAppSettings((prev: any) => ({ ...prev, configuracionInicio: data })), name: 'configuracion-inicio' }
+        { url: '/api/configuracion-inicio', setter: (data: any) => setAppSettings((prev: any) => ({ ...prev, textoLogo: data.texto_logo, configuracionInicio: data })), name: 'configuracion-inicio' }
       ];
 
       let hasConnectionError = false;
@@ -605,6 +660,8 @@ export default function App() {
 
   useEffect(() => {
     fetchSettings();
+    // Increment portal visits
+    fetch('/api/portal/increment-visits', { method: 'POST' }).catch(console.error);
   }, [fetchSettings]);
 
   const fetchRegistrations = useCallback(async () => {
@@ -857,7 +914,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4] text-stone-900 font-sans selection:bg-cyan-100 selection:text-cyan-900">
+    <div className="min-h-screen bg-[#f8f7f4] text-stone-900 font-sans selection:bg-uniq-cyan/20 selection:text-uniq-cyan">
       {dbError && (
         <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 text-center sticky top-0 z-[60]">
           <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 flex items-center justify-center gap-2">
@@ -874,7 +931,7 @@ export default function App() {
               <UniqLogo className="h-10 w-10" />
               <div className="hidden sm:block">
                 <h1 className="font-bold text-sm leading-tight tracking-tight text-stone-800 max-w-[250px]">Universidad Nacional Intercultural de Quillabamba</h1>
-                <p className="text-[9px] uppercase font-bold tracking-[0.2em] text-stone-400">Admisión 2026</p>
+                <p className="text-[9px] uppercase font-bold tracking-[0.2em] text-stone-400">{appSettings?.textoLogo || "Admisión 2026"}</p>
               </div>
             </div>
             
@@ -1003,6 +1060,7 @@ export default function App() {
                   }}
                   isSubmitting={isSubmitting}
                   careers={appSettings.careers || []}
+                  appSettings={appSettings}
                 />
               )}
             </div>
@@ -1015,6 +1073,7 @@ export default function App() {
               userRole={user?.role}
               onBack={() => setView(user?.role === 'admin' ? 'admin-dashboard' : 'guia')}
               onNewInscripcion={() => setView('inscripcion-form')}
+              appSettings={appSettings}
             />
           ) : view === 'inscripcion-form' ? (
             <InscripcionAdminFormView 
@@ -1024,23 +1083,29 @@ export default function App() {
               }}
               onBack={() => setView('control-preinscripcion')}
               currentUser={user}
+              appSettings={appSettings}
             />
           ) : view === 'cronograma' ? (
-            <CronogramaView key="cronograma-view" cronograma={cronograma} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
+            <CronogramaView 
+              key="cronograma-view" 
+              cronograma={cronograma} 
+              appSettings={appSettings}
+              onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} 
+            />
           ) : view === 'reglamento' ? (
             <ReglamentoView reglamento={reglamento} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'temario' ? (
             <TemarioView key="temario-view" temario={temario} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'resultados' ? (
-            <ResultadosView resultados={resultados} isAdmin={user?.role === 'admin'} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
+            <ResultadosView resultados={resultados} isAdmin={user?.role === 'admin'} appSettings={appSettings} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'registrados-management' ? (
             <RegistradosManagementView onBack={() => setView('admin-dashboard')} />
           ) : view === 'admin-dashboard' ? (
             <AdminDashboardView 
               registrations={registrations} 
               userRole={user?.role} 
+              appSettings={appSettings}
               onBack={() => setView('guia')} 
-              onConfigImages={() => setView('config-imagenes')} 
               onConfigCronograma={() => setView('config-cronograma')} 
               onConfigCarreras={() => setView('config-carreras')} 
               onConfigModalidades={() => setView('config-modalidades')}
@@ -1063,12 +1128,6 @@ export default function App() {
             <ConfiguracionInicioView 
               onBack={() => setView('admin-dashboard')} 
               onUpdate={fetchSettings}
-            />
-          ) : view === 'config-imagenes' ? (
-            <ConfiguracionImagenesView 
-              appSettings={appSettings} 
-              onSave={(newSettings) => setAppSettings(newSettings)} 
-              onBack={() => setView('admin-dashboard')} 
             />
           ) : view === 'config-cronograma' ? (
             <ConfiguracionCronogramaView 
@@ -1099,51 +1158,51 @@ export default function App() {
             >
               {/* Hero Guía */}
               <div className="text-center mb-16">
-                <h2 className="text-4xl font-bold text-stone-800 mb-4">Guía del Postulante 2026</h2>
+                <h2 className="text-4xl font-bold text-stone-800 mb-4">Guía del Postulante {appSettings?.textoLogo?.replace('Admisión ', '') || "2026"}</h2>
                 <p className="text-stone-500 max-w-2xl mx-auto">Todo lo que necesitas saber para formar parte de la Universidad Nacional Intercultural de Quillabamba.</p>
               </div>
 
               {/* Secciones de la Guía */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-8 rounded-3xl shadow-lg border border-stone-100">
-                  <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center mb-6">
+                  <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center mb-6">
                     <FileText size={24} />
                   </div>
                   <h3 className="text-xl font-bold text-stone-800 mb-4">Requisitos Generales</h3>
                   <ul className="space-y-3 text-stone-600 text-sm">
                     <li className="flex items-start gap-3">
-                      <CheckCircle size={16} className="text-cyan-500 mt-0.5 shrink-0" />
+                      <CheckCircle size={16} className="text-uniq-cyan mt-0.5 shrink-0" />
                       Certificado de estudios secundarios (original).
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle size={16} className="text-cyan-500 mt-0.5 shrink-0" />
+                      <CheckCircle size={16} className="text-uniq-cyan mt-0.5 shrink-0" />
                       Copia del Documento Nacional de Identidad (DNI).
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle size={16} className="text-cyan-500 mt-0.5 shrink-0" />
+                      <CheckCircle size={16} className="text-uniq-cyan mt-0.5 shrink-0" />
                       Recibo de pago por derecho de examen de admisión.
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle size={16} className="text-cyan-500 mt-0.5 shrink-0" />
+                      <CheckCircle size={16} className="text-uniq-cyan mt-0.5 shrink-0" />
                       Fotografía tamaño carnet a color con fondo blanco.
                     </li>
                   </ul>
                 </div>
 
                 <div className="bg-white p-8 rounded-3xl shadow-lg border border-stone-100">
-                  <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center mb-6">
+                  <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center mb-6">
                     <Clock size={24} />
                   </div>
                   <h3 className="text-xl font-bold text-stone-800 mb-4">Cronograma de Admisión</h3>
                   <div className="space-y-4">
-                    {(cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA).slice(0, 3).map((item: any, i: number) => (
+                    {cronograma.slice(0, 3).map((item: any, i: number) => (
                       <div key={i} className="flex justify-between items-center p-3 bg-stone-50 rounded-xl">
                         <div>
                           <p className="text-xs font-bold text-stone-400 uppercase">{item.event}</p>
                           <p className="text-sm font-semibold text-stone-700">{item.date}</p>
                         </div>
                         {item.status === 'activo' && (
-                          <span className="px-2 py-1 bg-cyan-100 text-cyan-700 text-[10px] font-bold rounded">ACTIVO</span>
+                          <span className="px-2 py-1 bg-uniq-cyan/10 text-uniq-cyan text-[10px] font-bold rounded">ACTIVO</span>
                         )}
                       </div>
                     ))}
@@ -1176,7 +1235,7 @@ export default function App() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   {(appSettings.careers || []).map((c: any, i: number) => (
                     <div key={i} className="bg-white p-6 rounded-2xl shadow-md border border-stone-100 hover:border-cyan-500 transition-all group cursor-pointer">
-                      <div className="w-10 h-10 bg-stone-50 text-stone-400 rounded-xl flex items-center justify-center mb-4 group-hover:bg-cyan-50 group-hover:text-cyan-600 transition-all">
+                      <div className="w-10 h-10 bg-stone-50 text-stone-400 rounded-xl flex items-center justify-center mb-4 group-hover:bg-uniq-cyan/10 group-hover:text-uniq-cyan transition-all">
                         <BookOpen size={20} />
                       </div>
                       <h4 className="font-bold text-sm text-stone-800 leading-tight">{c.codigo} - {c.name}</h4>
@@ -1243,7 +1302,7 @@ export default function App() {
               {/* Descargas */}
               <div className="bg-cyan-50 p-8 rounded-3xl border border-cyan-100 flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-cyan-600 text-white rounded-2xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-uniq-cyan text-white rounded-2xl flex items-center justify-center">
                     <Download size={24} />
                   </div>
                   <div>
@@ -1251,7 +1310,7 @@ export default function App() {
                     <p className="text-sm text-cyan-700/70">Descarga el PDF con toda la información detallada.</p>
                   </div>
                 </div>
-                <button className="px-8 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20">
+                <button className="px-8 py-3 bg-uniq-cyan text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-uniq-cyan/20">
                   Descargar PDF
                 </button>
               </div>
@@ -1271,9 +1330,9 @@ export default function App() {
           <div>
             <h3 className="font-bold text-stone-800 mb-4">Enlaces Rápidos</h3>
             <ul className="text-sm text-stone-500 space-y-2">
-              <li><a href="#" className="hover:text-cyan-600">Cronograma de Admisión</a></li>
-              <li><a href="#" className="hover:text-cyan-600">Reglamento de Admisión</a></li>
-              <li><a href="#" className="hover:text-cyan-600">Temario del Examen</a></li>
+              <li><a href="#" className="hover:text-uniq-cyan">Cronograma de Admisión</a></li>
+              <li><a href="#" className="hover:text-uniq-cyan">Reglamento de Admisión</a></li>
+              <li><a href="#" className="hover:text-uniq-cyan">Temario del Examen</a></li>
             </ul>
           </div>
           <div>
@@ -1284,7 +1343,7 @@ export default function App() {
           </div>
         </div>
         <div className="mt-12 pt-8 border-t border-stone-100 flex flex-col md:row justify-between items-center gap-4">
-          <p className="text-xs text-stone-400">© 2026 Universidad Nacional Intercultural de Quillabamba. Todos los derechos reservados.</p>
+          <p className="text-xs text-stone-400">© {CURRENT_YEAR} Universidad Nacional Intercultural de Quillabamba. Todos los derechos reservados.</p>
           <div className="flex gap-6 text-xs text-stone-400 font-medium">
             <a href="#" className="hover:text-stone-600">Privacidad</a>
             <a href="#" className="hover:text-stone-600">Términos</a>
@@ -1329,6 +1388,8 @@ const LoginView: React.FC<{ onLogin: (u: string, r: Role, fn?: string, e?: strin
         if (contentType && contentType.includes("application/json")) {
           const data = await response.json();
           setError(data.details || data.error || 'Credenciales incorrectas');
+        } else if (response.status === 403) {
+          setError('el administrador deshabilito tu usuario comunicate con el.');
         } else {
           setError('Error de conexión con el servidor de base de datos.');
         }
@@ -1342,11 +1403,15 @@ const LoginView: React.FC<{ onLogin: (u: string, r: Role, fn?: string, e?: strin
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f8f7f4] p-6">
+    <div className="min-h-screen flex items-center justify-center bg-[#f8f7f4] p-6 relative overflow-hidden">
+      {/* Background Accents */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-uniq-cyan/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-uniq-lime/5 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2" />
+
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-md bg-white p-10 rounded-[2.5rem] shadow-2xl border border-stone-100"
+        className="w-full max-w-md bg-white p-10 rounded-[2.5rem] shadow-2xl border border-stone-100 relative z-10"
       >
         <div className="text-center mb-10">
           <UniqLogo className="w-20 h-20 mx-auto mb-4" />
@@ -1373,7 +1438,7 @@ const LoginView: React.FC<{ onLogin: (u: string, r: Role, fn?: string, e?: strin
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
+                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-uniq-cyan/20 focus:border-uniq-cyan outline-none transition-all"
                 placeholder="Nombre de usuario"
               />
             </div>
@@ -1388,7 +1453,7 @@ const LoginView: React.FC<{ onLogin: (u: string, r: Role, fn?: string, e?: strin
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
+                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-uniq-cyan/20 focus:border-uniq-cyan outline-none transition-all"
                 placeholder="••••••••"
               />
             </div>
@@ -1397,12 +1462,15 @@ const LoginView: React.FC<{ onLogin: (u: string, r: Role, fn?: string, e?: strin
           <button 
             type="submit"
             disabled={isLoggingIn}
-            className="w-full py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-xl shadow-stone-900/20 mt-4 disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-4 bg-uniq-cyan text-white font-bold rounded-2xl hover:bg-cyan-700 transition-all shadow-xl shadow-uniq-cyan/20 mt-4 disabled:opacity-50 flex items-center justify-center gap-2 group"
           >
             {isLoggingIn ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              "Iniciar Sesión"
+              <>
+                Iniciar Sesión
+                <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              </>
             )}
           </button>
 
@@ -1459,8 +1527,9 @@ const PreinscripcionForm: React.FC<{
   onSubmit: (data: FormData) => Promise<boolean>,
   onCancel: () => void,
   isSubmitting: boolean,
-  careers: any[]
-}> = ({ formData, setFormData, onSubmit, onCancel, isSubmitting, careers }) => {
+  careers: any[],
+  appSettings?: any
+}> = ({ formData, setFormData, onSubmit, onCancel, isSubmitting, careers, appSettings }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [modalidades, setModalidades] = useState<any[]>([]);
@@ -1559,7 +1628,8 @@ const PreinscripcionForm: React.FC<{
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-          setModalidades(data.filter((m: any) => !m.deshabilitado));
+          // Filter out deleted or disabled modalities for the registration form
+          setModalidades(data.filter((m: any) => !m.deshabilitado && !m.eliminado));
         } else {
           console.error("Modalidades data is not an array:", data);
           setModalidades([]);
@@ -1638,13 +1708,13 @@ const PreinscripcionForm: React.FC<{
     const doc = new jsPDF();
     
     // Header
-    doc.setFillColor(8, 145, 178); // cyan-600
+    doc.setFillColor(8, 145, 178); // uniq-cyan
     doc.rect(0, 0, 210, 40, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
     doc.text('UNIVERSIDAD NACIONAL INTERCULTURAL DE QUILLABAMBA', 105, 15, { align: 'center' });
     doc.setFontSize(14);
-    doc.text('FICHA DE PRE-INSCRIPCIÓN - ADMISIÓN 2026', 105, 25, { align: 'center' });
+    doc.text(`FICHA DE PRE-INSCRIPCIÓN - ${appSettings?.textoLogo?.toUpperCase() || "ADMISIÓN 2026"}`, 105, 25, { align: 'center' });
     
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(12);
@@ -1684,7 +1754,7 @@ const PreinscripcionForm: React.FC<{
       head: [['Campo', 'Información']],
       body: data,
       theme: 'striped',
-      headStyles: { fillColor: [8, 145, 178] }, // cyan-600
+      headStyles: { fillColor: [8, 145, 178] }, // uniq-cyan
     });
 
     doc.setFontSize(10);
@@ -1697,7 +1767,7 @@ const PreinscripcionForm: React.FC<{
   if (isLoadingModalidades) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-32 text-center">
-        <div className="w-12 h-12 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="w-12 h-12 border-4 border-uniq-cyan border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
         <p className="text-stone-500 font-medium">Cargando modalidades de examen...</p>
       </div>
     );
@@ -1729,7 +1799,7 @@ const PreinscripcionForm: React.FC<{
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header Title */}
       <div className="bg-white border border-stone-200 p-4 rounded-xl mb-8 text-center">
-        <h2 className="text-2xl font-bold text-cyan-600 uppercase tracking-wide">Formulario de Pre-Inscripción</h2>
+        <h2 className="text-2xl font-bold text-uniq-cyan uppercase tracking-wide">Formulario de Pre-Inscripción</h2>
       </div>
 
       {/* Steps Indicator */}
@@ -1740,7 +1810,7 @@ const PreinscripcionForm: React.FC<{
           { n: 2, label: 'REPORTE DE FICHA' }
         ].map((s) => (
           <div key={s.n} className="flex items-center gap-3 bg-[#f8f7f4] px-6">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${currentStep >= s.n ? 'bg-cyan-600 border-cyan-600 text-white' : 'bg-stone-400 border-stone-400 text-white'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${currentStep >= s.n ? 'bg-uniq-cyan border-uniq-cyan text-white' : 'bg-stone-400 border-stone-400 text-white'}`}>
               {s.n}
             </div>
             <span className={`text-[10px] font-bold uppercase tracking-widest ${currentStep >= s.n ? 'text-stone-800' : 'text-stone-400'}`}>
@@ -1762,7 +1832,7 @@ const PreinscripcionForm: React.FC<{
             {/* Section 1: Datos de Inscripción */}
             <div className="space-y-6">
               <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
-                <div className="w-8 h-8 bg-cyan-50 text-cyan-600 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-uniq-cyan/10 text-uniq-cyan rounded-lg flex items-center justify-center">
                   <BookOpen size={18} />
                 </div>
                 <h3 className="text-lg font-bold text-stone-800">Datos de Inscripción</h3>
@@ -1803,7 +1873,7 @@ const PreinscripcionForm: React.FC<{
                   />
                   {isSearchingDni && (
                     <div className="absolute right-3 top-9">
-                      <RefreshCw size={16} className="animate-spin text-cyan-600" />
+                      <RefreshCw size={16} className="animate-spin text-uniq-cyan" />
                     </div>
                   )}
                 </div>
@@ -1840,7 +1910,7 @@ const PreinscripcionForm: React.FC<{
                       {places.map((place: any) => (
                         <div
                           key={place.place_id}
-                          className="px-4 py-2 hover:bg-cyan-50 cursor-pointer"
+                          className="px-4 py-2 hover:bg-uniq-cyan/10 cursor-pointer"
                           onClick={() => {
                             setFormData(prev => ({ ...prev, lugarInscripcion: place.description }));
                             setPlaces([]);
@@ -1853,7 +1923,7 @@ const PreinscripcionForm: React.FC<{
                   )}
                   {isSearchingPlaces && (
                     <div className="absolute right-3 top-9">
-                      <RefreshCw size={16} className="animate-spin text-cyan-600" />
+                      <RefreshCw size={16} className="animate-spin text-uniq-cyan" />
                     </div>
                   )}
                 </div>
@@ -1932,15 +2002,15 @@ const PreinscripcionForm: React.FC<{
                   <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Habilidades Idioma</p>
                   <div className="flex gap-6">
                     <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
-                      <input type="checkbox" name="idiomaLee" checked={formData.idiomaLee} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-cyan-600 focus:ring-cyan-500" />
+                      <input type="checkbox" name="idiomaLee" checked={formData.idiomaLee} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-uniq-cyan focus:ring-uniq-cyan" />
                       Lee
                     </label>
                     <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
-                      <input type="checkbox" name="idiomaHabla" checked={formData.idiomaHabla} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-cyan-600 focus:ring-cyan-500" />
+                      <input type="checkbox" name="idiomaHabla" checked={formData.idiomaHabla} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-uniq-cyan focus:ring-uniq-cyan" />
                       Habla
                     </label>
                     <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
-                      <input type="checkbox" name="idiomaEscribe" checked={formData.idiomaEscribe} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-cyan-600 focus:ring-cyan-500" />
+                      <input type="checkbox" name="idiomaEscribe" checked={formData.idiomaEscribe} onChange={handleChange} className="w-5 h-5 rounded border-stone-300 text-uniq-cyan focus:ring-uniq-cyan" />
                       Escribe
                     </label>
                   </div>
@@ -1953,7 +2023,7 @@ const PreinscripcionForm: React.FC<{
                       name="hasSpecialConditions" 
                       checked={formData.hasSpecialConditions} 
                       onChange={handleChange} 
-                      className="w-5 h-5 rounded border-stone-300 text-cyan-600 focus:ring-cyan-500" 
+                      className="w-5 h-5 rounded border-stone-300 text-uniq-cyan focus:ring-uniq-cyan" 
                     />
                     Tiene Condiciones Especiales
                   </label>
@@ -1967,7 +2037,7 @@ const PreinscripcionForm: React.FC<{
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
-                            <input type="checkbox" name="discapacidad" checked={formData.discapacidad} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-cyan-600" />
+                            <input type="checkbox" name="discapacidad" checked={formData.discapacidad} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-uniq-cyan" />
                             Discapacidad Diagnosticada
                           </label>
                           {formData.discapacidad && (
@@ -1981,19 +2051,19 @@ const PreinscripcionForm: React.FC<{
                           )}
                         </div>
                         <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
-                          <input type="checkbox" name="isDeportista" checked={formData.isDeportista} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-cyan-600" />
+                          <input type="checkbox" name="isDeportista" checked={formData.isDeportista} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-uniq-cyan" />
                           Deportista Calificado
                         </label>
                         <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
-                          <input type="checkbox" name="isVictimaViolencia" checked={formData.isVictimaViolencia} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-cyan-600" />
+                          <input type="checkbox" name="isVictimaViolencia" checked={formData.isVictimaViolencia} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-uniq-cyan" />
                           Víctima de Violencia
                         </label>
                         <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
-                          <input type="checkbox" name="isServicioMilitar" checked={formData.isServicioMilitar} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-cyan-600" />
+                          <input type="checkbox" name="isServicioMilitar" checked={formData.isServicioMilitar} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-uniq-cyan" />
                           Servicio Militar
                         </label>
                         <label className="flex items-center gap-2 text-sm font-medium text-stone-700 cursor-pointer">
-                          <input type="checkbox" name="isPrimerosPuestos" checked={formData.isPrimerosPuestos} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-cyan-600" />
+                          <input type="checkbox" name="isPrimerosPuestos" checked={formData.isPrimerosPuestos} onChange={handleChange} className="w-4 h-4 rounded border-stone-300 text-uniq-cyan" />
                           Primeros Puestos
                         </label>
                       </div>
@@ -2007,7 +2077,7 @@ const PreinscripcionForm: React.FC<{
               <button 
                 onClick={handleNext}
                 disabled={isSubmitting}
-                className="px-12 py-4 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20 uppercase text-sm disabled:opacity-50 flex items-center gap-2"
+                className="px-12 py-4 bg-uniq-cyan text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-uniq-cyan/20 uppercase text-sm disabled:opacity-50 flex items-center gap-2"
               >
                 {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : null}
                 {isSubmitting ? 'Guardando...' : 'Finalizar Pre-Inscripción'}
@@ -2059,21 +2129,21 @@ const PreinscripcionForm: React.FC<{
   );
 };
 
-const CronogramaView: React.FC<{ onBack: () => void, cronograma: any[] }> = ({ onBack, cronograma }) => (
+const CronogramaView: React.FC<{ onBack: () => void, cronograma: any[], appSettings?: any }> = ({ onBack, cronograma, appSettings }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
+        <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center">
           <Clock size={24} />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-stone-800">Cronograma de Admisión 2026</h2>
+          <h2 className="text-2xl font-bold text-stone-800">Cronograma de {appSettings?.textoLogo || "Admisión 2026"}</h2>
           <p className="text-stone-500">Fechas oficiales del proceso de selección.</p>
         </div>
       </div>
 
       <div className="space-y-4">
-        {(cronograma.length > 0 ? cronograma : DEFAULT_CRONOGRAMA).map((item: any, i: number) => (
+        {cronograma.map((item: any, i: number) => (
           <div key={i} className="flex items-center justify-between p-5 bg-stone-50 rounded-2xl border border-stone-100 hover:border-cyan-200 transition-all">
             <div className="flex items-center gap-4">
               <div className={`w-2 h-2 rounded-full ${item.status === 'activo' ? 'bg-cyan-500 animate-pulse' : item.status === 'completado' ? 'bg-stone-300' : 'bg-cyan-400'}`} />
@@ -2082,7 +2152,7 @@ const CronogramaView: React.FC<{ onBack: () => void, cronograma: any[] }> = ({ o
                 <p className="text-xs text-stone-500">{item.date}</p>
               </div>
             </div>
-            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.status === 'activo' ? 'bg-cyan-100 text-cyan-700' : item.status === 'completado' ? 'bg-stone-200 text-stone-500' : 'bg-cyan-50 text-cyan-600'}`}>
+            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.status === 'activo' ? 'bg-uniq-cyan/10 text-uniq-cyan' : item.status === 'completado' ? 'bg-stone-200 text-stone-500' : 'bg-uniq-cyan/5 text-uniq-cyan'}`}>
               {item.status}
             </span>
           </div>
@@ -2150,7 +2220,7 @@ const ReglamentoView = ({ onBack, reglamento }: { onBack: () => void, reglamento
           <p className="font-bold">¿Necesitas el documento completo?</p>
           <p className="text-xs text-stone-400">Descarga el PDF oficial con todos los artículos.</p>
         </div>
-        <button className="px-6 py-2 bg-cyan-600 rounded-xl font-bold text-sm hover:bg-cyan-700 transition-all">Descargar PDF</button>
+        <button className="px-6 py-2 bg-uniq-cyan rounded-xl font-bold text-sm hover:opacity-90 transition-all">Descargar PDF</button>
       </div>
 
       <div className="mt-10 pt-8 border-t border-stone-100">
@@ -2237,7 +2307,7 @@ const TemarioView = ({ onBack, temario, key }: { onBack: () => void, temario: an
   </motion.div>
 );
 
-const ResultadosView = ({ isAdmin, resultados, onBack }: { isAdmin: boolean, resultados: any[], onBack: () => void }) => {
+const ResultadosView = ({ isAdmin, resultados, appSettings, onBack }: { isAdmin: boolean, resultados: any[], appSettings?: any, onBack: () => void }) => {
   const [search, setSearch] = useState('');
   const [uploading, setUploading] = useState(false);
   const [pdfFile, setPdfFile] = useState<string | null>(null);
@@ -2257,7 +2327,7 @@ const ResultadosView = ({ isAdmin, resultados, onBack }: { isAdmin: boolean, res
     // Simulate file selection and upload
     setTimeout(() => {
       setUploading(false);
-      setPdfFile('Resultados_Admision_2026_Final.pdf');
+      setPdfFile(`Resultados_${appSettings?.textoLogo?.replace(' ', '_') || "Admision_2026"}_Final.pdf`);
     }, 2000);
   };
 
@@ -2266,7 +2336,7 @@ const ResultadosView = ({ isAdmin, resultados, onBack }: { isAdmin: boolean, res
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center">
               <FileSearch size={24} />
             </div>
             <div>
@@ -2278,7 +2348,7 @@ const ResultadosView = ({ isAdmin, resultados, onBack }: { isAdmin: boolean, res
           <div className="flex gap-3">
             {pdfFile && (
               <button 
-                className="flex items-center gap-2 px-6 py-3 bg-cyan-50 text-cyan-700 rounded-2xl font-bold text-sm hover:bg-cyan-100 transition-all"
+                className="flex items-center gap-2 px-6 py-3 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl font-bold text-sm hover:bg-uniq-cyan/20 transition-all"
                 onClick={() => window.open('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
               >
                 <FileText size={18} />
@@ -2332,9 +2402,9 @@ const ResultadosView = ({ isAdmin, resultados, onBack }: { isAdmin: boolean, res
                   <tr key={i} className="hover:bg-stone-50 transition-colors">
                     <td className="p-4 font-mono font-bold text-stone-400">#{res.pos}</td>
                     <td className="p-4 font-bold text-stone-800">{res.name}</td>
-                    <td className="p-4 font-mono text-cyan-700 font-bold">{res.score}</td>
+                    <td className="p-4 font-mono text-uniq-cyan font-bold">{res.score}</td>
                     <td className="p-4">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${res.status === 'Ingresó' ? 'bg-cyan-100 text-cyan-700' : 'bg-red-50 text-red-600'}`}>
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${res.status === 'Ingresó' ? 'bg-uniq-cyan/10 text-uniq-cyan' : 'bg-red-50 text-red-600'}`}>
                         {res.status}
                       </span>
                     </td>
@@ -2358,13 +2428,13 @@ const ResultadosView = ({ isAdmin, resultados, onBack }: { isAdmin: boolean, res
   );
 };
 
-const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, onBack, onNewInscripcion }: { registrations: any[], onUpdateStatus: (id: string, status: string) => void, userRole?: string, onBack: () => void, onNewInscripcion: () => void }) => {
+const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, onBack, onNewInscripcion, appSettings }: { registrations: any[], onUpdateStatus: (id: string, status: string) => void, userRole?: string, onBack: () => void, onNewInscripcion: () => void, appSettings?: any }) => {
   const [search, setSearch] = useState('');
   
   const filteredApplicants = registrations.filter(app => {
     const searchLower = search.toLowerCase();
     const fullName = `${app.nombres} ${app.apellido_paterno} ${app.apellido_materno}`.toLowerCase();
-    const regCode = `UNIQ-2026-${app.id}`.toLowerCase();
+    const regCode = `UNIQ-${appSettings?.textoLogo?.replace('Admisión ', '') || "2026"}-${app.id}`.toLowerCase();
     
     return (
       (app.dni && app.dni.includes(search)) || 
@@ -2379,7 +2449,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center">
               <ListChecks size={24} />
             </div>
             <div>
@@ -2405,7 +2475,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
             placeholder="Buscar por DNI, Nombre o Código..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
+            className="w-full pl-12 pr-4 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-uniq-cyan/20 focus:border-uniq-cyan outline-none transition-all"
           />
         </div>
 
@@ -2426,14 +2496,14 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
             <tbody className="divide-y divide-stone-100">
               {filteredApplicants.map((app, i) => (
                 <tr key={i} className="hover:bg-stone-50 transition-colors">
-                  <td className="p-4 font-mono text-[10px] font-bold text-stone-500">UNIQ-2026-{app.id}</td>
+                  <td className="p-4 font-mono text-[10px] font-bold text-stone-500">UNIQ-{appSettings?.textoLogo?.replace('Admisión ', '') || "2026"}-{app.id}</td>
                   <td className="p-4 font-bold text-stone-800 text-sm">{app.nombres} {app.apellido_paterno} {app.apellido_materno}</td>
                   <td className="p-4 text-sm text-stone-600">{app.dni}</td>
                   <td className="p-4 text-sm text-stone-600">{app.carrera}</td>
                   <td className="p-4 text-sm text-stone-600">{app.pueblo_indigena}</td>
                   <td className="p-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                      app.estado === 'Validado' ? 'bg-cyan-100 text-cyan-700' : 
+                      app.estado === 'Validado' ? 'bg-uniq-cyan/10 text-uniq-cyan' : 
                       app.estado === 'Pendiente' ? 'bg-amber-100 text-amber-700' : 
                       'bg-red-100 text-red-700'
                     }`}>
@@ -2447,7 +2517,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
                         <>
                           <button 
                             onClick={() => onUpdateStatus(app.id, 'Validado')}
-                            className="text-cyan-600 hover:text-cyan-700 font-bold text-[10px] uppercase tracking-wider"
+                            className="text-uniq-cyan hover:text-cyan-700 font-bold text-[10px] uppercase tracking-wider"
                           >
                             Validar
                           </button>
@@ -2514,7 +2584,7 @@ const ConfigDniApiView = ({ settings, onSave, onBack }: { settings: any, onSave:
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
+        <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center">
           <Globe size={24} />
         </div>
         <div>
@@ -2552,7 +2622,7 @@ const ConfigDniApiView = ({ settings, onSave, onBack }: { settings: any, onSave:
           <button 
             onClick={handleSave}
             disabled={isSaving}
-            className="px-8 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all flex items-center gap-2 disabled:opacity-50"
+            className="px-8 py-3 bg-uniq-cyan text-white font-bold rounded-xl hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50"
           >
             {isSaving ? <RefreshCw size={18} className="animate-spin" /> : <Check size={18} />}
             Guardar Configuración
@@ -2569,7 +2639,7 @@ const ConfigDniApiView = ({ settings, onSave, onBack }: { settings: any, onSave:
   );
 };
 
-const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult, onConfigDni, onConfigInicio }: { registrations: any[], userRole?: string, onBack: () => void, onConfigImages: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any, onConfigDni: () => void, onConfigInicio: () => void }) => {
+const AdminDashboardView = ({ registrations, userRole, onBack, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult, onConfigDni, onConfigInicio, appSettings }: { registrations: any[], userRole?: string, onBack: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any, onConfigDni: () => void, onConfigInicio: () => void, appSettings?: any }) => {
   useEffect(() => {
     onCheckDb();
   }, []);
@@ -2605,7 +2675,7 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
         <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100">
           <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Total Postulantes</p>
           <p className="text-4xl font-bold text-stone-800">{total.toLocaleString()}</p>
-          <div className="mt-4 flex items-center gap-2 text-cyan-600 text-xs font-bold">
+          <div className="mt-4 flex items-center gap-2 text-uniq-cyan text-xs font-bold">
             <ChevronRight size={14} className="-rotate-90" />
             Actualizado ahora
           </div>
@@ -2634,8 +2704,8 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
               description: "Administración de registros, pagos y resultados del proceso.",
               actions: [
                 { icon: ShieldCheck, label: "Habilitar Postulantes", color: "bg-lime-50 text-lime-600", action: onConfigRegistrados },
-                { icon: FileText, label: "Reporte de Pagos", color: "bg-cyan-50 text-cyan-600" },
-                { icon: UploadCloud, label: "Subir Resultados", color: "bg-cyan-50 text-cyan-600" },
+                { icon: FileText, label: "Reporte de Pagos", color: "bg-uniq-cyan/10 text-uniq-cyan" },
+                { icon: UploadCloud, label: "Subir Resultados", color: "bg-uniq-cyan/10 text-uniq-cyan" },
               ]
             },
             {
@@ -2643,10 +2713,9 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
               description: "Personalización de la información pública y parámetros del examen.",
               actions: [
                 { icon: LayoutDashboard, label: "Configurar Inicio", color: "bg-pink-50 text-pink-600", action: onConfigInicio },
-                { icon: Image, label: "Configurar Imágenes", color: "bg-pink-50 text-pink-600", action: onConfigImages },
                 { icon: BookOpen, label: "Configurar Carreras", color: "bg-purple-50 text-purple-600", action: onConfigCarreras },
                 { icon: BookOpen, label: "Configurar Modalidades", color: "bg-lime-50 text-lime-600", action: onConfigModalidades },
-                { icon: Clock, label: "Configurar Cronograma", color: "bg-indigo-50 text-indigo-600", action: onConfigCronograma },
+                { icon: Clock, label: "Eventos del Cronograma", color: "bg-indigo-50 text-indigo-600", action: onConfigCronograma },
                 { icon: Info, label: "Editar Reglamento", color: "bg-amber-50 text-amber-600" },
               ]
             },
@@ -2656,7 +2725,7 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
               actions: [
                 { icon: User, label: "Gestionar Usuarios", color: "bg-purple-50 text-purple-600", action: onConfigUsers },
                 { icon: Database, label: "Configurar Base Datos", color: "bg-indigo-50 text-indigo-600", action: onConfigDatabase },
-                { icon: Globe, label: "Configurar API DNI", color: "bg-cyan-50 text-cyan-600", action: onConfigDni },
+                { icon: Globe, label: "Configurar API DNI", color: "bg-uniq-cyan/10 text-uniq-cyan", action: onConfigDni },
                 { icon: RefreshCw, label: isCheckingDb ? "Verificando..." : "Probar Conexión DB", color: "bg-emerald-50 text-emerald-600", action: onCheckDb },
               ]
             }
@@ -2698,7 +2767,7 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigImages, o
   );
 };
 
-const InscripcionAdminFormView = ({ onSave, onBack, currentUser }: { onSave: (data: FormData) => void, onBack: () => void, currentUser?: UserAuth }) => {
+const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: { onSave: (data: FormData) => void, onBack: () => void, currentUser?: UserAuth, appSettings?: any }) => {
   const [formData, setFormData] = useState<FormData>(INITIAL_DATA);
   const [loading, setLoading] = useState(false);
 
@@ -2923,7 +2992,8 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
     password: '',
     role: 'visualizador' as Role,
     full_name: '',
-    email: ''
+    email: '',
+    activos: true
   });
 
   const fetchUsers = async () => {
@@ -2953,7 +3023,8 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
         password: '', // Don't show password
         role: user.role,
         full_name: user.full_name || '',
-        email: user.email || ''
+        email: user.email || '',
+        activos: user.activos !== undefined ? !!user.activos : true
       });
     } else {
       setEditingUser(null);
@@ -2962,7 +3033,8 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
         password: '',
         role: 'visualizador',
         full_name: '',
-        email: ''
+        email: '',
+        activos: true
       });
     }
     setIsModalOpen(true);
@@ -3041,6 +3113,7 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Nombre Completo</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Email</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Rol</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Estado</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400 text-right">Acciones</th>
               </tr>
             </thead>
@@ -3063,11 +3136,18 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
                       {u.role}
                     </span>
                   </td>
+                  <td className="p-4">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                      u.activos ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {u.activos ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
                   <td className="p-4 text-right">
                     <div className="flex justify-end gap-2">
                       <button 
                         onClick={() => handleOpenModal(u)}
-                        className="p-2 text-stone-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all"
+                        className="p-2 text-stone-400 hover:text-uniq-cyan hover:bg-uniq-cyan/10 rounded-xl transition-all"
                       >
                         <Edit size={16} />
                       </button>
@@ -3176,6 +3256,21 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
                 </select>
               </div>
 
+              {formData.username !== 'admin' && (
+                <div className="flex items-center gap-3 p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                  <button 
+                    type="button"
+                    onClick={() => setFormData({...formData, activos: !formData.activos})}
+                    className={`w-12 h-6 rounded-full transition-all relative ${formData.activos ? 'bg-green-500' : 'bg-stone-300'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.activos ? 'left-7' : 'left-1'}`} />
+                  </button>
+                  <span className="text-sm font-bold text-stone-700">
+                    {formData.activos ? 'Usuario Habilitado' : 'Usuario Deshabilitado'}
+                  </span>
+                </div>
+              )}
+
               <div className="pt-4">
                 <button 
                   onClick={handleSave}
@@ -3268,7 +3363,7 @@ const RegistradosManagementView: React.FC<{ onBack: () => void }> = ({ onBack })
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center">
               <ShieldCheck size={24} />
             </div>
             <div>

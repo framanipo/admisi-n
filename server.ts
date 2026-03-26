@@ -7,11 +7,41 @@ import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import fs from "fs/promises";
 import multer from "multer";
+import crypto from "crypto";
 
 dotenv.config({ override: true });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "uniq_admision_secret_key_2026_!!"; // 32 chars
+const IV_LENGTH = 16;
+
+function encrypt(text: string) {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)), iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+function decrypt(text: string) {
+  try {
+    const textParts = text.split(':');
+    const iv = Buffer.from(textParts.shift()!, 'hex');
+    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)), iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  } catch (e) {
+    return text; // Return original if decryption fails (for transition)
+  }
+}
+
+function hashPassword(password: string) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
 
 async function startServer() {
   const app = express();
@@ -52,7 +82,12 @@ async function startServer() {
   async function getDbConfig() {
     try {
       const data = await fs.readFile(DB_CONFIG_FILE, 'utf-8');
-      return JSON.parse(data);
+      // Check if data is encrypted (contains ':')
+      let configData = data;
+      if (data.includes(':')) {
+        configData = decrypt(data);
+      }
+      return JSON.parse(configData);
     } catch (e) {
       return {
         host: process.env.DB_HOST || "155.248.226.7",
@@ -170,7 +205,8 @@ async function startServer() {
           contrasena VARCHAR(255) NOT NULL,
           rol ENUM('admin', 'registrador', 'visualizador') DEFAULT 'visualizador',
           nombre_completo VARCHAR(255),
-          correo VARCHAR(255)
+          correo VARCHAR(255),
+          activos BOOLEAN DEFAULT TRUE
         )
       `);
 
@@ -193,7 +229,11 @@ async function startServer() {
           id INT AUTO_INCREMENT PRIMARY KEY,
           evento VARCHAR(255) NOT NULL,
           fecha VARCHAR(255) NOT NULL,
+          fecha_inicio DATE,
+          fecha_fin DATE,
+          usar_rango BOOLEAN DEFAULT TRUE,
           estado ENUM('activo', 'completado', 'pendiente') DEFAULT 'pendiente',
+          habilitado BOOLEAN DEFAULT TRUE,
           indice_orden INT DEFAULT 0
         )
       `);
@@ -286,7 +326,13 @@ async function startServer() {
           nombre VARCHAR(255) NOT NULL,
           fecha_inicio DATE,
           fecha_fin DATE,
-          deshabilitado BOOLEAN DEFAULT FALSE
+          usar_rango BOOLEAN DEFAULT TRUE,
+          precio_nacional DECIMAL(10,2) DEFAULT 0,
+          precio_privado DECIMAL(10,2) DEFAULT 0,
+          deshabilitado BOOLEAN DEFAULT FALSE,
+          eliminado BOOLEAN DEFAULT FALSE,
+          fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          indice_orden INT DEFAULT 0
         )
       `);
 
@@ -294,8 +340,17 @@ async function startServer() {
       await connection.query(`
         CREATE TABLE IF NOT EXISTS config_api_dni (
           id INT PRIMARY KEY DEFAULT 1,
-          url_api VARCHAR(255) NOT NULL,
+          url_api TEXT NOT NULL,
           token_api TEXT NOT NULL,
+          fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Table for Database Config (Backup/Storage)
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS configuracion_db (
+          id INT PRIMARY KEY DEFAULT 1,
+          config_encriptada TEXT NOT NULL,
           fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
       `);
@@ -309,9 +364,21 @@ async function startServer() {
           imagen_url VARCHAR(255) NOT NULL
         )
       `);
+
+      // Table for Configuracion Portal (General settings like logo text)
       await connection.query(`
-        INSERT IGNORE INTO configuracion_inicio (id, titulo, subtitulo, imagen_url)
-        VALUES (1, 'Tu futuro comienza aquí', 'Formamos profesionales líderes con visión intercultural y compromiso social.', 'https://picsum.photos/seed/uniq-hero/1920/1080')
+        CREATE TABLE IF NOT EXISTS configuracion_portal (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          texto_logo VARCHAR(255) NOT NULL DEFAULT 'Admisión'
+        )
+      `);
+
+      // Table for Configuracion Cronograma
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS configuracion_cronograma (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          fondo_url VARCHAR(255) NOT NULL DEFAULT 'https://picsum.photos/seed/quillabamba/1920/1080'
+        )
       `);
 
       // Table for Preinscripciones
@@ -368,13 +435,21 @@ async function startServer() {
         await connection.query("ALTER TABLE preinscripciones ADD COLUMN es_primeros_puestos BOOLEAN DEFAULT FALSE");
       }
 
+      // Check for 'activos' in 'usuarios'
+      const [usuariosColumns]: any = await connection.query("SHOW COLUMNS FROM usuarios");
+      const userColumnNames = usuariosColumns.map((c: any) => c.Field);
+      if (!userColumnNames.includes('activos')) {
+        await connection.query("ALTER TABLE usuarios ADD COLUMN activos BOOLEAN DEFAULT TRUE");
+      }
+
       // 2. INSERT INITIAL DATA
       
       // Insert default admin if not exists
+      const adminPass = hashPassword('admin123');
       await connection.query(`
         INSERT IGNORE INTO usuarios (nombre_usuario, contrasena, rol, nombre_completo, correo)
-        VALUES ('admin', 'admin123', 'admin', 'Administrador UNIQ', 'admision@uniq.edu.pe')
-      `);
+        VALUES ('admin', ?, 'admin', 'Administrador UNIQ', 'admision@uniq.edu.pe')
+      `, [adminPass]);
 
       // Insert sample registered students
       await connection.query(`
@@ -385,10 +460,19 @@ async function startServer() {
       `);
 
       // Insert default DNI config if not exists
+      const encryptedUrl = encrypt('https://dniruc.apisperu.com/api/v1/dni/');
+      const encryptedToken = encrypt('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImZyYW50aGt4eEBnbWFpbC5jb20ifQ.Sd5HK5UM_F5cGwv3iqpVaY5LmntjWOQMEvmDs-vPbjk');
       await connection.query(`
         INSERT IGNORE INTO config_api_dni (id, url_api, token_api)
-        VALUES (1, 'https://dniruc.apisperu.com/api/v1/dni/', 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImZyYW50aGt4eEBnbWFpbC5jb20ifQ.Sd5HK5UM_F5cGwv3iqpVaY5LmntjWOQMEvmDs-vPbjk')
-      `);
+        VALUES (1, ?, ?)
+      `, [encryptedUrl, encryptedToken]);
+
+      // Insert current DB config into table as backup
+      const encryptedDbConfig = encrypt(JSON.stringify(dbSettings));
+      await connection.query(`
+        INSERT IGNORE INTO configuracion_db (id, config_encriptada)
+        VALUES (1, ?)
+      `, [encryptedDbConfig]);
 
       // 3. ALTER TABLES (MIGRATIONS)
       const columns = [
@@ -399,17 +483,67 @@ async function startServer() {
         "ALTER TABLE usuarios ADD COLUMN nombre_completo VARCHAR(255)",
         "ALTER TABLE usuarios ADD COLUMN correo VARCHAR(255)",
         "ALTER TABLE cronograma ADD COLUMN indice_orden INT DEFAULT 0",
+        "ALTER TABLE cronograma ADD COLUMN fecha_inicio DATE",
+        "ALTER TABLE cronograma ADD COLUMN fecha_fin DATE",
+        "ALTER TABLE cronograma ADD COLUMN habilitado BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE cronograma ADD COLUMN usar_rango BOOLEAN DEFAULT TRUE",
         "ALTER TABLE reglamento ADD COLUMN indice_orden INT DEFAULT 0",
         "ALTER TABLE temario ADD COLUMN indice_orden INT DEFAULT 0",
-        "ALTER TABLE carreras ADD COLUMN codigo VARCHAR(10)"
+        "ALTER TABLE carreras ADD COLUMN codigo VARCHAR(10)",
+        "ALTER TABLE modalidades ADD COLUMN precio_nacional DECIMAL(10,2) DEFAULT 0",
+        "ALTER TABLE modalidades ADD COLUMN precio_privado DECIMAL(10,2) DEFAULT 0",
+        "ALTER TABLE modalidades ADD COLUMN eliminado BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE modalidades ADD COLUMN fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE modalidades ADD COLUMN usar_rango BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE modalidades ADD COLUMN indice_orden INT DEFAULT 0",
+        "ALTER TABLE modalidades DROP COLUMN precio_amazonico",
+        "ALTER TABLE modalidades DROP COLUMN es_descentralizado",
+        "ALTER TABLE configuracion_inicio ADD COLUMN overlay_opacity DECIMAL(3,2) DEFAULT 0.5",
+        "ALTER TABLE configuracion_inicio ADD COLUMN overlay_color VARCHAR(20) DEFAULT '#000000'",
+        "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_titulo VARCHAR(255) DEFAULT 'Excelencia UNIQ'",
+        "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_subtitulo VARCHAR(255) DEFAULT 'Formación Intercultural'",
+        "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_descripcion TEXT",
+        "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_etiqueta VARCHAR(255) DEFAULT 'Título a nombre de la Nación'",
+        "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_icono VARCHAR(50) DEFAULT 'GraduationCap'",
+        "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_etiqueta_icono VARCHAR(50) DEFAULT 'ShieldCheck'",
+        "ALTER TABLE configuracion_inicio ADD COLUMN fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        "ALTER TABLE configuracion_portal MODIFY COLUMN id INT AUTO_INCREMENT",
+        "ALTER TABLE configuracion_portal ADD COLUMN imagen_portal_url VARCHAR(255)",
+        "ALTER TABLE configuracion_portal ADD COLUMN contador_visitas INT DEFAULT 0",
+        "ALTER TABLE configuracion_portal ADD COLUMN fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        "ALTER TABLE configuracion_cronograma MODIFY COLUMN id INT AUTO_INCREMENT",
+        "ALTER TABLE configuracion_cronograma ADD COLUMN fondo_url VARCHAR(255) NOT NULL DEFAULT 'https://picsum.photos/seed/quillabamba/1920/1080'",
+        "ALTER TABLE configuracion_cronograma ADD COLUMN overlay_opacity DECIMAL(3,2) DEFAULT 0.6",
+        "ALTER TABLE configuracion_cronograma ADD COLUMN fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
       ];
 
       for (const sql of columns) {
         try {
           await connection.query(sql);
-        } catch (e) {
-          // Ignore if already exists
+        } catch (e: any) {
+          // Ignore if already exists or column not found for drop
+          if (e.code !== 'ER_DUP_FIELDNAME' && e.code !== 'ER_CANT_DROP_FIELD_OR_KEY') {
+            console.error(`[DB MIGRATION ERROR] ${sql}:`, e.message);
+          }
         }
+      }
+
+      // 4. INSERT DEFAULT DATA (AFTER MIGRATIONS)
+      try {
+        await connection.query(`
+          INSERT IGNORE INTO configuracion_inicio (id, titulo, subtitulo, imagen_url, overlay_opacity, overlay_color, excelencia_titulo, excelencia_subtitulo, excelencia_descripcion, excelencia_etiqueta, excelencia_icono, excelencia_etiqueta_icono)
+          VALUES (1, 'Tu futuro comienza aquí', 'Formamos profesionales líderes con visión intercultural y compromiso social.', 'https://picsum.photos/seed/uniq-hero/1920/1080', 0.5, '#000000', 'Excelencia UNIQ', 'Formación Intercultural', 'Programas acreditados y docentes de primer nivel para tu formación profesional.', 'Título a nombre de la Nación', 'GraduationCap', 'ShieldCheck')
+        `);
+        await connection.query(`
+          INSERT IGNORE INTO configuracion_portal (id, texto_logo)
+          VALUES (1, 'Admisión ${new Date().getFullYear()}')
+        `);
+        await connection.query(`
+          INSERT IGNORE INTO configuracion_cronograma (id, fondo_url)
+          VALUES (1, 'https://picsum.photos/seed/quillabamba/1920/1080')
+        `);
+      } catch (e: any) {
+        console.error("[DB ERROR] Failed to insert default data:", e.message);
       }
 
       console.log("[DB] Tables initialized successfully");
@@ -447,11 +581,49 @@ async function startServer() {
     try {
       const [rows]: any = await pool.query("SELECT url_api AS api_url, token_api AS api_token FROM config_api_dni WHERE id = 1");
       if (rows.length > 0) {
-        settings.dniApiUrl = rows[0].api_url;
-        settings.dniApiToken = rows[0].api_token;
+        settings.dniApiUrl = decrypt(rows[0].api_url);
+        settings.dniApiToken = decrypt(rows[0].api_token);
       }
     } catch (e) {
       console.error("Error fetching DNI config from DB:", e);
+    }
+
+    // Fetch Inicio config from DB
+    try {
+      const [rows]: any = await pool.query("SELECT * FROM configuracion_inicio WHERE id = 1");
+      if (rows.length > 0) {
+        settings.inicio = rows[0];
+        settings.textoLogo = rows[0].texto_logo;
+      }
+    } catch (e) {
+      console.error("Error fetching inicio config from DB:", e);
+    }
+
+    // Merge Portal config from DB
+    try {
+      const [rows]: any = await pool.query("SELECT texto_logo, imagen_portal_url, contador_visitas, fecha_modificacion FROM configuracion_portal ORDER BY id DESC LIMIT 1");
+      if (rows.length > 0) {
+        settings.textoLogo = rows[0].texto_logo;
+        settings.imagenPortalUrl = rows[0].imagen_portal_url;
+        settings.contadorVisitas = rows[0].contador_visitas;
+        settings.fechaModificacion = rows[0].fecha_modificacion;
+      } else {
+        settings.textoLogo = `Admisión ${new Date().getFullYear()}`;
+      }
+    } catch (e) {
+      console.error("Error fetching portal config from DB:", e);
+      settings.textoLogo = `Admisión ${new Date().getFullYear()}`;
+    }
+
+    // Merge Cronograma config from DB
+    try {
+      const [rows]: any = await pool.query("SELECT fondo_url, overlay_opacity FROM configuracion_cronograma WHERE id = 1");
+      if (rows.length > 0) {
+        settings.cronogramaFondoUrl = rows[0].fondo_url;
+        settings.cronogramaOverlayOpacity = rows[0].overlay_opacity;
+      }
+    } catch (e) {
+      console.error("Error fetching cronograma config from DB:", e);
     }
     
     res.json(settings);
@@ -466,12 +638,15 @@ async function startServer() {
         const [rows]: any = await pool.query("SELECT url_api AS api_url, token_api AS api_token FROM config_api_dni WHERE id = 1");
         const currentDniConfig = rows[0] || { api_url: '', api_token: '' };
         
-        const apiUrl = newSettings.dniApiUrl !== undefined ? newSettings.dniApiUrl : currentDniConfig.api_url;
-        const apiToken = newSettings.dniApiToken !== undefined ? newSettings.dniApiToken : currentDniConfig.api_token;
+        const apiUrl = newSettings.dniApiUrl !== undefined ? newSettings.dniApiUrl : decrypt(currentDniConfig.api_url);
+        const apiToken = newSettings.dniApiToken !== undefined ? newSettings.dniApiToken : decrypt(currentDniConfig.api_token);
+        
+        const encryptedUrl = encrypt(apiUrl);
+        const encryptedToken = encrypt(apiToken);
         
         await pool.query(
           "INSERT INTO config_api_dni (id, url_api, token_api) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE url_api = ?, token_api = ?",
-          [apiUrl, apiToken, apiUrl, apiToken]
+          [encryptedUrl, encryptedToken, encryptedUrl, encryptedToken]
         );
         
         // Remove from JSON settings to avoid duplication
@@ -479,6 +654,19 @@ async function startServer() {
         delete newSettings.dniApiToken;
       } catch (e) {
         console.error("Error saving DNI config to DB:", e);
+      }
+    }
+
+    // Save Portal config to DB if present
+    if (newSettings.textoLogo !== undefined) {
+      try {
+        await pool.query(
+          "INSERT INTO configuracion_portal (id, texto_logo) VALUES (1, ?) ON DUPLICATE KEY UPDATE texto_logo = ?",
+          [newSettings.textoLogo, newSettings.textoLogo]
+        );
+        delete newSettings.textoLogo;
+      } catch (e) {
+        console.error("Error saving portal config to DB:", e);
       }
     }
 
@@ -540,7 +728,19 @@ async function startServer() {
     try {
       const newConfig = req.body;
       await fs.mkdir(path.dirname(DB_CONFIG_FILE), { recursive: true });
-      await fs.writeFile(DB_CONFIG_FILE, JSON.stringify(newConfig, null, 2));
+      const encryptedConfig = encrypt(JSON.stringify(newConfig, null, 2));
+      await fs.writeFile(DB_CONFIG_FILE, encryptedConfig);
+      
+      // Also save to DB table
+      try {
+        await pool.query(
+          "INSERT INTO configuracion_db (id, config_encriptada) VALUES (1, ?) ON DUPLICATE KEY UPDATE config_encriptada = ?",
+          [encryptedConfig, encryptedConfig]
+        );
+      } catch (dbErr) {
+        console.error("Error saving db config to table:", dbErr);
+      }
+
       await updatePool(newConfig);
       res.json({ success: true });
     } catch (error: any) {
@@ -582,39 +782,83 @@ async function startServer() {
   // Cronograma API
   app.get("/api/cronograma", async (req, res) => {
     try {
-      const [manualEventsRaw]: any = await pool.query("SELECT id, evento AS event, fecha AS date, estado AS status, indice_orden AS order_index FROM cronograma ORDER BY indice_orden ASC");
-      const [modalidades]: any = await pool.query("SELECT * FROM modalidades WHERE deshabilitado = 0");
+      const [manualEventsRaw]: any = await pool.query("SELECT id, evento AS event, fecha AS date, fecha_inicio, fecha_fin, usar_rango, estado AS status, habilitado, indice_orden AS order_index FROM cronograma ORDER BY indice_orden ASC");
+      const [modalidades]: any = await pool.query("SELECT * FROM modalidades WHERE deshabilitado = 0 AND eliminado = 0");
       
       const now = new Date();
       now.setHours(0, 0, 0, 0);
 
       const manualEvents = manualEventsRaw.map((ev: any) => {
         let status = ev.status;
-        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        if (dateRegex.test(ev.date)) {
-          const eventDate = new Date(ev.date + 'T00:00:00');
-          eventDate.setHours(0, 0, 0, 0);
-          if (now > eventDate) status = 'completado';
-          else if (now.getTime() === eventDate.getTime()) status = 'activo';
-          else status = 'pendiente';
+        
+        // Auto-calculate status if dates are present
+        if (ev.fecha_inicio && (ev.usar_rango ? ev.fecha_fin : true)) {
+          const inicio = new Date(ev.fecha_inicio);
+          inicio.setHours(0, 0, 0, 0);
+          
+          if (ev.usar_rango && ev.fecha_fin) {
+            const fin = new Date(ev.fecha_fin);
+            fin.setHours(0, 0, 0, 0);
+            if (now > fin) status = 'completado';
+            else if (now >= inicio) status = 'activo';
+            else status = 'pendiente';
+          } else {
+            // Only start date
+            if (now > inicio) status = 'completado';
+            else if (now.getTime() === inicio.getTime()) status = 'activo';
+            else status = 'pendiente';
+          }
+        } else if (ev.date) {
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+          if (dateRegex.test(ev.date)) {
+            const eventDate = new Date(ev.date + 'T00:00:00');
+            eventDate.setHours(0, 0, 0, 0);
+            if (now > eventDate) status = 'completado';
+            else if (now.getTime() === eventDate.getTime()) status = 'activo';
+            else status = 'pendiente';
+          }
         }
+
+        const inicioStr = ev.fecha_inicio ? new Date(ev.fecha_inicio).toISOString().split('T')[0] : '';
+        const finStr = ev.fecha_fin ? new Date(ev.fecha_fin).toISOString().split('T')[0] : '';
+
+        let displayDate = ev.date || '';
+        if (ev.fecha_inicio) {
+          if (ev.usar_rango) {
+            displayDate = finStr ? `${inicioStr} - ${finStr}` : inicioStr;
+          } else {
+            displayDate = inicioStr;
+          }
+        }
+
         return {
           id: ev.id.toString(),
           event: ev.event,
-          date: ev.date,
-          status: status
+          date: displayDate,
+          fecha_inicio: inicioStr,
+          fecha_fin: finStr,
+          usar_rango: !!ev.usar_rango,
+          status: status,
+          habilitado: !!ev.habilitado,
+          isAutomatic: false,
+          indice_orden: ev.order_index || 0
         };
       });
 
       const automaticEvents = modalidades.map((m: any) => {
         const inicio = new Date(m.fecha_inicio);
         inicio.setHours(0, 0, 0, 0);
-        const fin = new Date(m.fecha_fin);
-        fin.setHours(0, 0, 0, 0);
         
         let status = 'pendiente';
-        if (now > fin) status = 'completado';
-        else if (now >= inicio) status = 'activo';
+        if (m.usar_rango && m.fecha_fin) {
+          const fin = new Date(m.fecha_fin);
+          fin.setHours(0, 0, 0, 0);
+          if (now > fin) status = 'completado';
+          else if (now >= inicio) status = 'activo';
+        } else {
+          if (now > inicio) status = 'completado';
+          else if (now.getTime() === inicio.getTime()) status = 'activo';
+        }
         
         const inicioStr = m.fecha_inicio ? new Date(m.fecha_inicio).toISOString().split('T')[0] : '';
         const finStr = m.fecha_fin ? new Date(m.fecha_fin).toISOString().split('T')[0] : '';
@@ -622,13 +866,24 @@ async function startServer() {
         return {
           id: `modalidad-${m.id}`,
           event: m.nombre,
-          date: `${inicioStr} - ${finStr}`,
+          date: m.usar_rango ? (finStr ? `${inicioStr} - ${finStr}` : inicioStr) : inicioStr,
+          fecha_inicio: inicioStr,
+          fecha_fin: finStr,
+          usar_rango: !!m.usar_rango,
           status: status,
-          isAutomatic: true
+          isAutomatic: true,
+          habilitado: true,
+          indice_orden: m.indice_orden || 0
         };
       });
+
+      // Filter out manual events that have the same name as an automatic event to avoid duplicates
+      const filteredManualEvents = manualEvents.filter(me => 
+        !automaticEvents.some(ae => ae.event.toLowerCase().trim() === me.event.toLowerCase().trim())
+      );
       
-      res.json([...manualEvents, ...automaticEvents]);
+      const allEvents = [...filteredManualEvents, ...automaticEvents].sort((a, b) => a.indice_orden - b.indice_orden);
+      res.json(allEvents);
     } catch (error) {
       handleDbError(res, error, "cronograma");
     }
@@ -643,14 +898,29 @@ async function startServer() {
         await connection.beginTransaction();
         await connection.query("DELETE FROM cronograma");
         
-        let manualIdCounter = 1;
         for (let i = 0; i < events.length; i++) {
           const ev = events[i];
-          // Only save manual events
-          if (!ev.isAutomatic) {
+          if (ev.isAutomatic) {
+            // Update modality order
+            const modalityId = ev.id.replace('modalidad-', '');
             await connection.query(
-              "INSERT INTO cronograma (id, evento, fecha, estado, indice_orden) VALUES (?, ?, ?, ?, ?)",
-              [manualIdCounter++, ev.event, ev.date, ev.status, i]
+              "UPDATE modalidades SET indice_orden = ? WHERE id = ?",
+              [i, modalityId]
+            );
+          } else {
+            // Save manual event
+            await connection.query(
+              "INSERT INTO cronograma (evento, fecha, fecha_inicio, fecha_fin, usar_rango, estado, habilitado, indice_orden) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+              [
+                ev.event, 
+                ev.date || '', 
+                ev.fecha_inicio || null, 
+                ev.fecha_fin || null, 
+                ev.usar_rango !== undefined ? ev.usar_rango : true,
+                ev.status || 'pendiente', 
+                ev.habilitado !== undefined ? ev.habilitado : true,
+                i
+              ]
             );
           }
         }
@@ -915,15 +1185,35 @@ async function startServer() {
     console.log("[API] Login attempt for user:", req.body.username);
     try {
       const { username, password } = req.body;
-      const [rows] = await pool.query(
-        "SELECT id, nombre_usuario AS username, rol AS role, nombre_completo AS full_name, correo AS email FROM usuarios WHERE (nombre_usuario = ? OR correo = ?) AND contrasena = ?",
-        [username, username, password]
+      const hashedPassword = hashPassword(password);
+      
+      // Try with hashed password first
+      let [rows]: any = await pool.query(
+        "SELECT id, nombre_usuario AS username, rol AS role, nombre_completo AS full_name, correo AS email, contrasena, activos FROM usuarios WHERE (nombre_usuario = ? OR correo = ?) AND contrasena = ?",
+        [username, username, hashedPassword]
       );
 
-      const users = rows as any[];
-      if (users.length > 0) {
-        const user = users[0];
-        // Exact match with the provided database schema
+      // If not found, try with plain text (for users created before hashing)
+      if (rows.length === 0) {
+        [rows] = await pool.query(
+          "SELECT id, nombre_usuario AS username, rol AS role, nombre_completo AS full_name, correo AS email, contrasena, activos FROM usuarios WHERE (nombre_usuario = ? OR correo = ?) AND contrasena = ?",
+          [username, username, password]
+        );
+        
+        // If found with plain text, we should ideally update it to hashed
+        if (rows.length > 0) {
+          console.log(`[API] User ${username} logged in with plain text password. Updating to hashed.`);
+          await pool.query("UPDATE usuarios SET contrasena = ? WHERE id = ?", [hashedPassword, rows[0].id]);
+        }
+      }
+
+      if (rows.length > 0) {
+        const user = rows[0];
+        
+        if (!user.activos) {
+          return res.status(403).json({ error: "el administrador deshabilito tu usuario comunicate con el." });
+        }
+
         res.json({
           id: user.id,
           username: user.username,
@@ -942,7 +1232,7 @@ async function startServer() {
   // User Management API
   app.get("/api/users", async (req, res) => {
     try {
-      const [rows] = await pool.query("SELECT id, nombre_usuario AS username, rol AS role, nombre_completo AS full_name, correo AS email FROM usuarios");
+      const [rows] = await pool.query("SELECT id, nombre_usuario AS username, rol AS role, nombre_completo AS full_name, correo AS email, activos FROM usuarios");
       res.json(rows);
     } catch (error) {
       handleDbError(res, error, "fetching users");
@@ -951,10 +1241,11 @@ async function startServer() {
 
   app.post("/api/users", async (req, res) => {
     try {
-      const { username, password, role, full_name, email } = req.body;
+      const { username, password, role, full_name, email, activos } = req.body;
+      const hashedPassword = hashPassword(password);
       const [result] = await pool.query(
-        "INSERT INTO usuarios (nombre_usuario, contrasena, rol, nombre_completo, correo) VALUES (?, ?, ?, ?, ?)",
-        [username, password, role, full_name, email]
+        "INSERT INTO usuarios (nombre_usuario, contrasena, rol, nombre_completo, correo, activos) VALUES (?, ?, ?, ?, ?, ?)",
+        [username, hashedPassword, role, full_name, email, activos !== undefined ? activos : true]
       );
       res.status(201).json({ id: (result as any).insertId });
     } catch (error) {
@@ -965,14 +1256,14 @@ async function startServer() {
   app.put("/api/users/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { username, password, role, full_name, email } = req.body;
+      const { username, password, role, full_name, email, activos } = req.body;
       
-      let query = "UPDATE usuarios SET nombre_usuario = ?, rol = ?, nombre_completo = ?, correo = ?";
-      let params = [username, role, full_name, email];
+      let query = "UPDATE usuarios SET nombre_usuario = ?, rol = ?, nombre_completo = ?, correo = ?, activos = ?";
+      let params = [username, role, full_name, email, activos !== undefined ? activos : true];
       
       if (password) {
         query += ", contrasena = ?";
-        params.push(password);
+        params.push(hashPassword(password));
       }
       
       query += " WHERE id = ?";
@@ -1014,7 +1305,25 @@ async function startServer() {
   app.get("/api/configuracion-inicio", async (req, res) => {
     try {
       const [rows]: any = await pool.query("SELECT * FROM configuracion_inicio WHERE id = 1");
-      res.json(rows[0] || { titulo: '', subtitulo: '', imagen_url: '' });
+      const [portalRows]: any = await pool.query("SELECT texto_logo, imagen_portal_url, contador_visitas, fecha_modificacion FROM configuracion_portal ORDER BY id DESC LIMIT 1");
+      
+      const config = rows[0] || { 
+        titulo: '', 
+        subtitulo: '', 
+        imagen_url: '', 
+        overlay_opacity: 0.5, 
+        overlay_color: '#000000',
+        excelencia_titulo: 'Excelencia UNIQ',
+        excelencia_subtitulo: 'Formación Intercultural',
+        excelencia_descripcion: 'Programas acreditados y docentes de primer nivel para tu formación profesional.',
+        excelencia_etiqueta: 'Título a nombre de la Nación'
+      };
+      config.texto_logo = portalRows[0]?.texto_logo || `Admisión ${new Date().getFullYear()}`;
+      config.imagen_portal_url = portalRows[0]?.imagen_portal_url || '';
+      config.contador_visitas = portalRows[0]?.contador_visitas || 0;
+      config.fecha_modificacion = portalRows[0]?.fecha_modificacion || null;
+      
+      res.json(config);
     } catch (error) {
       handleDbError(res, error, "fetching configuracion inicio");
     }
@@ -1022,14 +1331,61 @@ async function startServer() {
 
   app.post("/api/configuracion-inicio", async (req, res) => {
     try {
-      const { titulo, subtitulo, imagen_url } = req.body;
+      const { 
+        titulo, subtitulo, imagen_url, overlay_opacity, overlay_color, 
+        excelencia_titulo, excelencia_subtitulo, excelencia_descripcion, excelencia_etiqueta,
+        excelencia_icono, excelencia_etiqueta_icono,
+        texto_logo, imagen_portal_url 
+      } = req.body;
       await pool.query(
-        "UPDATE configuracion_inicio SET titulo = ?, subtitulo = ?, imagen_url = ? WHERE id = 1",
-        [titulo, subtitulo, imagen_url]
+        "UPDATE configuracion_inicio SET titulo = ?, subtitulo = ?, imagen_url = ?, overlay_opacity = ?, overlay_color = ?, excelencia_titulo = ?, excelencia_subtitulo = ?, excelencia_descripcion = ?, excelencia_etiqueta = ?, excelencia_icono = ?, excelencia_etiqueta_icono = ? WHERE id = 1",
+        [titulo, subtitulo, imagen_url, overlay_opacity, overlay_color, excelencia_titulo, excelencia_subtitulo, excelencia_descripcion, excelencia_etiqueta, excelencia_icono, excelencia_etiqueta_icono]
       );
+      
+      if (texto_logo !== undefined || imagen_portal_url !== undefined) {
+        await pool.query(
+          "INSERT INTO configuracion_portal (texto_logo, imagen_portal_url) VALUES (?, ?)",
+          [texto_logo || `Admisión ${new Date().getFullYear()}`, imagen_portal_url || '']
+        );
+      }
+      
       res.json({ success: true });
     } catch (error) {
       handleDbError(res, error, "updating configuracion inicio");
+    }
+  });
+
+  app.post("/api/portal/increment-visits", async (req, res) => {
+    try {
+      // Increment visits on the latest portal configuration
+      await pool.query("UPDATE configuracion_portal SET contador_visitas = contador_visitas + 1 ORDER BY id DESC LIMIT 1");
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "incrementing visits");
+    }
+  });
+
+  // --- Cronograma Endpoints ---
+
+  app.get("/api/configuracion-cronograma", async (req, res) => {
+    try {
+      const [rows]: any = await pool.query("SELECT * FROM configuracion_cronograma WHERE id = 1");
+      res.json(rows[0] || { fondo_url: '', overlay_opacity: 0.6 });
+    } catch (error) {
+      handleDbError(res, error, "fetching configuracion cronograma");
+    }
+  });
+
+  app.post("/api/configuracion-cronograma", async (req, res) => {
+    try {
+      const { fondo_url, overlay_opacity } = req.body;
+      await pool.query(
+        "INSERT INTO configuracion_cronograma (id, fondo_url, overlay_opacity) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE fondo_url = ?, overlay_opacity = ?",
+        [fondo_url, overlay_opacity, fondo_url, overlay_opacity]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "updating configuracion cronograma");
     }
   });
 
@@ -1071,7 +1427,12 @@ async function startServer() {
 
   app.get("/api/modalidades", async (req, res) => {
     try {
-      const [rows] = await pool.query("SELECT * FROM modalidades ORDER BY id DESC");
+      // Auto-disable modalities that have expired (only those not already eliminated)
+      await pool.query("UPDATE modalidades SET deshabilitado = 1 WHERE fecha_fin < CURDATE() AND deshabilitado = 0 AND eliminado = 0");
+      // Auto-enable modalities that are now within validity (only those not already eliminated)
+      await pool.query("UPDATE modalidades SET deshabilitado = 0 WHERE fecha_fin >= CURDATE() AND deshabilitado = 1 AND eliminado = 0");
+      
+      const [rows] = await pool.query("SELECT * FROM modalidades ORDER BY indice_orden ASC, id DESC");
       res.json(rows);
     } catch (error) {
       handleDbError(res, error, "fetching modalidades");
@@ -1080,12 +1441,24 @@ async function startServer() {
 
   app.post("/api/modalidades", async (req, res) => {
     try {
-      const { nombre, fecha_inicio, fecha_fin, deshabilitado } = req.body;
+      const { nombre, fecha_inicio, fecha_fin, usar_rango, precio_nacional, precio_privado, deshabilitado } = req.body;
       const fmt_fecha_inicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
       const fmt_fecha_fin = fecha_fin ? fecha_fin.split('T')[0] : null;
+      
+      // Auto-calculate disabled state based on date if it's within validity
+      let final_deshabilitado = deshabilitado ? 1 : 0;
+      if (usar_rango && fmt_fecha_fin) {
+        const today = new Date().toISOString().split('T')[0];
+        if (fmt_fecha_fin >= today) {
+          final_deshabilitado = 0; // Auto-enable if within validity
+        } else {
+          final_deshabilitado = 1; // Auto-disable if expired
+        }
+      }
+
       await pool.query(
-        "INSERT INTO modalidades (nombre, fecha_inicio, fecha_fin, deshabilitado) VALUES (?, ?, ?, ?)",
-        [nombre, fmt_fecha_inicio, fmt_fecha_fin, deshabilitado ? 1 : 0]
+        "INSERT INTO modalidades (nombre, fecha_inicio, fecha_fin, usar_rango, precio_nacional, precio_privado, deshabilitado) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [nombre, fmt_fecha_inicio, fmt_fecha_fin, usar_rango !== undefined ? usar_rango : true, precio_nacional || 0, precio_privado || 0, final_deshabilitado]
       );
       res.json({ success: true });
     } catch (error) {
@@ -1096,13 +1469,27 @@ async function startServer() {
   app.put("/api/modalidades/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { nombre, fecha_inicio, fecha_fin, deshabilitado } = req.body;
+      const { nombre, fecha_inicio, fecha_fin, usar_rango, precio_nacional, precio_privado, deshabilitado } = req.body;
       const fmt_fecha_inicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
       const fmt_fecha_fin = fecha_fin ? fecha_fin.split('T')[0] : null;
+
+      // Auto-calculate disabled state based on date if it's within validity
+      let final_deshabilitado = deshabilitado ? 1 : 0;
+      if (usar_rango && fmt_fecha_fin) {
+        const today = new Date().toISOString().split('T')[0];
+        if (fmt_fecha_fin >= today) {
+          final_deshabilitado = 0; // Auto-enable if within validity
+        } else {
+          final_deshabilitado = 1; // Auto-disable if expired
+        }
+      }
+
+      // Perform direct update to maintain the Primary Key (id)
       await pool.query(
-        "UPDATE modalidades SET nombre = ?, fecha_inicio = ?, fecha_fin = ?, deshabilitado = ? WHERE id = ?",
-        [nombre, fmt_fecha_inicio, fmt_fecha_fin, deshabilitado ? 1 : 0, id]
+        "UPDATE modalidades SET nombre = ?, fecha_inicio = ?, fecha_fin = ?, usar_rango = ?, precio_nacional = ?, precio_privado = ?, deshabilitado = ? WHERE id = ?",
+        [nombre, fmt_fecha_inicio, fmt_fecha_fin, usar_rango !== undefined ? usar_rango : true, precio_nacional || 0, precio_privado || 0, final_deshabilitado, id]
       );
+      
       res.json({ success: true });
     } catch (error) {
       handleDbError(res, error, "updating modalidad");
@@ -1112,7 +1499,8 @@ async function startServer() {
   app.delete("/api/modalidades/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await pool.query("DELETE FROM modalidades WHERE id = ?", [id]);
+      // Soft delete: mark as eliminated and disabled to keep as historical
+      await pool.query("UPDATE modalidades SET eliminado = 1, deshabilitado = 1 WHERE id = ?", [id]);
       res.json({ success: true });
     } catch (error) {
       handleDbError(res, error, "deleting modalidad");
@@ -1128,8 +1516,8 @@ async function startServer() {
       const [rows]: any = await pool.query("SELECT url_api AS api_url, token_api AS api_token FROM config_api_dni WHERE id = 1");
       const config = rows[0];
       
-      const apiUrl = config?.api_url || "https://dniruc.apisperu.com/api/v1/dni/";
-      const apiToken = config?.api_token;
+      const apiUrl = config ? decrypt(config.api_url) : "https://dniruc.apisperu.com/api/v1/dni/";
+      const apiToken = config ? decrypt(config.api_token) : null;
 
       if (!apiToken) {
         return res.status(400).json({ error: "Token de API DNI no configurado en la base de datos" });
