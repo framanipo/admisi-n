@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { ChevronLeft, Save, BookOpen, Edit2, Upload, Loader2 } from 'lucide-react';
+import { ChevronLeft, Save, BookOpen, Edit2, Upload, Loader2, Search } from 'lucide-react';
 import { Career, DEFAULT_CAREERS } from './data/defaultCareers';
 
 export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => void, onUpdate: () => void }) => {
@@ -21,7 +21,10 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
           fullDesc: c.descripcion_completa,
           profile: c.perfil_egresado,
           field: c.campo_laboral,
-          imageUrl: c.imagen_url
+          imageUrl: c.imagen_url,
+          imageZoom: c.imagen_zoom ?? 100,
+          imageOffsetX: c.imagen_offset_x ?? 50,
+          imageOffsetY: c.imagen_offset_y ?? 50
         }));
         setCareers(formattedCareers);
         setSelectedId(formattedCareers[0]?.id);
@@ -31,7 +34,7 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
 
   const selectedCareer = careers.find(c => c.id === selectedId) || careers[0];
 
-  const handleChange = (field: keyof Career, value: string) => {
+  const handleChange = (field: keyof Career, value: string | number) => {
     setCareers(prev => prev.map(c => c.id === selectedId ? { ...c, [field]: value } : c));
   };
 
@@ -73,7 +76,10 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
           descripcion_completa: selectedCareer.fullDesc,
           perfil_egresado: selectedCareer.profile,
           campo_laboral: selectedCareer.field,
-          imagen_url: selectedCareer.imageUrl
+          imagen_url: selectedCareer.imageUrl,
+          imagen_zoom: selectedCareer.imageZoom,
+          imagen_offset_x: selectedCareer.imageOffsetX,
+          imagen_offset_y: selectedCareer.imageOffsetY
         })
       });
       if (response.ok) {
@@ -168,24 +174,76 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
               </div>
             </div>
             <div className="space-y-4">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Imagen de la Carrera</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">URL de la Imagen de la Carrera</label>
               <div className="flex flex-col md:flex-row gap-4">
                 <input 
                   type="text" 
                   value={selectedCareer.imageUrl} 
                   onChange={e => handleChange('imageUrl', e.target.value)} 
-                  placeholder="URL de la imagen o sube una..."
+                  placeholder="https://ejemplo.com/imagen.jpg"
                   className="flex-1 px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan focus:ring-4 focus:ring-uniq-cyan/10 transition-all font-medium text-stone-700 shadow-sm" 
                 />
-                <label className="cursor-pointer flex items-center justify-center gap-3 px-8 py-4 bg-stone-200 text-stone-700 font-bold rounded-2xl hover:bg-stone-300 transition-all active:scale-95 shadow-sm">
-                  <Upload size={20} />
-                  {isUploading ? 'Subiendo...' : 'Subir Imagen'}
-                  <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isUploading} />
-                </label>
               </div>
               {selectedCareer.imageUrl && (
-                <div className="mt-4 aspect-video w-full max-w-md rounded-[2rem] overflow-hidden border-4 border-white shadow-xl">
-                  <img src={selectedCareer.imageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <div className="mt-8 space-y-6">
+                  <div className="aspect-video w-full max-w-md rounded-[2rem] overflow-hidden border-4 border-white shadow-xl group">
+                    <img 
+                      src={selectedCareer.imageUrl} 
+                      alt="Preview" 
+                      className="w-full h-full object-cover transition-transform duration-500 hover-zoom-image" 
+                      style={{
+                        objectPosition: `${selectedCareer.imageOffsetX ?? 50}% ${selectedCareer.imageOffsetY ?? 50}%`,
+                        '--base-scale': (selectedCareer.imageZoom ?? 100) / 100,
+                        transform: 'scale(var(--base-scale))'
+                      } as React.CSSProperties}
+                      referrerPolicy="no-referrer" 
+                    />
+                  </div>
+
+                  <div className="space-y-4 bg-stone-50 p-6 rounded-3xl border border-stone-100 max-w-md">
+                    <h4 className="font-bold text-stone-700 text-sm flex items-center gap-2">
+                      <Search size={16} className="text-uniq-cyan" /> Ajuste de Imagen (Zoom y Posición)
+                    </h4>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-bold text-stone-500">
+                        <span>Zoom ({selectedCareer.imageZoom ?? 100}%)</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="100" max="300" 
+                        value={selectedCareer.imageZoom ?? 100} 
+                        onChange={e => handleChange('imageZoom', parseInt(e.target.value))}
+                        className="w-full accent-uniq-cyan"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-bold text-stone-500">
+                        <span>Posición Horizontal ({selectedCareer.imageOffsetX ?? 50}%)</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" max="100" 
+                        value={selectedCareer.imageOffsetX ?? 50} 
+                        onChange={e => handleChange('imageOffsetX', parseInt(e.target.value))}
+                        className="w-full accent-uniq-cyan"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-bold text-stone-500">
+                        <span>Posición Vertical ({selectedCareer.imageOffsetY ?? 50}%)</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" max="100" 
+                        value={selectedCareer.imageOffsetY ?? 50} 
+                        onChange={e => handleChange('imageOffsetY', parseInt(e.target.value))}
+                        className="w-full accent-uniq-cyan"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

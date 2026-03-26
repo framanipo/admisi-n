@@ -372,13 +372,24 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
           <h3 className="text-3xl font-bold text-stone-900 mb-12 text-center">Nuestras Carreras</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {carrerasDetalladas.map((carrera: any) => (
-              <div key={carrera.carrera_id || carrera.id} className="bg-stone-50 p-8 rounded-3xl border border-stone-100 space-y-4">
-                <img src={carrera.imagen_url} alt={carrera.nombre} className="w-full h-48 object-cover rounded-2xl" referrerPolicy="no-referrer" />
-                <h4 className="text-xl font-bold text-stone-800">{carrera.nombre}</h4>
+              <div key={carrera.carrera_id || carrera.id} className="bg-stone-50 p-8 rounded-3xl border border-stone-100 space-y-4 group cursor-pointer" onClick={() => onViewCareer(carrera)}>
+                <div className="rounded-2xl overflow-hidden">
+                  <img 
+                    src={carrera.imagen_url} 
+                    alt={carrera.nombre} 
+                    className="w-full h-48 object-cover transition-transform duration-500 hover-zoom-image" 
+                    style={{
+                      objectPosition: `${carrera.imagen_offset_x ?? 50}% ${carrera.imagen_offset_y ?? 50}%`,
+                      '--base-scale': (carrera.imagen_zoom ?? 100) / 100,
+                      transform: 'scale(var(--base-scale))'
+                    } as React.CSSProperties}
+                    referrerPolicy="no-referrer" 
+                  />
+                </div>
+                <h4 className="text-xl font-bold text-stone-800 group-hover:text-uniq-cyan transition-colors">{carrera.nombre}</h4>
                 <p className="text-sm text-stone-600">{carrera.descripcion_corta}</p>
                 <button 
-                  onClick={() => onViewCareer(carrera)}
-                  className="text-uniq-cyan font-bold text-sm flex items-center gap-2 hover:gap-3 transition-all"
+                  className="text-uniq-cyan font-bold text-sm flex items-center gap-2 group-hover:gap-3 transition-all"
                 >
                   Ver más <ChevronRight size={16} />
                 </button>

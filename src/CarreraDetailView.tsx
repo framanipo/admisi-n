@@ -9,9 +9,19 @@ export const CarreraDetailView = ({ career, onBack }: { career: any, onBack: () 
         <ChevronLeft size={20} /> Volver
       </button>
 
-      <div className="bg-white rounded-[3rem] overflow-hidden shadow-2xl border border-stone-100">
-        <div className="h-64 md:h-96 w-full relative">
-          <img src={career.imagen_url} alt={career.nombre} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+      <div className="bg-white rounded-[3rem] overflow-hidden shadow-2xl border border-stone-100 group">
+        <div className="h-64 md:h-96 w-full relative overflow-hidden">
+          <img 
+            src={career.imagen_url} 
+            alt={career.nombre} 
+            className="w-full h-full object-cover transition-transform duration-700 hover-zoom-image" 
+            style={{
+              objectPosition: `${career.imagen_offset_x ?? 50}% ${career.imagen_offset_y ?? 50}%`,
+              '--base-scale': (career.imagen_zoom ?? 100) / 100,
+              transform: 'scale(var(--base-scale))'
+            } as React.CSSProperties}
+            referrerPolicy="no-referrer" 
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-8 md:p-12">
             <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight">{career.nombre}</h1>
           </div>

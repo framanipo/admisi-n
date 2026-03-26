@@ -6,6 +6,9 @@ export interface Career {
   profile: string;
   field: string;
   imageUrl: string;
+  imageZoom?: number;
+  imageOffsetX?: number;
+  imageOffsetY?: number;
 }
 
 export const DEFAULT_CAREERS: Career[] = [

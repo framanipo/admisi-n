@@ -514,7 +514,11 @@ async function startServer() {
         "ALTER TABLE configuracion_cronograma MODIFY COLUMN id INT AUTO_INCREMENT",
         "ALTER TABLE configuracion_cronograma ADD COLUMN fondo_url VARCHAR(255) NOT NULL DEFAULT 'https://picsum.photos/seed/quillabamba/1920/1080'",
         "ALTER TABLE configuracion_cronograma ADD COLUMN overlay_opacity DECIMAL(3,2) DEFAULT 0.6",
-        "ALTER TABLE configuracion_cronograma ADD COLUMN fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+        "ALTER TABLE configuracion_cronograma ADD COLUMN fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        "ALTER TABLE detalles_carreras MODIFY COLUMN imagen_url TEXT",
+        "ALTER TABLE detalles_carreras ADD COLUMN imagen_zoom INT DEFAULT 100",
+        "ALTER TABLE detalles_carreras ADD COLUMN imagen_offset_x INT DEFAULT 50",
+        "ALTER TABLE detalles_carreras ADD COLUMN imagen_offset_y INT DEFAULT 50"
       ];
 
       for (const sql of columns) {
@@ -982,7 +986,7 @@ async function startServer() {
   app.get("/api/carreras-detalladas", async (req, res) => {
     try {
       const [rows] = await pool.query(`
-        SELECT c.id AS carrera_id, c.nombre, c.codigo, d.id AS detalle_id, d.descripcion_corta, d.descripcion_completa, d.perfil_egresado, d.campo_laboral, d.imagen_url 
+        SELECT c.id AS carrera_id, c.nombre, c.codigo, d.id AS detalle_id, d.descripcion_corta, d.descripcion_completa, d.perfil_egresado, d.campo_laboral, d.imagen_url, d.imagen_zoom, d.imagen_offset_x, d.imagen_offset_y 
         FROM carreras c 
         JOIN detalles_carreras d ON c.id = d.carrera_id
       `);
@@ -994,7 +998,7 @@ async function startServer() {
 
   app.post("/api/carreras", async (req, res) => {
     try {
-      const { carrera_id, nombre, descripcion_corta, descripcion_completa, perfil_egresado, campo_laboral, imagen_url } = req.body;
+      const { carrera_id, nombre, descripcion_corta, descripcion_completa, perfil_egresado, campo_laboral, imagen_url, imagen_zoom, imagen_offset_x, imagen_offset_y } = req.body;
       
       const connection = await pool.getConnection();
       try {
@@ -1006,8 +1010,8 @@ async function startServer() {
         );
         
         await connection.query(
-          "UPDATE detalles_carreras SET descripcion_corta = ?, descripcion_completa = ?, perfil_egresado = ?, campo_laboral = ?, imagen_url = ? WHERE carrera_id = ?",
-          [descripcion_corta, descripcion_completa, perfil_egresado, campo_laboral, imagen_url, carrera_id]
+          "UPDATE detalles_carreras SET descripcion_corta = ?, descripcion_completa = ?, perfil_egresado = ?, campo_laboral = ?, imagen_url = ?, imagen_zoom = ?, imagen_offset_x = ?, imagen_offset_y = ? WHERE carrera_id = ?",
+          [descripcion_corta, descripcion_completa, perfil_egresado, campo_laboral, imagen_url, imagen_zoom || 100, imagen_offset_x || 50, imagen_offset_y || 50, carrera_id]
         );
         
         await connection.commit();
