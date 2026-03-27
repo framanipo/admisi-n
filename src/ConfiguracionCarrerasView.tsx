@@ -63,29 +63,29 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
   };
 
   const handleSave = async () => {
-    if (!selectedCareer) return;
     setIsSaving(true);
     try {
-      const response = await fetch('/api/carreras', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          carrera_id: selectedCareer.id,
-          nombre: selectedCareer.name,
-          descripcion_corta: selectedCareer.shortDesc,
-          descripcion_completa: selectedCareer.fullDesc,
-          perfil_egresado: selectedCareer.profile,
-          campo_laboral: selectedCareer.field,
-          imagen_url: selectedCareer.imageUrl,
-          imagen_zoom: selectedCareer.imageZoom,
-          imagen_offset_x: selectedCareer.imageOffsetX,
-          imagen_offset_y: selectedCareer.imageOffsetY
-        })
-      });
-      if (response.ok) {
-        onUpdate();
-        onBack();
+      // Save all careers one by one
+      for (const career of careers) {
+        await fetch('/api/carreras', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            carrera_id: career.id,
+            nombre: career.name,
+            descripcion_corta: career.shortDesc,
+            descripcion_completa: career.fullDesc,
+            perfil_egresado: career.profile,
+            campo_laboral: career.field,
+            imagen_url: career.imageUrl,
+            imagen_zoom: career.imageZoom,
+            imagen_offset_x: career.imageOffsetX,
+            imagen_offset_y: career.imageOffsetY
+          })
+        });
       }
+      onUpdate();
+      onBack();
     } catch (e) {
       console.error(e);
     } finally {
@@ -260,7 +260,7 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
             className="w-full md:w-auto flex items-center justify-center gap-3 px-12 py-4 bg-uniq-cyan text-white font-bold rounded-2xl hover:bg-uniq-cyan/90 transition-all shadow-xl shadow-uniq-cyan/20 disabled:opacity-50 active:scale-95"
           >
             {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-            {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+            {isSaving ? 'Guardando todas las carreras...' : 'Guardar Todos los Cambios'}
           </button>
         </div>
       </div>

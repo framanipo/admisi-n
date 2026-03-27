@@ -272,13 +272,9 @@ async function startServer() {
         )
       `);
 
-      // Table for Detalles de Carreras
-      await connection.query("DROP TABLE IF EXISTS detalles_carreras");
-
       // Table for Carreras
-      await connection.query("DROP TABLE IF EXISTS carreras");
       await connection.query(`
-        CREATE TABLE carreras (
+        CREATE TABLE IF NOT EXISTS carreras (
           id INT AUTO_INCREMENT PRIMARY KEY,
           nombre VARCHAR(255) NOT NULL,
           descripcion TEXT,
@@ -286,38 +282,49 @@ async function startServer() {
           codigo VARCHAR(10)
         )
       `);
-      await connection.query(`
-        INSERT INTO carreras (nombre, descripcion, vacantes, codigo) VALUES 
-        ('Ingeniería Civil', 'Formación en infraestructura y construcción.', 40, 'IC'),
-        ('Ingeniería Agronómica Tropical', 'Desarrollo agrícola sostenible en el trópico.', 40, 'IAT'),
-        ('Ingeniería de Alimentos', 'Procesamiento y calidad de productos alimenticios.', 40, 'IA'),
-        ('Ecoturismo', 'Gestión turística sostenible y conservación.', 40, 'ET'),
-        ('Contabilidad', 'Gestión financiera y contable con enfoque intercul...', 40, 'CO'),
-        ('Economía', 'Análisis económico para el desarrollo regional y n...', 40, 'EC')
-      `);
+      
+      const [carrerasRows]: any = await connection.query("SELECT COUNT(*) as count FROM carreras");
+      if (carrerasRows[0].count === 0) {
+        await connection.query(`
+          INSERT INTO carreras (nombre, descripcion, vacantes, codigo) VALUES 
+          ('Ingeniería Civil', 'Formación en infraestructura y construcción.', 40, 'IC'),
+          ('Ingeniería Agronómica Tropical', 'Desarrollo agrícola sostenible en el trópico.', 40, 'IAT'),
+          ('Ingeniería de Alimentos', 'Procesamiento y calidad de productos alimenticios.', 40, 'IA'),
+          ('Ecoturismo', 'Gestión turística sostenible y conservación.', 40, 'ET'),
+          ('Contabilidad', 'Gestión financiera y contable con enfoque intercul...', 40, 'CO'),
+          ('Economía', 'Análisis económico para el desarrollo regional y n...', 40, 'EC')
+        `);
+      }
 
       // Table for Detalles de Carreras
       await connection.query(`
-        CREATE TABLE detalles_carreras (
+        CREATE TABLE IF NOT EXISTS detalles_carreras (
           id INT AUTO_INCREMENT PRIMARY KEY,
           carrera_id INT NOT NULL,
           descripcion_corta TEXT,
           descripcion_completa TEXT,
           perfil_egresado TEXT,
           campo_laboral TEXT,
-          imagen_url VARCHAR(255),
+          imagen_url TEXT,
+          imagen_zoom INT DEFAULT 100,
+          imagen_offset_x INT DEFAULT 50,
+          imagen_offset_y INT DEFAULT 50,
           FOREIGN KEY (carrera_id) REFERENCES carreras(id) ON DELETE CASCADE
         )
       `);
-      await connection.query(`
-        INSERT INTO detalles_carreras (carrera_id, descripcion_corta, descripcion_completa, perfil_egresado, campo_laboral, imagen_url) VALUES 
-        (1, 'Infraestructura y construcción.', 'Formación integral en diseño, construcción y gestión de obras civiles.', 'Profesional capaz de proyectar y ejecutar obras de infraestructura.', 'Empresas constructoras, entidades públicas, consultoría.', 'https://picsum.photos/seed/civil/800/400'),
-        (2, 'Desarrollo agrícola sostenible.', 'Estudio de sistemas agrícolas adaptados al trópico.', 'Ingeniero con enfoque en sostenibilidad y productividad agrícola.', 'Empresas agroindustriales, investigación, gestión pública.', 'https://picsum.photos/seed/agronomica/800/400'),
-        (3, 'Procesamiento y calidad.', 'Ciencia y tecnología aplicada a la transformación de alimentos.', 'Experto en asegurar la calidad y seguridad alimentaria.', 'Industria alimentaria, control de calidad, investigación.', 'https://picsum.photos/seed/alimentos/800/400'),
-        (4, 'Gestión turística sostenible.', 'Enfoque en el desarrollo del turismo con responsabilidad ambiental.', 'Gestor de proyectos turísticos y conservación.', 'Agencias de viaje, gestión pública, ONGs ambientales.', 'https://picsum.photos/seed/ecoturismo/800/400'),
-        (5, 'Gestión financiera y contable.', 'Formación en contabilidad con enfoque intercultural.', 'Contador con capacidad de gestión financiera y tributaria.', 'Estudios contables, empresas privadas, entidades financieras.', 'https://picsum.photos/seed/contabilidad/800/400'),
-        (6, 'Análisis económico.', 'Análisis del desarrollo regional y nacional.', 'Economista con capacidad de análisis y planificación.', 'Entidades estatales, consultoría, investigación económica.', 'https://picsum.photos/seed/economia/800/400')
-      `);
+      
+      const [detallesRows]: any = await connection.query("SELECT COUNT(*) as count FROM detalles_carreras");
+      if (detallesRows[0].count === 0) {
+        await connection.query(`
+          INSERT INTO detalles_carreras (carrera_id, descripcion_corta, descripcion_completa, perfil_egresado, campo_laboral, imagen_url) VALUES 
+          (1, 'Infraestructura y construcción.', 'Formación integral en diseño, construcción y gestión de obras civiles.', 'Profesional capaz de proyectar y ejecutar obras de infraestructura.', 'Empresas constructoras, entidades públicas, consultoría.', 'https://picsum.photos/seed/civil/800/400'),
+          (2, 'Desarrollo agrícola sostenible.', 'Estudio de sistemas agrícolas adaptados al trópico.', 'Ingeniero con enfoque en sostenibilidad y productividad agrícola.', 'Empresas agroindustriales, investigación, gestión pública.', 'https://picsum.photos/seed/agronomica/800/400'),
+          (3, 'Procesamiento y calidad.', 'Ciencia y tecnología aplicada a la transformación de alimentos.', 'Experto en asegurar la calidad y seguridad alimentaria.', 'Industria alimentaria, control de calidad, investigación.', 'https://picsum.photos/seed/alimentos/800/400'),
+          (4, 'Gestión turística sostenible.', 'Enfoque en el desarrollo del turismo con responsabilidad ambiental.', 'Gestor de proyectos turísticos y conservación.', 'Agencias de viaje, gestión pública, ONGs ambientales.', 'https://picsum.photos/seed/ecoturismo/800/400'),
+          (5, 'Gestión financiera y contable.', 'Formación en contabilidad con enfoque intercultural.', 'Contador con capacidad de gestión financiera y tributaria.', 'Estudios contables, empresas privadas, entidades financieras.', 'https://picsum.photos/seed/contabilidad/800/400'),
+          (6, 'Análisis económico.', 'Análisis del desarrollo regional y nacional.', 'Economista con capacidad de análisis y planificación.', 'Entidades estatales, consultoría, investigación económica.', 'https://picsum.photos/seed/economia/800/400')
+        `);
+      }
 
       // Table for Modalidades
       await connection.query(`

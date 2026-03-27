@@ -369,7 +369,12 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
       {/* Carreras Detalladas Section */}
       <section className="py-20 px-6 bg-white">
         <div className="max-w-7xl mx-auto">
-          <h3 className="text-3xl font-bold text-stone-900 mb-12 text-center">Nuestras Carreras</h3>
+          <div className="text-center mb-16">
+            <h3 className="text-4xl md:text-5xl font-extrabold text-uniq-cyan mb-4 tracking-tight">Nuestras Carreras</h3>
+            <p className="text-lg text-stone-600 max-w-2xl mx-auto">
+              Descubre los programas académicos diseñados para formar líderes y profesionales de excelencia, comprometidos con el desarrollo de la región y el país.
+            </p>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {carrerasDetalladas.map((carrera: any) => (
               <div key={carrera.carrera_id || carrera.id} className="bg-stone-50 p-8 rounded-3xl border border-stone-100 space-y-4 group cursor-pointer" onClick={() => onViewCareer(carrera)}>
