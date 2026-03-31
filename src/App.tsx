@@ -9,7 +9,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as LucideIcons from 'lucide-react';
 import { 
-  User, 
+  User,
+  Users,
   BookOpen, 
   GraduationCap, 
   CheckCircle, 
@@ -43,13 +44,24 @@ import {
   X,
   Database,
   RefreshCw,
-  LayoutDashboard
+  LayoutDashboard,
+  Languages
 } from 'lucide-react';
+
+import { ColegioManagementView } from './ColegioManagementView';
+import { IdiomaManagementView } from './IdiomaManagementView';
+import ConfiguracionPDFView from './ConfiguracionPDFView';
+
+declare global {
+  interface Window {
+    __INITIAL_SETTINGS__?: any;
+  }
+}
 
 // --- Types ---
 
 type Step = 'personal' | 'academic' | 'career' | 'success';
-type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion' | 'config-imagenes' | 'config-cronograma' | 'config-carreras' | 'carrera-detail' | 'inscripcion-form' | 'user-management' | 'registrados-management' | 'config-dni' | 'config-inicio';
+type View = 'landing' | 'login' | 'preinscripcion' | 'guia' | 'cronograma' | 'reglamento' | 'temario' | 'resultados' | 'admin-dashboard' | 'control-preinscripcion' | 'config-imagenes' | 'config-cronograma' | 'config-carreras' | 'carrera-detail' | 'inscripcion-form' | 'user-management' | 'registrados-management' | 'config-dni' | 'config-inicio' | 'preinscripciones-management' | 'config-colegios' | 'config-idiomas' | 'config-pdf';
 type Role = 'admin' | 'registrador' | 'visualizador';
 
 interface UserAuth {
@@ -70,11 +82,9 @@ interface FormData {
   gender: string;
   email: string;
   phone: string;
-  department: string;
-  province: string;
-  district: string;
   schoolName: string;
   schoolType: string;
+  schoolLevel: string;
   graduationYear: string;
   career: string;
   modality: string;
@@ -97,6 +107,10 @@ interface FormData {
   tipoComunidad: string;
   nombreApoderado: string;
   celularApoderado: string;
+  apoderadoDni: string;
+  apoderadoNombres: string;
+  apoderadoApellidoPaterno: string;
+  apoderadoApellidoMaterno: string;
   hasSpecialConditions: boolean;
   discapacidad: boolean;
   conadisNumber: string;
@@ -129,15 +143,13 @@ const INITIAL_DATA: FormData = {
   gender: '',
   email: '',
   phone: '',
-  department: '',
-  province: '',
-  district: '',
   schoolName: '',
-  schoolType: 'Estatal',
+  schoolType: '',
+  schoolLevel: '',
   graduationYear: CURRENT_YEAR.toString(),
   career: '',
   modality: '',
-  indigenousPeople: 'AMAZÓNICO',
+  indigenousPeople: '',
   lugarInscripcion: '',
   colegioRegion: 'CUSCO',
   colegioProvincia: '',
@@ -156,6 +168,10 @@ const INITIAL_DATA: FormData = {
   tipoComunidad: '',
   nombreApoderado: '',
   celularApoderado: '',
+  apoderadoDni: '',
+  apoderadoNombres: '',
+  apoderadoApellidoPaterno: '',
+  apoderadoApellidoMaterno: '',
   hasSpecialConditions: false,
   discapacidad: false,
   conadisNumber: '',
@@ -178,35 +194,52 @@ const MODALITIES = [
 
 // --- Components ---
 
-const InputField = ({ label, icon: Icon, error, ...props }: any) => (
-  <div className="space-y-1.5">
+const InputField = ({ label, icon: Icon, error, loading, ...props }: any) => (
+  <div className="space-y-1.5 relative">
     <label className="text-xs font-semibold uppercase tracking-wider text-stone-500 flex items-center gap-2">
       {Icon && <Icon size={14} />}
       {label}
     </label>
-    <input
-      {...props}
-      className={`w-full px-4 py-2.5 bg-white border ${error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-stone-200 focus:ring-cyan-500/20 focus:border-cyan-500'} rounded-lg outline-none transition-all text-stone-800 placeholder:text-stone-400`}
-    />
+    <div className="relative">
+      <input
+        {...props}
+        className={`w-full px-4 py-2.5 bg-white border ${error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-stone-200 focus:ring-cyan-500/20 focus:border-cyan-500'} rounded-lg outline-none transition-all text-stone-800 placeholder:text-stone-400 disabled:opacity-50`}
+      />
+      {loading && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+          <LucideIcons.RefreshCw size={16} className="animate-spin text-uniq-cyan" />
+        </div>
+      )}
+    </div>
     {error && <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">{error}</p>}
   </div>
 );
 
-const SelectField = ({ label, icon: Icon, options, error, ...props }: any) => (
-  <div className="space-y-1.5">
+const SelectField = ({ label, icon: Icon, options, error, loading, ...props }: any) => (
+  <div className="space-y-1.5 relative">
     <label className="text-xs font-semibold uppercase tracking-wider text-stone-500 flex items-center gap-2">
       {Icon && <Icon size={14} />}
       {label}
     </label>
-    <select
-      {...props}
-      className={`w-full px-4 py-2.5 bg-white border ${error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-stone-200 focus:ring-cyan-500/20 focus:border-cyan-500'} rounded-lg outline-none transition-all text-stone-800 appearance-none cursor-pointer`}
-    >
-      <option value="">Seleccione una opción</option>
-      {options.map((opt: string) => (
-        <option key={opt} value={opt}>{opt}</option>
-      ))}
-    </select>
+    <div className="relative">
+      <select
+        {...props}
+        disabled={loading || props.disabled}
+        className={`w-full px-4 py-2.5 bg-white border ${error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-stone-200 focus:ring-cyan-500/20 focus:border-cyan-500'} rounded-lg outline-none transition-all text-stone-800 appearance-none cursor-pointer disabled:opacity-50`}
+      >
+        <option value="">Seleccione una opción</option>
+        {options.map((opt: string, i: number) => (
+          <option key={`${opt}-${i}`} value={opt}>{opt}</option>
+        ))}
+      </select>
+      <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+        {loading ? (
+          <RefreshCw size={16} className="text-stone-400 animate-spin" />
+        ) : (
+          <ChevronRight size={16} className="text-stone-400 rotate-90" />
+        )}
+      </div>
+    </div>
     {error && <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">{error}</p>}
   </div>
 );
@@ -284,12 +317,14 @@ const LandingPage = ({ onPreRegister, onLogin, onViewCareer, appSettings, cronog
       <section className="pt-40 pb-24 px-6 relative overflow-hidden min-h-[90vh] flex items-center">
         {/* Background Image and Overlay */}
         <div className="absolute inset-0 z-0">
-          <img 
-            src={appSettings?.configuracionInicio?.imagen_url || "https://picsum.photos/seed/uniq-hero/1920/1080"} 
-            alt="Fondo Principal" 
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-          />
+          {appSettings?.configuracionInicio?.imagen_url && (
+            <img 
+              src={appSettings.configuracionInicio.imagen_url} 
+              alt="Fondo Principal" 
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          )}
           <div 
             className="absolute inset-0" 
             style={{ 
@@ -573,8 +608,17 @@ export default function App() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [appSettings, setAppSettings] = useState<any>({});
-  const [cronograma, setCronograma] = useState<any[]>([]);
+  const [appSettings, setAppSettings] = useState<any>(() => {
+    if (typeof window !== 'undefined' && window.__INITIAL_SETTINGS__) {
+      return window.__INITIAL_SETTINGS__;
+    }
+    const saved = localStorage.getItem('appSettings');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [cronograma, setCronograma] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cronograma');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [reglamento, setReglamento] = useState<any[]>([]);
   const [temario, setTemario] = useState<any[]>([]);
   const [resultados, setResultados] = useState<any[]>([]);
@@ -584,6 +628,14 @@ export default function App() {
   const [lastRegistrationId, setLastRegistrationId] = useState<number | null>(null);
   const [isCheckingDb, setIsCheckingDb] = useState(false);
   const [dbCheckResult, setDbCheckResult] = useState<{success: boolean, message: string} | null>(null);
+  const [regiones, setRegiones] = useState<any[]>([]);
+  const [procedenciaProvincias, setProcedenciaProvincias] = useState<any[]>([]);
+  const [procedenciaDistritos, setProcedenciaDistritos] = useState<any[]>([]);
+  const [colegioProvincias, setColegioProvincias] = useState<any[]>([]);
+  const [colegioDistritos, setColegioDistritos] = useState<any[]>([]);
+  const [colegiosList, setColegiosList] = useState<any[]>([]);
+  const [nacimientoProvincias, setNacimientoProvincias] = useState<any[]>([]);
+  const [nacimientoDistritos, setNacimientoDistritos] = useState<any[]>([]);
 
   const checkDbStatus = async () => {
     setIsCheckingDb(true);
@@ -615,19 +667,35 @@ export default function App() {
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const data = await response.json();
-          setAppSettings(data);
+          setAppSettings((prev: any) => {
+            const next = { ...prev, ...data };
+            localStorage.setItem('appSettings', JSON.stringify(next));
+            return next;
+          });
         }
       }
       
       // Fetch dynamic content from DB
       const endpoints = [
-        { url: '/api/cronograma', setter: (data: any) => setCronograma(data.sort((a: any, b: any) => (a.indice_orden || 0) - (b.indice_orden || 0))), name: 'cronograma' },
+        { url: '/api/cronograma', setter: (data: any) => {
+          const sorted = data.sort((a: any, b: any) => (a.indice_orden || 0) - (b.indice_orden || 0));
+          setCronograma(sorted);
+          localStorage.setItem('cronograma', JSON.stringify(sorted));
+        }, name: 'cronograma' },
         { url: '/api/reglamento', setter: setReglamento, name: 'reglamento' },
         { url: '/api/temario', setter: setTemario, name: 'temario' },
         { url: '/api/resultados', setter: setResultados, name: 'resultados' },
         { url: '/api/carreras-detalladas', setter: setCarrerasDetalladas, name: 'carreras-detalladas' },
-        { url: '/api/carreras', setter: (data: any) => setAppSettings((prev: any) => ({ ...prev, careers: data })), name: 'carreras' },
-        { url: '/api/configuracion-inicio', setter: (data: any) => setAppSettings((prev: any) => ({ ...prev, textoLogo: data.texto_logo, configuracionInicio: data })), name: 'configuracion-inicio' }
+        { url: '/api/carreras', setter: (data: any) => setAppSettings((prev: any) => {
+          const next = { ...prev, careers: data };
+          localStorage.setItem('appSettings', JSON.stringify(next));
+          return next;
+        }), name: 'carreras' },
+        { url: '/api/configuracion-inicio', setter: (data: any) => setAppSettings((prev: any) => {
+          const next = { ...prev, textoLogo: data.texto_logo, configuracionInicio: data };
+          localStorage.setItem('appSettings', JSON.stringify(next));
+          return next;
+        }), name: 'configuracion-inicio' }
       ];
 
       let hasConnectionError = false;
@@ -675,6 +743,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    fetch('/api/regiones')
+      .then(res => res.json())
+      .then(data => setRegiones(data))
+      .catch(err => console.error('Error fetching regiones:', err));
+  }, []);
+
+  useEffect(() => {
     fetchSettings();
     // Increment portal visits
     fetch('/api/portal/increment-visits', { method: 'POST' }).catch(console.error);
@@ -715,7 +790,7 @@ export default function App() {
     }
   };
 
-  const handlePreRegister = async (data: FormData) => {
+  const handlePreRegister = async (data: FormData): Promise<{ error: string | null, id?: number }> => {
     setIsSubmitting(true);
     try {
       const response = await fetch('/api/registrations', {
@@ -735,15 +810,14 @@ export default function App() {
         };
         
         setRegistrations(prev => [newRegistration, ...prev]);
-        return true;
+        return { error: null, id: result.id };
       } else {
-        alert('Error al enviar la inscripción.');
-        return false;
+        const errorData = await response.json().catch(() => null);
+        return { error: errorData?.error || 'Error al enviar la inscripción.' };
       }
     } catch (error) {
       console.error('Error submitting form:', error);
-      alert('Error de conexión con el servidor.');
-      return false;
+      return { error: 'Error de conexión con el servidor.' };
     } finally {
       setIsSubmitting(false);
     }
@@ -849,8 +923,10 @@ export default function App() {
     }
     else if (step === 'academic') {
       const requiredFields: (keyof FormData)[] = [
-        'schoolName', 'schoolType', 'graduationYear', 
-        'department', 'province', 'district'
+        'schoolName', 'schoolType', 'schoolLevel', 'graduationYear', 
+        'colegioRegion', 'colegioProvincia', 'colegioDistrito',
+        'procedenciaRegion', 'procedenciaProvincia', 'procedenciaDistrito',
+        'nacimientoRegion', 'nacimientoProvincia', 'nacimientoDistrito'
       ];
       
       requiredFields.forEach(field => {
@@ -1077,6 +1153,21 @@ export default function App() {
                   isSubmitting={isSubmitting}
                   careers={appSettings.careers || []}
                   appSettings={appSettings}
+                  regiones={regiones}
+                  procedenciaProvincias={procedenciaProvincias}
+                  procedenciaDistritos={procedenciaDistritos}
+                  setProcedenciaProvincias={setProcedenciaProvincias}
+                  setProcedenciaDistritos={setProcedenciaDistritos}
+                  colegioProvincias={colegioProvincias}
+                  colegioDistritos={colegioDistritos}
+                  colegiosList={colegiosList}
+                  setColegiosList={setColegiosList}
+                  setColegioProvincias={setColegioProvincias}
+                  setColegioDistritos={setColegioDistritos}
+                  nacimientoProvincias={nacimientoProvincias}
+                  nacimientoDistritos={nacimientoDistritos}
+                  setNacimientoProvincias={setNacimientoProvincias}
+                  setNacimientoDistritos={setNacimientoDistritos}
                 />
               )}
             </div>
@@ -1111,11 +1202,17 @@ export default function App() {
           ) : view === 'reglamento' ? (
             <ReglamentoView reglamento={reglamento} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'temario' ? (
-            <TemarioView key="temario-view" temario={temario} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
+            <TemarioView temario={temario} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
           ) : view === 'resultados' ? (
             <ResultadosView resultados={resultados} isAdmin={user?.role === 'admin'} appSettings={appSettings} onBack={() => setView(user ? (user.role === 'admin' ? 'admin-dashboard' : 'guia') : 'landing')} />
+          ) : view === 'preinscripciones-management' ? (
+            <PreinscripcionesManagementView onBack={() => setView('admin-dashboard')} />
+          ) : view === 'config-colegios' ? (
+            <ColegioManagementView onBack={() => setView('admin-dashboard')} />
           ) : view === 'registrados-management' ? (
             <RegistradosManagementView onBack={() => setView('admin-dashboard')} />
+          ) : view === 'config-idiomas' ? (
+            <IdiomaManagementView onBack={() => setView('admin-dashboard')} />
           ) : view === 'admin-dashboard' ? (
             <AdminDashboardView 
               registrations={registrations} 
@@ -1126,6 +1223,9 @@ export default function App() {
               onConfigCarreras={() => setView('config-carreras')} 
               onConfigModalidades={() => setView('config-modalidades')}
               onConfigDatabase={() => setView('config-database')}
+              onConfigPreinscripciones={() => setView('preinscripciones-management')}
+              onConfigColegios={() => setView('config-colegios')}
+              onConfigIdiomas={() => setView('config-idiomas')}
               onConfigUsers={() => setView('user-management')}
               onConfigRegistrados={() => setView('registrados-management')}
               onCheckDb={checkDbStatus}
@@ -1133,7 +1233,10 @@ export default function App() {
               dbCheckResult={dbCheckResult}
               onConfigDni={() => setView('config-dni')}
               onConfigInicio={() => setView('config-inicio')}
+              onConfigPDF={() => setView('config-pdf')}
             />
+          ) : view === 'config-ubicaciones' ? (
+            <LocationManagementView onBack={() => setView('admin-dashboard')} />
           ) : view === 'config-dni' ? (
             <ConfigDniApiView 
               settings={appSettings}
@@ -1159,6 +1262,12 @@ export default function App() {
             <ConfiguracionModalidadesView 
               onBack={() => setView('admin-dashboard')} 
               onUpdate={fetchSettings}
+            />
+          ) : view === 'config-pdf' ? (
+            <ConfiguracionPDFView 
+              onBack={() => setView('admin-dashboard')} 
+              appSettings={appSettings}
+              setAppSettings={setAppSettings}
             />
           ) : view === 'config-database' ? (
             <ConfiguracionDatabaseView 
@@ -1452,7 +1561,7 @@ const LoginView: React.FC<{ onLogin: (u: string, r: Role, fn?: string, e?: strin
               <input 
                 type="text" 
                 required
-                value={username}
+                value={username || ''}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-uniq-cyan/20 focus:border-uniq-cyan outline-none transition-all"
                 placeholder="Nombre de usuario"
@@ -1467,7 +1576,7 @@ const LoginView: React.FC<{ onLogin: (u: string, r: Role, fn?: string, e?: strin
               <input 
                 type="password" 
                 required
-                value={password}
+                value={password || ''}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-uniq-cyan/20 focus:border-uniq-cyan outline-none transition-all"
                 placeholder="••••••••"
@@ -1540,39 +1649,102 @@ const LoginView: React.FC<{ onLogin: (u: string, r: Role, fn?: string, e?: strin
 const PreinscripcionForm: React.FC<{ 
   formData: FormData, 
   setFormData: React.Dispatch<React.SetStateAction<FormData>>,
-  onSubmit: (data: FormData) => Promise<boolean>,
+  onSubmit: (data: FormData) => Promise<{ error: string | null, id?: number }>,
   onCancel: () => void,
   isSubmitting: boolean,
   careers: any[],
-  appSettings?: any
-}> = ({ formData, setFormData, onSubmit, onCancel, isSubmitting, careers, appSettings }) => {
+  appSettings?: any,
+  regiones: any[],
+  procedenciaProvincias: any[],
+  procedenciaDistritos: any[],
+  setProcedenciaProvincias: React.Dispatch<React.SetStateAction<any[]>>,
+  setProcedenciaDistritos: React.Dispatch<React.SetStateAction<any[]>>,
+  colegioProvincias: any[],
+  colegioDistritos: any[],
+  colegiosList: any[],
+  setColegiosList: React.Dispatch<React.SetStateAction<any[]>>,
+  setColegioProvincias: React.Dispatch<React.SetStateAction<any[]>>,
+  setColegioDistritos: React.Dispatch<React.SetStateAction<any[]>>,
+  nacimientoProvincias: any[],
+  nacimientoDistritos: any[],
+  setNacimientoProvincias: React.Dispatch<React.SetStateAction<any[]>>,
+  setNacimientoDistritos: React.Dispatch<React.SetStateAction<any[]>>
+}> = ({ formData, setFormData, onSubmit, onCancel, isSubmitting, careers, appSettings, regiones, procedenciaProvincias, procedenciaDistritos, setProcedenciaProvincias, setProcedenciaDistritos, colegioProvincias, colegioDistritos, colegiosList, setColegiosList, setColegioProvincias, setColegioDistritos, nacimientoProvincias, nacimientoDistritos, setNacimientoProvincias, setNacimientoDistritos }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [modalidades, setModalidades] = useState<any[]>([]);
   const [isLoadingModalidades, setIsLoadingModalidades] = useState(true);
   const [isSearchingDni, setIsSearchingDni] = useState(false);
+  const [isSearchingApoderadoDni, setIsSearchingApoderadoDni] = useState(false);
   const [lastSearchedDni, setLastSearchedDni] = useState('');
-  const [places, setPlaces] = useState<any[]>([]);
-  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+  const [lastSearchedApoderadoDni, setLastSearchedApoderadoDni] = useState('');
+  const [idiomas, setIdiomas] = useState<any[]>([]);
+  const [loadingFields, setLoadingFields] = useState<Record<string, boolean>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [registrationId, setRegistrationId] = useState<number | null>(null);
 
-  const handlePlacesSearch = async (input: string) => {
-    if (input.length < 3) {
-      setPlaces([]);
-      return;
-    }
-    setIsSearchingPlaces(true);
-    try {
-      const response = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(input)}`);
-      const data = await response.json();
-      if (data.predictions) {
-        setPlaces(data.predictions);
+  useEffect(() => {
+    fetch('/api/mapeo-idiomas')
+      .then(res => res.json())
+      .then(data => setIdiomas(data))
+      .catch(err => console.error('Error fetching idiomas:', err));
+  }, []);
+
+  const handleApoderadoDniLookup = async (dni: string) => {
+    if (dni.length === 8 && dni !== lastSearchedApoderadoDni) {
+      setIsSearchingApoderadoDni(true);
+      setLastSearchedApoderadoDni(dni);
+      try {
+        const response = await fetch(`/api/dni/${dni}`);
+        const data = await response.json();
+        
+        if (response.ok && data && (data.nombres || data.nombre)) {
+          const nombres = data.nombres || data.nombre;
+          const apPaterno = data.apellidoPaterno || data.paterno || '';
+          const apMaterno = data.apellidoMaterno || data.materno || '';
+          
+          setFormData(prev => ({
+            ...prev,
+            apoderadoNombres: nombres,
+            apoderadoApellidoPaterno: apPaterno,
+            apoderadoApellidoMaterno: apMaterno
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            apoderadoNombres: '',
+            apoderadoApellidoPaterno: '',
+            apoderadoApellidoMaterno: ''
+          }));
+        }
+      } catch (error) {
+        console.error("Error looking up apoderado DNI:", error);
+      } finally {
+        setIsSearchingApoderadoDni(false);
       }
-    } catch (error) {
-      console.error("Error searching places:", error);
-    } finally {
-      setIsSearchingPlaces(false);
     }
   };
+
+  const [lugaresInscripcion, setLugaresInscripcion] = useState<any[]>([]);
+  const [isLoadingLugares, setIsLoadingLugares] = useState(true);
+
+  useEffect(() => {
+    setIsLoadingLugares(true);
+    fetch('/api/lugares-inscripcion')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setLugaresInscripcion(data);
+        } else {
+          setLugaresInscripcion([]);
+        }
+      })
+      .catch(err => {
+        console.error("Error fetching lugares de inscripción:", err);
+        setLugaresInscripcion([]);
+      })
+      .finally(() => setIsLoadingLugares(false));
+  }, []);
 
   useEffect(() => {
     const lookupDni = async () => {
@@ -1645,7 +1817,7 @@ const PreinscripcionForm: React.FC<{
       .then(data => {
         if (Array.isArray(data)) {
           // Filter out deleted or disabled modalities for the registration form
-          setModalidades(data.filter((m: any) => !m.deshabilitado && !m.eliminado));
+          setModalidades(data.filter((m: any) => m.habilitado && !m.eliminado));
         } else {
           console.error("Modalidades data is not an array:", data);
           setModalidades([]);
@@ -1676,6 +1848,7 @@ const PreinscripcionForm: React.FC<{
     if (!formData.gender) newErrors.gender = "Requerido";
     if (!formData.email) newErrors.email = "Requerido";
     if (!formData.phone) newErrors.phone = "Requerido";
+    if (!formData.lugarInscripcion) newErrors.lugarInscripcion = "Requerido";
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -1690,8 +1863,21 @@ const PreinscripcionForm: React.FC<{
   };
 
   const handleSubmit = async () => {
-    const success = await onSubmit(formData);
-    if (success) setCurrentStep(2);
+    setSubmitError(null);
+    const result = await onSubmit(formData);
+    if (!result.error) {
+      if (result.id) {
+        setRegistrationId(result.id);
+      }
+      try {
+        await generatePDF(false, result.id); // Generate for preview
+      } catch (e) {
+        console.error("Error generating PDF preview", e);
+      }
+      setCurrentStep(2);
+    } else {
+      setSubmitError(result.error);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -1712,72 +1898,285 @@ const PreinscripcionForm: React.FC<{
       return;
     }
 
+    if (name === 'apoderadoDni') {
+      const onlyNums = value.replace(/[^0-9]/g, '');
+      if (onlyNums.length <= 8) {
+        setFormData(prev => ({ 
+          ...prev, 
+          [name]: onlyNums,
+          // Liberar datos del apoderado si el DNI cambia
+          apoderadoNombres: '',
+          apoderadoApellidoPaterno: '',
+          apoderadoApellidoMaterno: ''
+        }));
+        if (onlyNums.length === 8) {
+          handleApoderadoDniLookup(onlyNums);
+        }
+      }
+      return;
+    }
+
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData(prev => ({ ...prev, [name]: checked }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
+      
+      // Handle location dependencies
+      if (name === 'procedenciaRegion') {
+        const region = regiones.find(r => r.nombre === value);
+        if (region) {
+          setLoadingFields(prev => ({ ...prev, procedenciaProvincia: true }));
+          fetch(`/api/provincias?region_id=${region.id}`)
+            .then(res => res.json())
+            .then(data => setProcedenciaProvincias(data))
+            .catch(err => console.error('Error fetching provincias:', err))
+            .finally(() => setLoadingFields(prev => ({ ...prev, procedenciaProvincia: false })));
+          setFormData(prev => ({ ...prev, procedenciaProvincia: '', procedenciaDistrito: '' }));
+          setProcedenciaDistritos([]);
+        }
+      } else if (name === 'procedenciaProvincia') {
+        const provincia = procedenciaProvincias.find(p => p.nombre === value);
+        if (provincia) {
+          setLoadingFields(prev => ({ ...prev, procedenciaDistrito: true }));
+          fetch(`/api/distritos?provincia_id=${provincia.id}`)
+            .then(res => res.json())
+            .then(data => setProcedenciaDistritos(data))
+            .catch(err => console.error('Error fetching distritos:', err))
+            .finally(() => setLoadingFields(prev => ({ ...prev, procedenciaDistrito: false })));
+          setFormData(prev => ({ ...prev, procedenciaDistrito: '' }));
+        }
+      } else if (name === 'colegioRegion') {
+        const region = regiones.find(r => r.nombre === value);
+        if (region) {
+          setLoadingFields(prev => ({ ...prev, colegioProvincia: true }));
+          fetch(`/api/provincias?region_id=${region.id}`)
+            .then(res => res.json())
+            .then(data => setColegioProvincias(data))
+            .catch(err => console.error('Error fetching provincias:', err))
+            .finally(() => setLoadingFields(prev => ({ ...prev, colegioProvincia: false })));
+          setFormData(prev => ({ ...prev, colegioProvincia: '', colegioDistrito: '', schoolName: '', schoolType: '', schoolLevel: '' }));
+          setColegioDistritos([]);
+          setColegiosList([]);
+        }
+      } else if (name === 'colegioProvincia') {
+        const provincia = colegioProvincias.find(p => p.nombre === value);
+        if (provincia) {
+          setLoadingFields(prev => ({ ...prev, colegioDistrito: true }));
+          fetch(`/api/distritos?provincia_id=${provincia.id}`)
+            .then(res => res.json())
+            .then(data => setColegioDistritos(data))
+            .catch(err => console.error('Error fetching distritos:', err))
+            .finally(() => setLoadingFields(prev => ({ ...prev, colegioDistrito: false })));
+          setFormData(prev => ({ ...prev, colegioDistrito: '', schoolName: '', schoolType: '', schoolLevel: '' }));
+          setColegiosList([]);
+        }
+      } else if (name === 'colegioDistrito') {
+        const distrito = colegioDistritos.find(d => d.nombre === value);
+        if (distrito) {
+          setLoadingFields(prev => ({ ...prev, schoolName: true }));
+          fetch(`/api/colegios?distrito_id=${distrito.id}`)
+            .then(res => res.json())
+            .then(data => setColegiosList(data))
+            .catch(err => console.error('Error fetching colegios:', err))
+            .finally(() => setLoadingFields(prev => ({ ...prev, schoolName: false })));
+          setFormData(prev => ({ ...prev, colegioDistrito: value, schoolName: '', schoolType: '', schoolLevel: '' }));
+        } else {
+          setFormData(prev => ({ ...prev, colegioDistrito: value }));
+        }
+      } else if (name === 'schoolName') {
+        const colegio = colegiosList.find(c => c.nombre === value);
+        if (colegio) {
+          setFormData(prev => ({ ...prev, schoolName: value, schoolType: colegio.gestion || '', schoolLevel: colegio.nivel || '' }));
+        } else {
+          setFormData(prev => ({ ...prev, schoolName: value, schoolType: '', schoolLevel: '' }));
+        }
+      } else if (name === 'idioma') {
+        setLoadingFields(prev => ({ ...prev, idioma: true }));
+        fetch(`/api/mapeo-idiomas/${value}`)
+          .then(res => res.json())
+          .then(data => {
+            setFormData(prev => ({
+              ...prev,
+              idioma: value,
+              indigenousPeople: data.pueblo_indigena || '',
+              tipoComunidad: data.tipo_comunidad || ''
+            }));
+          })
+          .catch(err => {
+            console.error('Error fetching idioma mapping:', err);
+            setFormData(prev => ({
+              ...prev,
+              idioma: value,
+              indigenousPeople: '',
+              tipoComunidad: ''
+            }));
+          })
+          .finally(() => setLoadingFields(prev => ({ ...prev, idioma: false })));
+      } else if (name === 'nacimientoRegion') {
+        const region = regiones.find(r => r.nombre === value);
+        if (region) {
+          setLoadingFields(prev => ({ ...prev, nacimientoProvincia: true }));
+          fetch(`/api/provincias?region_id=${region.id}`)
+            .then(res => res.json())
+            .then(data => setNacimientoProvincias(data))
+            .catch(err => console.error('Error fetching provincias:', err))
+            .finally(() => setLoadingFields(prev => ({ ...prev, nacimientoProvincia: false })));
+          setFormData(prev => ({ ...prev, nacimientoProvincia: '', nacimientoDistrito: '' }));
+          setNacimientoDistritos([]);
+        }
+      } else if (name === 'nacimientoProvincia') {
+        const provincia = nacimientoProvincias.find(p => p.nombre === value);
+        if (provincia) {
+          setLoadingFields(prev => ({ ...prev, nacimientoDistrito: true }));
+          fetch(`/api/distritos?provincia_id=${provincia.id}`)
+            .then(res => res.json())
+            .then(data => setNacimientoDistritos(data))
+            .catch(err => console.error('Error fetching distritos:', err))
+            .finally(() => setLoadingFields(prev => ({ ...prev, nacimientoDistrito: false })));
+          setFormData(prev => ({ ...prev, nacimientoDistrito: '' }));
+        }
+      }
     }
   };
 
-  const generatePDF = () => {
-    const doc = new jsPDF();
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    if (appSettings?.imagenPortalUrl) {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.src = appSettings.imagenPortalUrl;
+      img.onload = () => setLogoImage(img);
+      img.onerror = () => console.error("Failed to load logo image");
+    }
+  }, [appSettings?.imagenPortalUrl]);
+
+  const generatePDF = (autoDownload = true, id?: number) => {
+    const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
+    
+    // UNIQ Colors
+    const colorPrimary = [8, 145, 178]; // Cyan
+    const colorSecondary = [255, 158, 11]; // Orange/Amber
+    const colorLightGray = [245, 245, 245];
     
     // Header
-    doc.setFillColor(8, 145, 178); // uniq-cyan
-    doc.rect(0, 0, 210, 40, 'F');
+    doc.setFillColor(...colorPrimary as [number, number, number]);
+    doc.rect(0, 0, pageWidth, 35, 'F');
+    
+    // Logo
+    if (logoImage) {
+      try {
+        doc.addImage(logoImage, 'PNG', 10, 2, 30, 30);
+      } catch (e) {
+        console.error("Error adding logo to PDF", e);
+      }
+    }
+    
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
-    doc.text('UNIVERSIDAD NACIONAL INTERCULTURAL DE QUILLABAMBA', 105, 15, { align: 'center' });
     doc.setFontSize(14);
-    doc.text(`FICHA DE PRE-INSCRIPCIÓN - ${appSettings?.textoLogo?.toUpperCase() || "ADMISIÓN 2026"}`, 105, 25, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.text('UNIVERSIDAD NACIONAL INTERCULTURAL DE QUILLABAMBA', pageWidth / 2 + 10, 12, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`FICHA DE PRE-INSCRIPCIÓN - ${appSettings?.textoLogo?.toUpperCase() || "ADMISIÓN 2026"}`, pageWidth / 2 + 10, 20, { align: 'center' });
     
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(12);
+    doc.setFontSize(9);
+
+    let startY = 40;
     
-    const data = [
+    const addSection = (title: string, data: any[][]) => {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colorPrimary as [number, number, number]);
+      doc.text(title.toUpperCase(), 10, startY);
+      
+      // Draw a line under title
+      doc.setDrawColor(...colorPrimary as [number, number, number]);
+      doc.line(10, startY + 1, pageWidth - 10, startY + 1);
+      
+      startY += 4;
+      
+      autoTable(doc, {
+        startY: startY,
+        margin: { right: 10, left: 10 },
+        body: data,
+        theme: 'plain', // Use plain theme for a cleaner look
+        styles: { fontSize: 9, cellPadding: 1.5, textColor: [50, 50, 50] },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: [0, 0, 0] } },
+      });
+      
+      startY = (doc as any).lastAutoTable.finalY + 8;
+    };
+
+    // Datos de Inscripción
+    addSection('Datos de Inscripción', [
+      ['Código de Inscripción', id ? id.toString().padStart(6, '0') : (registrationId ? registrationId.toString().padStart(6, '0') : 'Pendiente')],
+      ['Carrera', formData.career],
+      ['Modalidad', formData.modality],
+      ['Lugar de Inscripción', formData.lugarInscripcion],
+    ]);
+
+    // Datos Personales
+    addSection('Datos Personales', [
       ['DNI', formData.dni],
       ['Nombres', formData.names],
       ['Apellidos', `${formData.paternalSurname} ${formData.maternalSurname}`],
-      ['Carrera', formData.career],
-      ['Modalidad', formData.modality],
       ['Fecha de Nacimiento', formData.birthDate],
       ['Sexo', formData.gender],
       ['Email', formData.email],
       ['Teléfono', formData.phone],
+    ]);
+
+    // Datos Académicos y Apoderado
+    addSection('Datos Académicos y Apoderado', [
       ['Colegio', formData.schoolName],
-      ['Lugar de Procedencia', `${formData.procedenciaRegion} - ${formData.procedenciaProvincia} - ${formData.procedenciaDistrito}`],
-      ['Dirección', formData.procedenciaDireccion],
-      ['Apoderado', formData.nombreApoderado],
-      ['Celular Apoderado', formData.celularApoderado],
+      ['Nivel/Tipo', `${formData.schoolLevel} / ${formData.schoolType}`],
+      ['Año de Egreso', formData.graduationYear],
+      ['Apoderado', `${formData.apoderadoNombres} ${formData.apoderadoApellidoPaterno} ${formData.apoderadoApellidoMaterno}`],
+    ]);
+
+    // Recommendations Box
+    const recBoxY = startY;
+    doc.setFillColor(...colorLightGray as [number, number, number]);
+    doc.rect(10, recBoxY, pageWidth - 20, 35, 'F');
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...colorSecondary as [number, number, number]);
+    doc.text('RECOMENDACIONES IMPORTANTES:', 12, recBoxY + 6);
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    const recommendations = [
+      '1. Imprima esta ficha y preséntela el día del examen de admisión.',
+      '2. Debe llevar esta ficha junto con su VOUCHER DE PAGO a la Oficina de Admisión para confirmar su inscripción.',
+      '3. Lleve consigo su DNI original y carnet de postulante.',
+      '4. Preséntese al local de examen con 1 hora de anticipación.',
+      '5. Está prohibido el ingreso con celulares, relojes inteligentes u otros dispositivos electrónicos.'
     ];
-
-    if (formData.hasSpecialConditions) {
-      const conditions = [];
-      if (formData.discapacidad) conditions.push(`Discapacidad (CONADIS: ${formData.conadisNumber || 'N/A'})`);
-      if (formData.isDeportista) conditions.push('Deportista Calificado');
-      if (formData.isVictimaViolencia) conditions.push('Víctima de Violencia');
-      if (formData.isServicioMilitar) conditions.push('Servicio Militar');
-      if (formData.isPrimerosPuestos) conditions.push('Primeros Puestos');
-      
-      data.push(['Condiciones Especiales', conditions.length > 0 ? conditions.join(', ') : 'Sí (Sin especificar)']);
-    } else {
-      data.push(['Condiciones Especiales', 'Ninguna']);
-    }
-
-    autoTable(doc, {
-      startY: 50,
-      head: [['Campo', 'Información']],
-      body: data,
-      theme: 'striped',
-      headStyles: { fillColor: [8, 145, 178] }, // uniq-cyan
+    
+    recommendations.forEach((rec, index) => {
+      doc.text(rec, 12, recBoxY + 12 + (index * 4));
     });
 
-    doc.setFontSize(10);
-    doc.text('Este documento es una constancia de pre-inscripción. Deberá presentar su voucher de pago para completar el proceso.', 10, doc.internal.pageSize.height - 20);
-    doc.text(`Fecha de emisión: ${new Date().toLocaleString()}`, 10, doc.internal.pageSize.height - 10);
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Fecha de emisión: ${new Date().toLocaleString()}`, 10, pageHeight - 10);
+    doc.text('UNIQ - Quillabamba, Cusco', pageWidth - 10, pageHeight - 10, { align: 'right' });
 
-    doc.save(`Ficha_Preinscripcion_${formData.dni}.pdf`);
+    if (autoDownload) {
+      doc.save(`Ficha_Preinscripcion_${formData.dni}.pdf`);
+    }
+    
+    const dataUri = doc.output('datauristring');
+    setPdfUrl(dataUri);
+    return dataUri;
   };
 
   if (isLoadingModalidades) {
@@ -1857,15 +2256,16 @@ const PreinscripcionForm: React.FC<{
                 <SelectField
                   label="Seleccionar Modalidad de Examen"
                   name="modality"
-                  value={formData.modality}
+                  value={formData.modality || ''}
                   onChange={handleChange}
                   options={modalidades.map(m => m.nombre)}
+                  loading={isLoadingModalidades}
                   error={errors.modality}
                 />
                 <SelectField
                   label="Seleccionar Carrera"
                   name="career"
-                  value={formData.career}
+                  value={formData.career || ''}
                   onChange={handleChange}
                   options={careers.map(c => c.name)}
                   error={errors.career}
@@ -1881,7 +2281,7 @@ const PreinscripcionForm: React.FC<{
                   <InputField
                     label="DNI"
                     name="dni"
-                    value={formData.dni}
+                    value={formData.dni || ''}
                     onChange={handleChange}
                     placeholder="12345678"
                     maxLength={8}
@@ -1905,49 +2305,25 @@ const PreinscripcionForm: React.FC<{
                 <h3 className="text-lg font-bold text-stone-800">Datos Personales</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <InputField label="Nombres" name="names" value={formData.names} onChange={handleChange} error={errors.names} />
-                <InputField label="Apellido Paterno" name="paternalSurname" value={formData.paternalSurname} onChange={handleChange} error={errors.paternalSurname} />
-                <InputField label="Apellido Materno" name="maternalSurname" value={formData.maternalSurname} onChange={handleChange} error={errors.maternalSurname} />
-                <InputField label="Fecha de Nacimiento" name="birthDate" type="date" value={formData.birthDate} onChange={handleChange} error={errors.birthDate} />
-                <SelectField label="Sexo" name="gender" value={formData.gender} onChange={handleChange} options={['MASCULINO', 'FEMENINO']} error={errors.gender} />
-                <div className="relative">
-                  <InputField
-                    label="Lugar de inscripción"
-                    name="lugarInscripcion"
-                    value={formData.lugarInscripcion}
-                    onChange={(e) => {
-                      handleChange(e);
-                      handlePlacesSearch(e.target.value);
-                    }}
-                    placeholder="Escriba el lugar..."
-                  />
-                  {places.length > 0 && (
-                    <div className="absolute z-10 w-full bg-white border border-stone-200 rounded-xl shadow-lg mt-1 max-h-60 overflow-y-auto">
-                      {places.map((place: any) => (
-                        <div
-                          key={place.place_id}
-                          className="px-4 py-2 hover:bg-uniq-cyan/10 cursor-pointer"
-                          onClick={() => {
-                            setFormData(prev => ({ ...prev, lugarInscripcion: place.description }));
-                            setPlaces([]);
-                          }}
-                        >
-                          {place.description}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {isSearchingPlaces && (
-                    <div className="absolute right-3 top-9">
-                      <RefreshCw size={16} className="animate-spin text-uniq-cyan" />
-                    </div>
-                  )}
-                </div>
+                <InputField label="Nombres" name="names" value={formData.names || ''} onChange={handleChange} error={errors.names} />
+                <InputField label="Apellido Paterno" name="paternalSurname" value={formData.paternalSurname || ''} onChange={handleChange} error={errors.paternalSurname} />
+                <InputField label="Apellido Materno" name="maternalSurname" value={formData.maternalSurname || ''} onChange={handleChange} error={errors.maternalSurname} />
+                <InputField label="Fecha de Nacimiento" name="birthDate" type="date" value={formData.birthDate || ''} onChange={handleChange} error={errors.birthDate} />
+                <SelectField label="Sexo" name="gender" value={formData.gender || ''} onChange={handleChange} options={['MASCULINO', 'FEMENINO']} error={errors.gender} />
+                <SelectField 
+                  label="Lugar de inscripción" 
+                  name="lugarInscripcion" 
+                  value={formData.lugarInscripcion || ''} 
+                  onChange={handleChange} 
+                  options={lugaresInscripcion.map((l: any) => l.nombre)} 
+                  loading={isLoadingLugares}
+                  error={errors.lugarInscripcion} 
+                />
               </div>
             </div>
 
             {/* Section 3: Ubicación y Educación */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            <div className="space-y-12">
               <div className="space-y-6">
                 <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
                   <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
@@ -1955,11 +2331,13 @@ const PreinscripcionForm: React.FC<{
                   </div>
                   <h3 className="text-lg font-bold text-stone-800">Lugar de Procedencia</h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <SelectField label="Región" name="procedenciaRegion" value={formData.procedenciaRegion} onChange={handleChange} options={['CUSCO', 'LIMA', 'AREQUIPA']} />
-                  <InputField label="Provincia" name="procedenciaProvincia" value={formData.procedenciaProvincia} onChange={handleChange} />
-                  <InputField label="Distrito" name="procedenciaDistrito" value={formData.procedenciaDistrito} onChange={handleChange} />
-                  <InputField label="Dirección" name="procedenciaDireccion" value={formData.procedenciaDireccion} onChange={handleChange} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <SelectField label="Región" name="procedenciaRegion" value={formData.procedenciaRegion || ''} onChange={handleChange} options={[...new Set(regiones.map(r => r.nombre))]} loading={loadingFields.procedenciaRegion} />
+                  <SelectField label="Provincia" name="procedenciaProvincia" value={formData.procedenciaProvincia || ''} onChange={handleChange} options={[...new Set(procedenciaProvincias.map(p => p.nombre))]} loading={loadingFields.procedenciaProvincia} />
+                  <SelectField label="Distrito" name="procedenciaDistrito" value={formData.procedenciaDistrito || ''} onChange={handleChange} options={[...new Set(procedenciaDistritos.map(d => d.nombre))]} loading={loadingFields.procedenciaDistrito} />
+                </div>
+                <div className="w-full">
+                  <InputField label="Dirección" name="procedenciaDireccion" value={formData.procedenciaDireccion || ''} onChange={handleChange} />
                 </div>
               </div>
 
@@ -1970,11 +2348,25 @@ const PreinscripcionForm: React.FC<{
                   </div>
                   <h3 className="text-lg font-bold text-stone-800">Colegio de Procedencia</h3>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <SelectField label="Región" name="colegioRegion" value={formData.colegioRegion || ''} onChange={handleChange} options={[...new Set(regiones.map(r => r.nombre))]} loading={loadingFields.colegioRegion} />
+                  <SelectField label="Provincia" name="colegioProvincia" value={formData.colegioProvincia || ''} onChange={handleChange} options={[...new Set(colegioProvincias.map(p => p.nombre))]} loading={loadingFields.colegioProvincia} />
+                  <SelectField label="Distrito" name="colegioDistrito" value={formData.colegioDistrito || ''} onChange={handleChange} options={[...new Set(colegioDistritos.map(d => d.nombre))]} loading={loadingFields.colegioDistrito} />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <SelectField label="Región" name="colegioRegion" value={formData.colegioRegion} onChange={handleChange} options={['CUSCO', 'LIMA', 'AREQUIPA']} />
-                  <InputField label="Provincia" name="colegioProvincia" value={formData.colegioProvincia} onChange={handleChange} />
-                  <InputField label="Distrito" name="colegioDistrito" value={formData.colegioDistrito} onChange={handleChange} />
-                  <InputField label="Nombre I.E." name="schoolName" value={formData.schoolName} onChange={handleChange} />
+                  <div className="md:col-span-2">
+                    <SelectField 
+                      label="Colegio" 
+                      name="schoolName" 
+                      value={formData.schoolName || ''} 
+                      onChange={handleChange} 
+                      options={[...new Set(colegiosList.map(c => c.nombre))]} 
+                      loading={loadingFields.schoolName} 
+                      error={errors.schoolName}
+                    />
+                  </div>
+                  <InputField label="Nivel" name="schoolLevel" value={formData.schoolLevel || ''} readOnly disabled />
+                  <InputField label="Tipo de Colegio" name="schoolType" value={formData.schoolType || ''} readOnly disabled />
                 </div>
               </div>
             </div>
@@ -1988,9 +2380,9 @@ const PreinscripcionForm: React.FC<{
                 <h3 className="text-lg font-bold text-stone-800">Lugar de Nacimiento</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <SelectField label="Región" name="nacimientoRegion" value={formData.nacimientoRegion} onChange={handleChange} options={['CUSCO', 'LIMA', 'AREQUIPA']} />
-                <InputField label="Provincia" name="nacimientoProvincia" value={formData.nacimientoProvincia} onChange={handleChange} />
-                <InputField label="Distrito" name="nacimientoDistrito" value={formData.nacimientoDistrito} onChange={handleChange} />
+                <SelectField label="Región" name="nacimientoRegion" value={formData.nacimientoRegion || ''} onChange={handleChange} options={[...new Set(regiones.map(r => r.nombre))]} loading={loadingFields.nacimientoRegion} />
+                <SelectField label="Provincia" name="nacimientoProvincia" value={formData.nacimientoProvincia || ''} onChange={handleChange} options={[...new Set(nacimientoProvincias.map(p => p.nombre))]} loading={loadingFields.nacimientoProvincia} />
+                <SelectField label="Distrito" name="nacimientoDistrito" value={formData.nacimientoDistrito || ''} onChange={handleChange} options={[...new Set(nacimientoDistritos.map(d => d.nombre))]} loading={loadingFields.nacimientoDistrito} />
               </div>
             </div>
 
@@ -2003,14 +2395,49 @@ const PreinscripcionForm: React.FC<{
                 <h3 className="text-lg font-bold text-stone-800">Información Adicional</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <InputField label="Email" name="email" value={formData.email} onChange={handleChange} error={errors.email} />
-                <InputField label="Teléfono" name="phone" value={formData.phone} onChange={handleChange} error={errors.phone} />
-                <SelectField label="Año Egreso" name="graduationYear" value={formData.graduationYear} onChange={handleChange} options={GRADUATION_YEARS} />
-                <InputField label="Nombre Apoderado" name="nombreApoderado" value={formData.nombreApoderado} onChange={handleChange} />
-                <InputField label="Celular Apoderado" name="celularApoderado" value={formData.celularApoderado} onChange={handleChange} />
-                <SelectField label="Idioma" name="idioma" value={formData.idioma} onChange={handleChange} options={['QUECHUA', 'MATSIGUENKA', 'CASTELLANO']} />
-                <SelectField label="Pueblo Indígena" name="indigenousPeople" value={formData.indigenousPeople} onChange={handleChange} options={['AMAZÓNICO', 'ANDINO', 'OTROS']} />
-                <InputField label="Tipo de Comunidad" name="tipoComunidad" value={formData.tipoComunidad} onChange={handleChange} />
+                <InputField label="Email" name="email" value={formData.email || ''} onChange={handleChange} error={errors.email} />
+                <InputField label="Teléfono" name="phone" value={formData.phone || ''} onChange={handleChange} error={errors.phone} />
+                <SelectField label="Año Egreso" name="graduationYear" value={formData.graduationYear || ''} onChange={handleChange} options={GRADUATION_YEARS} />
+                <div className="relative">
+                  <InputField 
+                    label="DNI Apoderado" 
+                    name="apoderadoDni" 
+                    value={formData.apoderadoDni || ''} 
+                    onChange={handleChange} 
+                    maxLength={8}
+                    placeholder="12345678"
+                    loading={isSearchingApoderadoDni}
+                  />
+                </div>
+                <InputField label="Nombres Apoderado" name="apoderadoNombres" value={formData.apoderadoNombres || ''} onChange={handleChange} />
+                <InputField label="Apellido Paterno Apoderado" name="apoderadoApellidoPaterno" value={formData.apoderadoApellidoPaterno || ''} onChange={handleChange} />
+                <InputField label="Apellido Materno Apoderado" name="apoderadoApellidoMaterno" value={formData.apoderadoApellidoMaterno || ''} onChange={handleChange} />
+                <SelectField 
+                  label="Idioma" 
+                  name="idioma" 
+                  value={formData.idioma || ''} 
+                  onChange={handleChange} 
+                  options={idiomas.map(i => i.idioma)} 
+                  loading={loadingFields.idioma}
+                />
+                <InputField 
+                  label="Tipo de Comunidad" 
+                  name="tipoComunidad" 
+                  value={formData.tipoComunidad || ''} 
+                  onChange={handleChange} 
+                  readOnly
+                  disabled
+                  loading={loadingFields.idioma}
+                />
+                <InputField 
+                  label="Pueblo Indígena" 
+                  name="indigenousPeople" 
+                  value={formData.indigenousPeople || ''} 
+                  onChange={handleChange} 
+                  readOnly
+                  disabled
+                  loading={loadingFields.idioma}
+                />
               </div>
               
               <div className="flex flex-wrap gap-8 bg-stone-50 p-6 rounded-2xl border border-stone-100">
@@ -2060,7 +2487,7 @@ const PreinscripcionForm: React.FC<{
                             <InputField 
                               label="Nro. Carnet CONADIS" 
                               name="conadisNumber" 
-                              value={formData.conadisNumber} 
+                              value={formData.conadisNumber || ''} 
                               onChange={handleChange} 
                               placeholder="Ingrese nro. carnet"
                             />
@@ -2089,21 +2516,29 @@ const PreinscripcionForm: React.FC<{
               </div>
             </div>
 
-            <div className="flex gap-4 pt-8 border-t border-stone-100">
-              <button 
-                onClick={handleNext}
-                disabled={isSubmitting}
-                className="px-12 py-4 bg-uniq-cyan text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-uniq-cyan/20 uppercase text-sm disabled:opacity-50 flex items-center gap-2"
-              >
-                {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : null}
-                {isSubmitting ? 'Guardando...' : 'Finalizar Pre-Inscripción'}
-              </button>
-              <button 
-                onClick={onCancel}
-                className="px-12 py-4 bg-white text-stone-600 font-bold rounded-xl border border-stone-200 hover:bg-stone-50 transition-all uppercase text-sm"
-              >
-                Cancelar
-              </button>
+            <div className="flex flex-col gap-4 pt-8 border-t border-stone-100">
+              {submitError && (
+                <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-bold flex items-center gap-2">
+                  <AlertCircle size={18} />
+                  {submitError}
+                </div>
+              )}
+              <div className="flex gap-4">
+                <button 
+                  onClick={handleNext}
+                  disabled={isSubmitting}
+                  className="px-12 py-4 bg-uniq-cyan text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-uniq-cyan/20 uppercase text-sm disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : null}
+                  {isSubmitting ? 'Guardando...' : 'Finalizar Pre-Inscripción'}
+                </button>
+                <button 
+                  onClick={onCancel}
+                  className="px-12 py-4 bg-white text-stone-600 font-bold rounded-xl border border-stone-200 hover:bg-stone-50 transition-all uppercase text-sm"
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -2113,29 +2548,101 @@ const PreinscripcionForm: React.FC<{
             key="step3"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white p-12 rounded-[3rem] shadow-2xl border border-stone-100 text-center space-y-8"
+            className="bg-white p-8 rounded-[3rem] shadow-2xl border border-stone-100 text-center space-y-8 max-w-4xl mx-auto"
           >
-            <div className="w-24 h-24 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle size={48} />
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center">
+                  <CheckCircle size={24} />
+                </div>
+                <div className="text-left">
+                  <h2 className="text-2xl font-bold text-stone-800">¡Pre-Inscripción Exitosa!</h2>
+                  <p className="text-stone-500 text-sm">Su registro ha sido procesado correctamente.</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => generatePDF(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-stone-900 text-white text-xs font-bold rounded-xl hover:bg-stone-800 transition-all"
+                >
+                  <Download size={14} />
+                  Descargar PDF
+                </button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold text-stone-800">¡Pre-Inscripción Exitosa!</h2>
-              <p className="text-stone-500 max-w-md mx-auto">Su registro ha sido procesado correctamente. Por favor, descargue su ficha de pre-inscripción.</p>
+
+            {/* HTML Summary instead of PDF Preview to avoid iframe blocking */}
+            <div className="w-full bg-stone-50 rounded-2xl border border-stone-200 shadow-inner p-8 text-left">
+              <div className="flex justify-between items-start mb-6 border-b border-stone-200 pb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-uniq-cyan mb-1">UNIVERSIDAD NACIONAL INTERCULTURAL DE QUILLABAMBA</h3>
+                  <p className="text-stone-500 font-medium">FICHA DE PRE-INSCRIPCIÓN - {appSettings?.textoLogo?.toUpperCase() || "ADMISIÓN 2026"}</p>
+                </div>
+                {logoImage && (
+                  <img src={logoImage.src} alt="Logo UNIQ" className="w-16 h-16 object-contain" />
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="font-bold text-stone-800 border-b border-stone-200 pb-2 mb-3">Datos de Inscripción</h4>
+                    <div className="space-y-2 text-sm">
+                      <p><span className="font-semibold text-stone-600">Código:</span> {registrationId ? registrationId.toString().padStart(6, '0') : 'Pendiente'}</p>
+                      <p><span className="font-semibold text-stone-600">Carrera:</span> {formData.career}</p>
+                      <p><span className="font-semibold text-stone-600">Modalidad:</span> {formData.modality}</p>
+                      <p><span className="font-semibold text-stone-600">Lugar de Inscripción:</span> {formData.lugarInscripcion}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-stone-800 border-b border-stone-200 pb-2 mb-3">Datos Personales</h4>
+                    <div className="space-y-2 text-sm">
+                      <p><span className="font-semibold text-stone-600">DNI:</span> {formData.dni}</p>
+                      <p><span className="font-semibold text-stone-600">Nombres:</span> {formData.names}</p>
+                      <p><span className="font-semibold text-stone-600">Apellidos:</span> {formData.paternalSurname} {formData.maternalSurname}</p>
+                      <p><span className="font-semibold text-stone-600">Email:</span> {formData.email}</p>
+                      <p><span className="font-semibold text-stone-600">Teléfono:</span> {formData.phone}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="font-bold text-stone-800 border-b border-stone-200 pb-2 mb-3">Datos Académicos</h4>
+                    <div className="space-y-2 text-sm">
+                      <p><span className="font-semibold text-stone-600">Colegio:</span> {formData.schoolName}</p>
+                      <p><span className="font-semibold text-stone-600">Nivel/Tipo:</span> {formData.schoolLevel} / {formData.schoolType}</p>
+                      <p><span className="font-semibold text-stone-600">Año de Egreso:</span> {formData.graduationYear}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-uniq-cyan/5 p-4 rounded-xl border border-uniq-cyan/20">
+                    <h4 className="font-bold text-uniq-cyan mb-2 flex items-center gap-2">
+                      <AlertCircle size={16} />
+                      Importante
+                    </h4>
+                    <p className="text-sm text-stone-600">
+                      Por favor, descargue e imprima su Ficha de Pre-Inscripción en formato PDF. Deberá presentarla el día del examen junto con su DNI original.
+                    </p>
+                    <button 
+                      onClick={() => generatePDF(true)}
+                      className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-uniq-cyan text-white font-bold rounded-xl hover:bg-uniq-blue transition-all"
+                    >
+                      <Download size={18} />
+                      Descargar Ficha PDF
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
             
-            <div className="flex flex-col md:flex-row gap-4 justify-center">
-              <button 
-                onClick={generatePDF}
-                className="flex items-center justify-center gap-3 px-10 py-4 bg-stone-900 text-white font-bold rounded-2xl hover:bg-stone-800 transition-all shadow-xl shadow-stone-900/20"
-              >
-                <Download size={20} />
-                Descargar Ficha PDF
-              </button>
+            <div className="pt-4">
               <button 
                 onClick={onCancel}
-                className="flex items-center justify-center gap-3 px-10 py-4 bg-white text-stone-600 font-bold rounded-2xl border border-stone-200 hover:bg-stone-50 transition-all"
+                className="px-12 py-4 bg-stone-100 text-stone-600 font-bold rounded-2xl hover:bg-stone-200 transition-all uppercase text-sm"
               >
-                Ir al Inicio
+                Finalizar y Volver al Inicio
               </button>
             </div>
           </motion.div>
@@ -2252,7 +2759,7 @@ const ReglamentoView = ({ onBack, reglamento }: { onBack: () => void, reglamento
   </motion.div>
 );
 
-const TemarioView = ({ onBack, temario, key }: { onBack: () => void, temario: any[], key?: string }) => (
+const TemarioView = ({ onBack, temario }: { onBack: () => void, temario: any[] }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
     <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
       <div className="flex items-center gap-4 mb-8">
@@ -2655,7 +3162,7 @@ const ConfigDniApiView = ({ settings, onSave, onBack }: { settings: any, onSave:
   );
 };
 
-const AdminDashboardView = ({ registrations, userRole, onBack, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult, onConfigDni, onConfigInicio, appSettings }: { registrations: any[], userRole?: string, onBack: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any, onConfigDni: () => void, onConfigInicio: () => void, appSettings?: any }) => {
+const AdminDashboardView = ({ registrations, userRole, onBack, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult, onConfigDni, onConfigInicio, onConfigPreinscripciones, onConfigColegios, onConfigIdiomas, onConfigPDF, appSettings }: { registrations: any[], userRole?: string, onBack: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any, onConfigDni: () => void, onConfigInicio: () => void, onConfigPreinscripciones: () => void, onConfigColegios: () => void, onConfigIdiomas: () => void, onConfigPDF: () => void, appSettings?: any }) => {
   useEffect(() => {
     onCheckDb();
   }, []);
@@ -2716,10 +3223,19 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigCronogram
         <div className="space-y-8">
           {[
             {
+              title: "Gestión de Preinscripción",
+              description: "Configuración y parámetros del proceso de preinscripción.",
+              actions: [
+                { icon: Users, label: "Modificar Preinscritos", color: "bg-blue-50 text-blue-600", action: onConfigPreinscripciones },
+                { icon: School, label: "Gestionar Colegios", color: "bg-amber-50 text-amber-600", action: onConfigColegios },
+              ]
+            },
+            {
               title: "Gestión de Postulantes",
               description: "Administración de registros, pagos y resultados del proceso.",
               actions: [
                 { icon: ShieldCheck, label: "Habilitar Postulantes", color: "bg-lime-50 text-lime-600", action: onConfigRegistrados },
+                { icon: Languages, label: "Gestionar Idiomas", color: "bg-blue-50 text-blue-600", action: onConfigIdiomas },
                 { icon: FileText, label: "Reporte de Pagos", color: "bg-uniq-cyan/10 text-uniq-cyan" },
                 { icon: UploadCloud, label: "Subir Resultados", color: "bg-uniq-cyan/10 text-uniq-cyan" },
               ]
@@ -2729,6 +3245,7 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigCronogram
               description: "Personalización de la información pública y parámetros del examen.",
               actions: [
                 { icon: LayoutDashboard, label: "Configurar Inicio", color: "bg-pink-50 text-pink-600", action: onConfigInicio },
+                { icon: FileText, label: "Configurar PDF", color: "bg-uniq-cyan/10 text-uniq-cyan", action: onConfigPDF },
                 { icon: BookOpen, label: "Configurar Carreras", color: "bg-purple-50 text-purple-600", action: onConfigCarreras },
                 { icon: BookOpen, label: "Configurar Modalidades", color: "bg-lime-50 text-lime-600", action: onConfigModalidades },
                 { icon: Clock, label: "Eventos del Cronograma", color: "bg-indigo-50 text-indigo-600", action: onConfigCronograma },
@@ -2786,6 +3303,15 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigCronogram
 const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: { onSave: (data: FormData) => void, onBack: () => void, currentUser?: UserAuth, appSettings?: any }) => {
   const [formData, setFormData] = useState<FormData>(INITIAL_DATA);
   const [loading, setLoading] = useState(false);
+  const [idiomas, setIdiomas] = useState<any[]>([]);
+  const [loadingFields, setLoadingFields] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    fetch('/api/mapeo-idiomas')
+      .then(res => res.json())
+      .then(data => setIdiomas(data))
+      .catch(err => console.error('Error fetching idiomas:', err));
+  }, []);
 
   const handleDniChange = async (dni: string) => {
     setFormData(prev => ({ ...prev, dni }));
@@ -2806,26 +3332,23 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: 
             gender: data.genero,
             email: data.email,
             phone: data.telefono,
-            department: data.departamento,
-            province: data.provincia,
-            district: data.distrito,
-            schoolName: data.colegio_nombre,
-            schoolType: data.colegio_tipo,
-            graduationYear: data.anio_egreso?.toString() || '',
+            schoolName: data.schoolName || '',
+            schoolType: data.schoolType || '',
+            graduationYear: data.graduationYear?.toString() || '',
             career: data.carrera,
             modality: data.modalidad,
             indigenousPeople: data.pueblo_indigena,
             lugarInscripcion: data.lugar_inscripcion || 'QUILLABAMBA',
-            colegioRegion: data.colegio_region || '',
-            colegioProvincia: data.colegio_provincia || '',
-            colegioDistrito: data.colegio_distrito || '',
-            procedenciaRegion: data.procedencia_region || '',
-            procedenciaProvincia: data.procedencia_provincia || '',
-            procedenciaDistrito: data.procedencia_distrito || '',
-            procedenciaDireccion: data.procedencia_direccion || '',
-            nacimientoRegion: data.nacimiento_region || '',
-            nacimientoProvincia: data.nacimiento_provincia || '',
-            nacimientoDistrito: data.nacimiento_distrito || '',
+            colegioRegion: data.colegioRegion || '',
+            colegioProvincia: data.colegioProvincia || '',
+            colegioDistrito: data.colegioDistrito || '',
+            procedenciaRegion: data.procedenciaRegion || '',
+            procedenciaProvincia: data.procedenciaProvincia || '',
+            procedenciaDistrito: data.procedenciaDistrito || '',
+            procedenciaDireccion: data.procedenciaDireccion || '',
+            nacimientoRegion: data.nacimientoRegion || '',
+            nacimientoProvincia: data.nacimientoProvincia || '',
+            nacimientoDistrito: data.nacimientoDistrito || '',
             idioma: data.idioma || '',
             idiomaLee: data.idioma_lee || false,
             idiomaHabla: data.idioma_habla || false,
@@ -2864,6 +3387,35 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: 
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    if (name === 'idioma') {
+      setLoadingFields(prev => ({ ...prev, idioma: true }));
+      fetch(`/api/mapeo-idiomas/${value}`)
+        .then(res => res.json())
+        .then(data => {
+          setFormData(prev => ({
+            ...prev,
+            idioma: value,
+            indigenousPeople: data.pueblo_indigena || '',
+            tipoComunidad: data.tipo_comunidad || ''
+          }));
+        })
+        .catch(err => {
+          console.error('Error fetching idioma mapping:', err);
+          setFormData(prev => ({
+            ...prev,
+            idioma: value,
+            indigenousPeople: '',
+            tipoComunidad: ''
+          }));
+        })
+        .finally(() => setLoadingFields(prev => ({ ...prev, idioma: false })));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
@@ -2892,7 +3444,7 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: 
                 <input 
                   type="text" 
                   maxLength={8}
-                  value={formData.dni}
+                  value={formData.dni || ''}
                   onChange={(e) => handleDniChange(e.target.value)}
                   className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
                   placeholder="Ingrese DNI para cargar datos"
@@ -2910,7 +3462,7 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: 
                 <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombres</label>
                 <input 
                   type="text" 
-                  value={formData.names}
+                  value={formData.names || ''}
                   onChange={(e) => setFormData({...formData, names: e.target.value})}
                   className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none"
                 />
@@ -2919,7 +3471,7 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: 
                 <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Apellido Paterno</label>
                 <input 
                   type="text" 
-                  value={formData.paternalSurname}
+                  value={formData.paternalSurname || ''}
                   onChange={(e) => setFormData({...formData, paternalSurname: e.target.value})}
                   className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none"
                 />
@@ -2929,7 +3481,7 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: 
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Carrera</label>
               <select 
-                value={formData.career}
+                value={formData.career || ''}
                 onChange={(e) => setFormData({...formData, career: e.target.value})}
                 className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none"
               >
@@ -2946,8 +3498,9 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: 
                 <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Teléfono</label>
                 <input 
                   type="text" 
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  name="phone"
+                  value={formData.phone || ''}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 bg-white border border-stone-200 rounded-2xl outline-none"
                 />
               </div>
@@ -2955,17 +3508,64 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: 
                 <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Email</label>
                 <input 
                   type="email" 
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  name="email"
+                  value={formData.email || ''}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 bg-white border border-stone-200 rounded-2xl outline-none"
                 />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Idioma</label>
+                <div className="relative">
+                  <select 
+                    name="idioma"
+                    value={formData.idioma || ''}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 bg-white border border-stone-200 rounded-2xl outline-none"
+                  >
+                    <option value="">Seleccione Idioma</option>
+                    {idiomas.map(i => <option key={i.id} value={i.idioma}>{i.idioma}</option>)}
+                  </select>
+                  {loadingFields.idioma && (
+                    <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                      <RefreshCw size={14} className="animate-spin text-uniq-cyan" />
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Tipo de Comunidad</label>
+                <input 
+                  type="text" 
+                  name="tipoComunidad"
+                  value={formData.tipoComunidad || ''}
+                  onChange={handleChange}
+                  readOnly
+                  disabled
+                  className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none cursor-not-allowed"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Pueblo Indígena</label>
+              <input 
+                type="text" 
+                name="indigenousPeople"
+                value={formData.indigenousPeople || ''}
+                onChange={handleChange}
+                readOnly
+                disabled
+                className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none cursor-not-allowed"
+              />
+            </div>
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Modalidad</label>
               <select 
-                value={formData.modality}
-                onChange={(e) => setFormData({...formData, modality: e.target.value})}
+                name="modality"
+                value={formData.modality || ''}
+                onChange={handleChange}
                 className="w-full px-4 py-3 bg-white border border-stone-200 rounded-2xl outline-none"
               >
                 <option value="Ordinario">Ordinario</option>
@@ -3219,7 +3819,7 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
                   <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Usuario</label>
                   <input 
                     type="text" 
-                    value={formData.username}
+                    value={formData.username || ''}
                     onChange={(e) => setFormData({...formData, username: e.target.value})}
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
                     placeholder="Username"
@@ -3229,7 +3829,7 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
                   <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Contraseña</label>
                   <input 
                     type="password" 
-                    value={formData.password}
+                    value={formData.password || ''}
                     onChange={(e) => setFormData({...formData, password: e.target.value})}
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
                     placeholder={editingUser ? "Dejar en blanco para no cambiar" : "Password"}
@@ -3241,7 +3841,7 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
                 <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre Completo</label>
                 <input 
                   type="text" 
-                  value={formData.full_name}
+                  value={formData.full_name || ''}
                   onChange={(e) => setFormData({...formData, full_name: e.target.value})}
                   className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
                   placeholder="Nombre completo"
@@ -3252,7 +3852,7 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
                 <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Email</label>
                 <input 
                   type="email" 
-                  value={formData.email}
+                  value={formData.email || ''}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
                   placeholder="email@example.com"
@@ -3262,7 +3862,7 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Rol</label>
                 <select 
-                  value={formData.role}
+                  value={formData.role || ''}
                   onChange={(e) => setFormData({...formData, role: e.target.value as Role})}
                   className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
                 >
@@ -3296,6 +3896,431 @@ const UserManagementView = ({ onBack }: { onBack: () => void }) => {
                 </button>
               </div>
             </div>
+          </motion.div>
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+const LocationManagementView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const [regiones, setRegiones] = useState<any[]>([]);
+  const [provincias, setProvincias] = useState<any[]>([]);
+  const [distritos, setDistritos] = useState<any[]>([]);
+  const [selectedRegion, setSelectedRegion] = useState<any>(null);
+  const [selectedProvincia, setSelectedProvincia] = useState<any>(null);
+
+  const fetchRegiones = async () => {
+    const res = await fetch('/api/regiones');
+    const data = await res.json();
+    setRegiones(data);
+  };
+
+  const fetchProvincias = async (regionId: number) => {
+    const res = await fetch(`/api/provincias?region_id=${regionId}`);
+    const data = await res.json();
+    setProvincias(data);
+  };
+
+  const fetchDistritos = async (provinciaId: number) => {
+    const res = await fetch(`/api/distritos?provincia_id=${provinciaId}`);
+    const data = await res.json();
+    setDistritos(data);
+  };
+
+  useEffect(() => {
+    fetchRegiones();
+  }, []);
+
+  useEffect(() => {
+    if (selectedRegion) fetchProvincias(selectedRegion.id);
+    else setProvincias([]);
+  }, [selectedRegion]);
+
+  useEffect(() => {
+    if (selectedProvincia) fetchDistritos(selectedProvincia.id);
+    else setDistritos([]);
+  }, [selectedProvincia]);
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editData, setEditData] = useState<{ nombre: string; descripcion: string }>({ nombre: '', descripcion: '' });
+  const [addingType, setAddingType] = useState<'region' | 'provincia' | 'distrito' | null>(null);
+  const [addData, setAddData] = useState<{ nombre: string; descripcion: string }>({ nombre: '', descripcion: '' });
+
+  const handleAdd = async (type: 'region' | 'provincia' | 'distrito', data: any) => {
+    const endpoint = type === 'region' ? 'regiones' : type === 'provincia' ? 'provincias' : 'distritos';
+    const body = { ...data, ...(type === 'provincia' ? { region_id: selectedRegion.id } : type === 'distrito' ? { provincia_id: selectedProvincia.id } : {}), ubigeo: '00' };
+    
+    const res = await fetch(`/api/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    
+    if (res.ok) {
+      if (type === 'region') fetchRegiones();
+      else if (type === 'provincia') fetchProvincias(selectedRegion.id);
+      else fetchDistritos(selectedProvincia.id);
+      setAddingType(null);
+      setAddData({ nombre: '', descripcion: '' });
+    }
+  };
+
+  const handleEdit = async (type: 'region' | 'provincia' | 'distrito', id: number, data: any) => {
+    const endpoint = type === 'region' ? 'regiones' : type === 'provincia' ? 'provincias' : 'distritos';
+    const res = await fetch(`/api/${endpoint}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    
+    if (res.ok) {
+      if (type === 'region') fetchRegiones();
+      else if (type === 'provincia') fetchProvincias(selectedRegion.id);
+      else fetchDistritos(selectedProvincia.id);
+      setEditingId(null);
+    }
+  };
+
+  const handleDelete = async (type: 'region' | 'provincia' | 'distrito', id: number) => {
+    if (!confirm("¿Está seguro de eliminar este elemento?")) return;
+    const endpoint = type === 'region' ? 'regiones' : type === 'provincia' ? 'provincias' : 'distritos';
+    const res = await fetch(`/api/${endpoint}/${id}`, { method: 'DELETE' });
+    
+    if (res.ok) {
+      if (type === 'region') { setSelectedRegion(null); fetchRegiones(); }
+      else if (type === 'provincia') { setSelectedProvincia(null); fetchProvincias(selectedRegion.id); }
+      else fetchDistritos(selectedProvincia.id);
+    }
+  };
+
+  const renderCard = (item: any, type: 'region' | 'provincia' | 'distrito') => (
+    <div key={item.id} className={`p-4 rounded-xl mb-3 shadow-sm border ${editingId === item.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-stone-100'}`}>
+      {editingId === item.id ? (
+        <div className="space-y-2">
+          <input className="w-full p-2 border rounded" value={editData.nombre || ''} onChange={e => setEditData({...editData, nombre: e.target.value})} placeholder="Nombre" />
+          <input className="w-full p-2 border rounded" value={editData.descripcion || ''} onChange={e => setEditData({...editData, descripcion: e.target.value})} placeholder="Descripción" />
+          <div className="flex gap-2">
+            <button className="bg-green-500 text-white px-3 py-1 rounded" onClick={() => handleEdit(type, item.id, editData)}>Guardar</button>
+            <button className="bg-stone-300 text-white px-3 py-1 rounded" onClick={() => setEditingId(null)}>Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div className="font-bold text-stone-800">{item.nombre}</div>
+          <div className="text-sm text-stone-500 mb-2">{item.descripcion}</div>
+          <div className="flex gap-2">
+            <button className="text-blue-600 text-xs font-semibold" onClick={() => { setEditingId(item.id); setEditData({ nombre: item.nombre, descripcion: item.descripcion }); }}>Editar</button>
+            <button className="text-red-600 text-xs font-semibold" onClick={() => handleDelete(type, item.id)}>Eliminar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-6 bg-stone-50 min-h-screen">
+      <div className="max-w-6xl mx-auto bg-white p-8 rounded-3xl shadow-lg border border-stone-100">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-3xl font-extrabold text-stone-900">Gestión de Ubicaciones</h2>
+            <p className="text-stone-500 mt-1">Administra regiones, provincias y distritos para la preinscripción.</p>
+          </div>
+          <button onClick={onBack} className="px-6 py-3 bg-stone-100 text-stone-700 rounded-2xl font-bold text-sm hover:bg-stone-200 transition-all">Volver al Panel</button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[600px]">
+          {/* Regiones */}
+          <div className="flex flex-col border border-stone-200 rounded-3xl p-4 bg-stone-100/50">
+            <h3 className="font-bold text-lg mb-4 text-stone-700">Regiones</h3>
+            <div className="flex-1 overflow-y-auto pr-2">
+              {regiones.map(r => (
+                <div key={r.id} className={`cursor-pointer ${selectedRegion?.id === r.id ? 'ring-2 ring-blue-400' : ''}`} onClick={() => { setSelectedRegion(r); setSelectedProvincia(null); }}>
+                  {renderCard(r, 'region')}
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setAddingType('region')} className="mt-4 w-full bg-stone-900 text-white p-3 rounded-xl font-semibold hover:bg-stone-800">+ Agregar Región</button>
+          </div>
+
+          {/* Provincias */}
+          <div className="flex flex-col border border-stone-200 rounded-3xl p-4 bg-stone-100/50">
+            <h3 className="font-bold text-lg mb-4 text-stone-700">Provincias</h3>
+            <div className="flex-1 overflow-y-auto pr-2">
+              {selectedRegion ? provincias.map(p => (
+                <div key={p.id} className={`cursor-pointer ${selectedProvincia?.id === p.id ? 'ring-2 ring-blue-400' : ''}`} onClick={() => setSelectedProvincia(p)}>
+                  {renderCard(p, 'provincia')}
+                </div>
+              )) : <p className="text-stone-400 text-sm italic">Selecciona una región</p>}
+            </div>
+            {selectedRegion && <button onClick={() => setAddingType('provincia')} className="mt-4 w-full bg-stone-900 text-white p-3 rounded-xl font-semibold hover:bg-stone-800">+ Agregar Provincia</button>}
+          </div>
+
+          {/* Distritos */}
+          <div className="flex flex-col border border-stone-200 rounded-3xl p-4 bg-stone-100/50">
+            <h3 className="font-bold text-lg mb-4 text-stone-700">Distritos</h3>
+            <div className="flex-1 overflow-y-auto pr-2">
+              {selectedProvincia ? distritos.map(d => renderCard(d, 'distrito')) : <p className="text-stone-400 text-sm italic">Selecciona una provincia</p>}
+            </div>
+            {selectedProvincia && <button onClick={() => setAddingType('distrito')} className="mt-4 w-full bg-stone-900 text-white p-3 rounded-xl font-semibold hover:bg-stone-800">+ Agregar Distrito</button>}
+          </div>
+        </div>
+      </div>
+
+      {/* Add Modal */}
+      {addingType && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-6 rounded-3xl shadow-2xl w-full max-w-sm">
+            <h3 className="font-bold text-xl mb-4">Agregar {addingType}</h3>
+            <input className="w-full p-3 border rounded-xl mb-3" value={addData.nombre || ''} onChange={e => setAddData({...addData, nombre: e.target.value})} placeholder="Nombre" />
+            <input className="w-full p-3 border rounded-xl mb-4" value={addData.descripcion || ''} onChange={e => setAddData({...addData, descripcion: e.target.value})} placeholder="Descripción" />
+            <div className="flex gap-3">
+              <button className="flex-1 bg-stone-900 text-white p-3 rounded-xl font-semibold" onClick={() => handleAdd(addingType, addData)}>Guardar</button>
+              <button className="flex-1 bg-stone-200 text-stone-700 p-3 rounded-xl font-semibold" onClick={() => setAddingType(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+const PreinscripcionesManagementView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<any>({});
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchRegistrations = async () => {
+    try {
+      const res = await fetch('/api/registrations');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setRegistrations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching registrations:', err);
+      setRegistrations([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRegistrations();
+  }, []);
+
+  const handleCreate = () => {
+    setEditingId(null);
+    setError(null);
+    setFormData({
+      names: '',
+      paternalSurname: '',
+      maternalSurname: '',
+      dni: '',
+      email: '',
+      phone: '',
+      birthDate: '',
+      gender: '',
+      indigenousPeople: '',
+      schoolName: '',
+      schoolType: '',
+      graduationYear: '',
+      career: '',
+      modality: '',
+      lugarInscripcion: '',
+      hasSpecialConditions: false,
+      conadisNumber: '',
+      isDeportista: false,
+      isVictimaViolencia: false,
+      isServicioMilitar: false,
+      isPrimerosPuestos: false,
+      apoderadoDni: '',
+      apoderadoNombres: '',
+      apoderadoApellidoPaterno: '',
+      apoderadoApellidoMaterno: ''
+    });
+    setShowModal(true);
+  };
+
+  const handleEdit = (reg: any) => {
+    setEditingId(reg.id);
+    setError(null);
+    setFormData({
+      names: reg.nombres,
+      paternalSurname: reg.apellido_paterno,
+      maternalSurname: reg.apellido_materno,
+      dni: reg.dni,
+      email: reg.email,
+      phone: reg.telefono,
+      birthDate: reg.fecha_nacimiento ? reg.fecha_nacimiento.split('T')[0] : '',
+      gender: reg.genero,
+      indigenousPeople: reg.pueblo_indigena,
+      schoolName: reg.schoolName || '',
+      schoolType: reg.schoolType || '',
+      graduationYear: reg.graduationYear?.toString() || '',
+      career: reg.carrera,
+      modality: reg.modalidad,
+      lugarInscripcion: reg.lugar_inscripcion,
+      hasSpecialConditions: reg.has_special_conditions,
+      conadisNumber: reg.conadis_number,
+      isDeportista: reg.is_deportista,
+      isVictimaViolencia: reg.is_victima_violencia,
+      isServicioMilitar: reg.is_servicio_militar,
+      isPrimerosPuestos: reg.is_primeros_puestos,
+      apoderadoDni: reg.apoderado_dni,
+      apoderadoNombres: reg.apoderado_nombres,
+      apoderadoApellidoPaterno: reg.apoderado_apellido_paterno,
+      apoderadoApellidoMaterno: reg.apoderado_apellido_materno
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (confirm('¿Está seguro de eliminar esta preinscripción?')) {
+      try {
+        await fetch(`/api/registrations/${id}`, { method: 'DELETE' });
+        fetchRegistrations();
+      } catch (err) {
+        console.error('Error deleting registration:', err);
+      }
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      let res;
+      if (editingId) {
+        res = await fetch(`/api/registrations/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+      } else {
+        res = await fetch(`/api/admin/registrations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+      }
+      
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || 'Ocurrió un error al guardar');
+        return;
+      }
+
+      setShowModal(false);
+      fetchRegistrations();
+    } catch (err) {
+      console.error('Error saving registration:', err);
+      setError('Error de conexión');
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-6xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-stone-100 rounded-full transition-colors">
+            <ChevronLeft size={24} className="text-stone-500" />
+          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-stone-800">Gestión de Preinscritos</h1>
+            <p className="text-stone-500">Crear, modificar o eliminar preinscripciones</p>
+          </div>
+        </div>
+        <button onClick={handleCreate} className="flex items-center gap-2 px-4 py-2 bg-uniq-cyan text-white font-bold rounded-xl hover:bg-cyan-700 transition-colors">
+          <Plus size={20} />
+          <span>Crear Preinscripción</span>
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12"><RefreshCw className="animate-spin text-uniq-cyan" size={32} /></div>
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-stone-50 text-stone-500 uppercase text-xs">
+                <tr>
+                  <th className="px-6 py-4 font-semibold">DNI</th>
+                  <th className="px-6 py-4 font-semibold">Postulante</th>
+                  <th className="px-6 py-4 font-semibold">Carrera</th>
+                  <th className="px-6 py-4 font-semibold text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {registrations.map(reg => (
+                  <tr key={reg.id} className="hover:bg-stone-50/50">
+                    <td className="px-6 py-4 font-medium">{reg.dni}</td>
+                    <td className="px-6 py-4">{reg.nombres} {reg.apellido_paterno} {reg.apellido_materno}</td>
+                    <td className="px-6 py-4">{reg.carrera}</td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => handleEdit(reg)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={16} /></button>
+                        <button onClick={() => handleDelete(reg.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">{editingId ? 'Editar' : 'Crear'} Preinscripción</h2>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-stone-100 rounded-full"><X size={20} /></button>
+            </div>
+            {error && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-sm">{error}</div>}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">DNI</label>
+                  <input type="text" value={formData.dni || ''} onChange={e => setFormData({...formData, dni: e.target.value})} className="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Correo Electrónico</label>
+                  <input type="email" value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Teléfono</label>
+                  <input type="text" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Nombres</label>
+                  <input type="text" value={formData.names || ''} onChange={e => setFormData({...formData, names: e.target.value})} className="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Apellido Paterno</label>
+                  <input type="text" value={formData.paternalSurname || ''} onChange={e => setFormData({...formData, paternalSurname: e.target.value})} className="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Apellido Materno</label>
+                  <input type="text" value={formData.maternalSurname || ''} onChange={e => setFormData({...formData, maternalSurname: e.target.value})} className="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Carrera</label>
+                  <input type="text" value={formData.career || ''} onChange={e => setFormData({...formData, career: e.target.value})} className="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Modalidad</label>
+                  <input type="text" value={formData.modality || ''} onChange={e => setFormData({...formData, modality: e.target.value})} className="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl" required />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-6 border-t border-stone-100">
+                <button type="button" onClick={() => setShowModal(false)} className="px-6 py-2 text-stone-500 font-bold hover:bg-stone-50 rounded-xl">Cancelar</button>
+                <button type="submit" className="px-6 py-2 bg-uniq-cyan text-white font-bold rounded-xl hover:bg-cyan-700">Guardar Cambios</button>
+              </div>
+            </form>
           </motion.div>
         </div>
       )}
@@ -3473,7 +4498,7 @@ const RegistradosManagementView: React.FC<{ onBack: () => void }> = ({ onBack })
                   <input 
                     type="text" 
                     maxLength={8}
-                    value={formData.dni}
+                    value={formData.dni || ''}
                     onChange={(e) => setFormData({...formData, dni: e.target.value})}
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="8 dígitos"
@@ -3483,7 +4508,7 @@ const RegistradosManagementView: React.FC<{ onBack: () => void }> = ({ onBack })
                   <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombres</label>
                   <input 
                     type="text" 
-                    value={formData.nombres}
+                    value={formData.nombres || ''}
                     onChange={(e) => setFormData({...formData, nombres: e.target.value.toUpperCase()})}
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="NOMBRES"
@@ -3496,7 +4521,7 @@ const RegistradosManagementView: React.FC<{ onBack: () => void }> = ({ onBack })
                   <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Apellido Paterno</label>
                   <input 
                     type="text" 
-                    value={formData.apellido_paterno}
+                    value={formData.apellido_paterno || ''}
                     onChange={(e) => setFormData({...formData, apellido_paterno: e.target.value.toUpperCase()})}
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="APELLIDO PATERNO"
@@ -3506,7 +4531,7 @@ const RegistradosManagementView: React.FC<{ onBack: () => void }> = ({ onBack })
                   <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Apellido Materno</label>
                   <input 
                     type="text" 
-                    value={formData.apellido_materno}
+                    value={formData.apellido_materno || ''}
                     onChange={(e) => setFormData({...formData, apellido_materno: e.target.value.toUpperCase()})}
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="APELLIDO MATERNO"
@@ -3519,7 +4544,7 @@ const RegistradosManagementView: React.FC<{ onBack: () => void }> = ({ onBack })
                   <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Email (Opcional)</label>
                   <input 
                     type="email" 
-                    value={formData.email}
+                    value={formData.email || ''}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="email@example.com"
@@ -3529,7 +4554,7 @@ const RegistradosManagementView: React.FC<{ onBack: () => void }> = ({ onBack })
                   <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Teléfono (Opcional)</label>
                   <input 
                     type="text" 
-                    value={formData.telefono}
+                    value={formData.telefono || ''}
                     onChange={(e) => setFormData({...formData, telefono: e.target.value})}
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="999888777"

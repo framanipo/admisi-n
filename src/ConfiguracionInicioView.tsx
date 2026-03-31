@@ -120,18 +120,18 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
                 Texto junto al Logo
               </label>
               <input 
-                value={config.texto_logo} 
+                value={config.texto_logo || ''} 
                 onChange={e => setConfig({...config, texto_logo: e.target.value})}
                 className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
                 placeholder={`Admisión ${new Date().getFullYear()}`}
               />
             </div>
-
+ 
             <div className="space-y-2">
               <label className="text-sm font-bold text-stone-700">URL de Imagen del Portal (Logo/Icono)</label>
               <div className="flex gap-4">
                 <input 
-                  value={config.imagen_portal_url} 
+                  value={config.imagen_portal_url || ''} 
                   onChange={e => setConfig({...config, imagen_portal_url: e.target.value})}
                   className="flex-1 p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
                   placeholder="https://ejemplo.com/logo.png"
@@ -162,7 +162,7 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
             <div className="space-y-2">
               <label className="text-sm font-bold text-stone-700">Título Principal</label>
               <input 
-                value={config.titulo} 
+                value={config.titulo || ''} 
                 onChange={e => setConfig({...config, titulo: e.target.value})}
                 className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
               />
@@ -170,7 +170,7 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
             <div className="space-y-2">
               <label className="text-sm font-bold text-stone-700">Subtítulo / Descripción</label>
               <textarea 
-                value={config.subtitulo} 
+                value={config.subtitulo || ''} 
                 onChange={e => setConfig({...config, subtitulo: e.target.value})}
                 className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium min-h-[120px]"
                 rows={4}
@@ -182,7 +182,7 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-stone-700">URL de Imagen de Fondo</label>
                   <input 
-                    value={config.imagen_url} 
+                    value={config.imagen_url || ''} 
                     onChange={e => setConfig({...config, imagen_url: e.target.value})}
                     className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
                     placeholder="https://ejemplo.com/hero.jpg"
@@ -200,7 +200,7 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
                       min="0"
                       max="1"
                       step="0.05"
-                      value={config.overlay_opacity}
+                      value={config.overlay_opacity ?? 0}
                       onChange={e => setConfig({...config, overlay_opacity: parseFloat(e.target.value)})}
                       className="flex-1 h-2 bg-stone-100 rounded-lg appearance-none cursor-pointer accent-uniq-cyan"
                     />
@@ -217,13 +217,13 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
                   <div className="flex items-center gap-4">
                     <input 
                       type="color"
-                      value={config.overlay_color}
+                      value={config.overlay_color || '#000000'}
                       onChange={e => setConfig({...config, overlay_color: e.target.value})}
                       className="w-12 h-12 rounded-xl border-none cursor-pointer overflow-hidden p-0"
                     />
                     <input 
                       type="text"
-                      value={config.overlay_color}
+                      value={config.overlay_color || ''}
                       onChange={e => setConfig({...config, overlay_color: e.target.value})}
                       className="flex-1 p-3 rounded-xl border border-stone-200 text-sm font-mono"
                     />
@@ -279,7 +279,7 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
             <div className="space-y-2">
               <label className="text-sm font-bold text-stone-700">Título del Cuadro</label>
               <input 
-                value={config.excelencia_titulo} 
+                value={config.excelencia_titulo || ''} 
                 onChange={e => setConfig({...config, excelencia_titulo: e.target.value})}
                 className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
                 placeholder="Excelencia UNIQ"
@@ -288,7 +288,7 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
             <div className="space-y-2">
               <label className="text-sm font-bold text-stone-700">Subtítulo del Cuadro</label>
               <input 
-                value={config.excelencia_subtitulo} 
+                value={config.excelencia_subtitulo || ''} 
                 onChange={e => setConfig({...config, excelencia_subtitulo: e.target.value})}
                 className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
                 placeholder="Formación Intercultural"
@@ -297,7 +297,7 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
             <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-bold text-stone-700">Descripción / Detalle</label>
               <textarea 
-                value={config.excelencia_descripcion} 
+                value={config.excelencia_descripcion || ''} 
                 onChange={e => setConfig({...config, excelencia_descripcion: e.target.value})}
                 className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium min-h-[100px]"
                 rows={3}
@@ -307,7 +307,7 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
             <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-bold text-stone-700">Etiqueta de Certificación</label>
               <input 
-                value={config.excelencia_etiqueta} 
+                value={config.excelencia_etiqueta || ''} 
                 onChange={e => setConfig({...config, excelencia_etiqueta: e.target.value})}
                 className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
                 placeholder="Título a nombre de la Nación"
@@ -316,7 +316,7 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
             <div className="space-y-2">
               <label className="text-sm font-bold text-stone-700">Icono Principal (Lucide)</label>
               <input 
-                value={config.excelencia_icono} 
+                value={config.excelencia_icono || ''} 
                 onChange={e => setConfig({...config, excelencia_icono: e.target.value})}
                 className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
                 placeholder="GraduationCap"
@@ -325,7 +325,7 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
             <div className="space-y-2">
               <label className="text-sm font-bold text-stone-700">Icono Etiqueta (Lucide)</label>
               <input 
-                value={config.excelencia_etiqueta_icono} 
+                value={config.excelencia_etiqueta_icono || ''} 
                 onChange={e => setConfig({...config, excelencia_etiqueta_icono: e.target.value})}
                 className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
                 placeholder="ShieldCheck"

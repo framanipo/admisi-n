@@ -34,15 +34,21 @@ CREATE TABLE IF NOT EXISTS `carreras` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
--- Estructura de tabla para `modalidades`
+-- Estructura de tabla para `tipos_examen`
 -- --------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS `modalidades` (
+CREATE TABLE IF NOT EXISTS `tipos_examen` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `nombre` varchar(100) NOT NULL,
+  `nombre` varchar(255) NOT NULL,
   `fecha_inicio` date,
   `fecha_fin` date,
-  `deshabilitado` boolean DEFAULT FALSE,
+  `usar_rango_fechas` boolean DEFAULT TRUE,
+  `costo_nacional` decimal(10,2) DEFAULT 0,
+  `costo_privado` decimal(10,2) DEFAULT 0,
+  `esta_deshabilitado` boolean DEFAULT FALSE,
+  `esta_eliminado` boolean DEFAULT FALSE,
+  `fecha_registro` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `orden_visualizacion` int DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -69,7 +75,7 @@ CREATE TABLE IF NOT EXISTS `postulantes` (
   `colegio_tipo` varchar(50) NOT NULL,
   `anio_egreso` int(4) NOT NULL,
   `carrera_id` int(11) NOT NULL,
-  `modalidad_id` int(11) NOT NULL,
+  `tipo_examen_id` int(11) NOT NULL,
   `pueblo_indigena` varchar(50) DEFAULT 'No',
   `estado` enum('Pendiente','Validado','Observado') NOT NULL DEFAULT 'Pendiente',
   `fecha_registro` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -77,9 +83,9 @@ CREATE TABLE IF NOT EXISTS `postulantes` (
   UNIQUE KEY `dni` (`dni`),
   UNIQUE KEY `codigo_postulante` (`codigo_postulante`),
   KEY `fk_carrera` (`carrera_id`),
-  KEY `fk_modalidad` (`modalidad_id`),
+  KEY `fk_tipo_examen` (`tipo_examen_id`),
   CONSTRAINT `fk_carrera` FOREIGN KEY (`carrera_id`) REFERENCES `carreras` (`id`),
-  CONSTRAINT `fk_modalidad` FOREIGN KEY (`modalidad_id`) REFERENCES `modalidades` (`id`)
+  CONSTRAINT `fk_tipo_examen` FOREIGN KEY (`tipo_examen_id`) REFERENCES `tipos_examen` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -93,11 +99,11 @@ INSERT INTO `carreras` (`nombre`, `descripcion`, `vacantes`) VALUES
 ('Ingeniería Civil', 'Infraestructura', 40),
 ('Ecoturismo', 'Turismo sostenible', 40);
 
--- Insertar Modalidades
-INSERT INTO `modalidades` (`nombre`) VALUES
-('Ordinario'),
-('Primeros Puestos'),
-('Graduados y Titulados'),
+-- Insertar Tipos de Examen
+INSERT INTO `tipos_examen` (`nombre`, `costo_nacional`, `costo_privado`, `orden_visualizacion`) VALUES
+('Ordinario', 300, 450, 1),
+('Primeros Puestos', 250, 350, 2),
+('Graduados y Titulados', 400, 600, 3);
 ('Traslado Externo'),
 ('Víctimas del Terrorismo'),
 ('Personas con Discapacidad'),

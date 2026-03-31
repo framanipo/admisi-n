@@ -130,7 +130,7 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
               <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre de la Carrera</label>
               <input 
                 type="text" 
-                value={selectedCareer.name} 
+                value={selectedCareer.name || ''} 
                 onChange={e => handleChange('name', e.target.value)} 
                 className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan focus:ring-4 focus:ring-uniq-cyan/10 transition-all font-bold text-stone-800 shadow-sm" 
               />
@@ -138,7 +138,7 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Descripción Corta (Inicio)</label>
               <textarea 
-                value={selectedCareer.shortDesc} 
+                value={selectedCareer.shortDesc || ''} 
                 onChange={e => handleChange('shortDesc', e.target.value)} 
                 rows={2} 
                 className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan focus:ring-4 focus:ring-uniq-cyan/10 transition-all font-medium text-stone-700 shadow-sm" 
@@ -147,7 +147,7 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Descripción Completa</label>
               <textarea 
-                value={selectedCareer.fullDesc} 
+                value={selectedCareer.fullDesc || ''} 
                 onChange={e => handleChange('fullDesc', e.target.value)} 
                 rows={4} 
                 className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan focus:ring-4 focus:ring-uniq-cyan/10 transition-all font-medium text-stone-700 shadow-sm" 
@@ -157,7 +157,7 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Perfil del Egresado</label>
                 <textarea 
-                  value={selectedCareer.profile} 
+                  value={selectedCareer.profile || ''} 
                   onChange={e => handleChange('profile', e.target.value)} 
                   rows={3} 
                   className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan focus:ring-4 focus:ring-uniq-cyan/10 transition-all font-medium text-stone-700 shadow-sm" 
@@ -166,7 +166,7 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Campo Laboral</label>
                 <textarea 
-                  value={selectedCareer.field} 
+                  value={selectedCareer.field || ''} 
                   onChange={e => handleChange('field', e.target.value)} 
                   rows={3} 
                   className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan focus:ring-4 focus:ring-uniq-cyan/10 transition-all font-medium text-stone-700 shadow-sm" 
@@ -178,7 +178,7 @@ export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => 
               <div className="flex flex-col md:flex-row gap-4">
                 <input 
                   type="text" 
-                  value={selectedCareer.imageUrl} 
+                  value={selectedCareer.imageUrl || ''} 
                   onChange={e => handleChange('imageUrl', e.target.value)} 
                   placeholder="https://ejemplo.com/imagen.jpg"
                   className="flex-1 px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan focus:ring-4 focus:ring-uniq-cyan/10 transition-all font-medium text-stone-700 shadow-sm" 

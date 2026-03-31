@@ -19,14 +19,14 @@ Este proyecto incluye un script SQL para configurar la base de Datos en MySQL/Ma
 
 *   `usuarios`: Almacena las credenciales de acceso (admin/user).
 *   `carreras`: Catálogo de carreras profesionales disponibles.
-*   `modalidades`: Diferentes modalidades de admisión.
+*   `tipos_examen`: Diferentes tipos de examen de admisión.
 *   `postulantes`: Registro detallado de cada preinscripción, vinculada a una carrera y modalidad.
 
 ## Datos Iniciales:
 
 El script ya incluye:
 *   Las 4 carreras profesionales del sistema.
-*   Las 7 modalidades de admisión.
+*   Los tipos de examen de admisión.
 *   2 usuarios de prueba:
     *   Admin: `admin` / `admin123`
     *   User: `user` / `user123`

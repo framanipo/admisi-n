@@ -331,11 +331,18 @@ async function startServer() {
         CREATE TABLE IF NOT EXISTS modalidades (
           id INT AUTO_INCREMENT PRIMARY KEY,
           nombre VARCHAR(255) NOT NULL,
+          codigo VARCHAR(50),
+          amazonico BOOLEAN DEFAULT FALSE,
+          descentralizado BOOLEAN DEFAULT FALSE,
+          pedir_documentacion BOOLEAN DEFAULT FALSE,
+          anio INT,
+          fecha DATE,
           fecha_inicio DATE,
           fecha_fin DATE,
           usar_rango BOOLEAN DEFAULT TRUE,
-          precio_nacional DECIMAL(10,2) DEFAULT 0,
-          precio_privado DECIMAL(10,2) DEFAULT 0,
+          costo_nacional DECIMAL(10,2) DEFAULT 0,
+          costo_privado DECIMAL(10,2) DEFAULT 0,
+          habilitado BOOLEAN DEFAULT TRUE,
           deshabilitado BOOLEAN DEFAULT FALSE,
           eliminado BOOLEAN DEFAULT FALSE,
           fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -388,6 +395,113 @@ async function startServer() {
         )
       `);
 
+      // Table for Lugares de Inscripción
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS lugares_inscripcion (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          nombre VARCHAR(255) NOT NULL,
+          indice_orden INT DEFAULT 0,
+          fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Add indice_orden if it doesn't exist
+      const [lugaresColumns]: any = await connection.query("SHOW COLUMNS FROM lugares_inscripcion");
+      if (!lugaresColumns.find((col: any) => col.Field === 'indice_orden')) {
+        await connection.query("ALTER TABLE lugares_inscripcion ADD COLUMN indice_orden INT DEFAULT 0");
+      }
+
+      // Copy data from places if lugares_inscripcion is empty
+      const [lugaresRows]: any = await connection.query("SELECT COUNT(*) as count FROM lugares_inscripcion");
+      if (lugaresRows[0].count === 0) {
+        try {
+          const [placesRows]: any = await connection.query("SELECT * FROM places");
+          if (placesRows && placesRows.length > 0) {
+            for (const place of placesRows) {
+              await connection.query(
+                "INSERT INTO lugares_inscripcion (id, nombre) VALUES (?, ?)",
+                [place.id, place.name]
+              );
+            }
+          }
+        } catch (e) {
+          // Table 'places' might not exist, ignore
+          console.log("Could not copy from places table, it might not exist.");
+        }
+      }
+
+      // Table for Regiones
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS regiones (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          ubigeo VARCHAR(255) NOT NULL,
+          nombre VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Table for Mapeo Idiomas
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS mapeo_idiomas (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          idioma VARCHAR(255) NOT NULL UNIQUE,
+          pueblo_indigena VARCHAR(255),
+          tipo_comunidad VARCHAR(255),
+          orden INT DEFAULT 0
+        )
+      `);
+
+      const [mapeoRows]: any = await connection.query("SELECT COUNT(*) as count FROM mapeo_idiomas");
+      if (mapeoRows[0].count === 0) {
+        await connection.query(`
+          INSERT INTO mapeo_idiomas (idioma, pueblo_indigena, tipo_comunidad, orden) VALUES 
+          ('CASTELLANO', '', '', 1),
+          ('QUECHUA', 'ANDINO', '', 2),
+          ('AIMARA', 'ANDINO', '', 3),
+          ('MATSHIGENKA', '', 'AMAZÓNICO', 4),
+          ('YINE', '', 'AMAZÓNICO', 5),
+          ('ASHANINKA', '', 'AMAZÓNICO', 6),
+          ('CAQUINTE', '', 'AMAZÓNICO', 7),
+          ('SHIPIBO', '', 'AMAZÓNICO', 8),
+          ('AWAJUN', '', 'AMAZÓNICO', 9),
+          ('OTROS', '', 'AMAZÓNICO', 10)
+        `);
+      }
+
+      // Table for Provincias
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS provincias (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          ubigeo VARCHAR(255) NOT NULL,
+          nombre VARCHAR(255) NOT NULL,
+          region_id INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (region_id) REFERENCES regiones(id)
+        )
+      `);
+
+      // Table for Distritos
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS distritos (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          nombre VARCHAR(255) NOT NULL,
+          provincia_id INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (provincia_id) REFERENCES provincias(id)
+        )
+      `);
+
+      // Migrate data
+      const [regionesRows]: any = await connection.query("SELECT COUNT(*) as count FROM regiones");
+      if (regionesRows[0].count === 0) {
+        await connection.query("INSERT INTO regiones (id, ubigeo, nombre) SELECT id, ubigeo, name FROM regions");
+        await connection.query("INSERT INTO provincias (id, ubigeo, nombre, region_id) SELECT id, ubigeo, name, region_id FROM provinces");
+        await connection.query("INSERT INTO distritos (id, nombre, provincia_id) SELECT id, name, province_id FROM districts");
+      }
+
       // Table for Preinscripciones
       await connection.query(`
         CREATE TABLE IF NOT EXISTS preinscripciones (
@@ -401,14 +515,28 @@ async function startServer() {
           fecha_nacimiento DATE,
           genero VARCHAR(20),
           pueblo_indigena VARCHAR(50),
-          departamento VARCHAR(100),
-          provincia VARCHAR(100),
-          distrito VARCHAR(100),
+          tipo_comunidad VARCHAR(255),
+          idioma VARCHAR(255),
+          idioma_lee BOOLEAN DEFAULT FALSE,
+          idioma_habla BOOLEAN DEFAULT FALSE,
+          idioma_escribe BOOLEAN DEFAULT FALSE,
+          procedencia_region VARCHAR(100),
+          procedencia_provincia VARCHAR(100),
+          procedencia_distrito VARCHAR(100),
+          procedencia_direccion TEXT,
+          nacimiento_region VARCHAR(100),
+          nacimiento_provincia VARCHAR(100),
+          nacimiento_distrito VARCHAR(100),
           colegio_nombre VARCHAR(255),
           colegio_tipo VARCHAR(50),
+          colegio_nivel VARCHAR(50),
+          colegio_region VARCHAR(100),
+          colegio_provincia VARCHAR(100),
+          colegio_distrito VARCHAR(100),
           anio_egreso INT,
           carrera VARCHAR(255),
           modalidad VARCHAR(100),
+          lugar_inscripcion VARCHAR(255),
           estado ENUM('Pendiente', 'Validado', 'Observado') DEFAULT 'Pendiente',
           modificado_por VARCHAR(255),
           tiene_condiciones_especiales BOOLEAN DEFAULT FALSE,
@@ -418,28 +546,95 @@ async function startServer() {
           es_victima_violencia BOOLEAN DEFAULT FALSE,
           es_servicio_militar BOOLEAN DEFAULT FALSE,
           es_primeros_puestos BOOLEAN DEFAULT FALSE,
+          apoderado_dni VARCHAR(20),
+          apoderado_nombres VARCHAR(255),
+          apoderado_apellido_paterno VARCHAR(255),
+          apoderado_apellido_materno VARCHAR(255),
           fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
-      // Add missing columns if they don't exist
+      // Rename department columns to region columns if they exist
       const [preinscripcionesColumns]: any = await connection.query("SHOW COLUMNS FROM preinscripciones");
       const columnNames = preinscripcionesColumns.map((c: any) => c.Field);
       
-      if (!columnNames.includes('numero_conadis')) {
-        await connection.query("ALTER TABLE preinscripciones ADD COLUMN numero_conadis VARCHAR(50)");
+      const renameColumns = [
+        ['procedencia_departamento', 'procedencia_region', 'VARCHAR(100)'],
+        ['nacimiento_departamento', 'nacimiento_region', 'VARCHAR(100)'],
+        ['colegio_departamento', 'colegio_region', 'VARCHAR(100)']
+      ];
+
+      for (const [oldCol, newCol, type] of renameColumns) {
+        if (columnNames.includes(oldCol)) {
+          if (!columnNames.includes(newCol)) {
+            await connection.query(`ALTER TABLE preinscripciones CHANGE COLUMN ${oldCol} ${newCol} ${type}`);
+          } else {
+            // If new column already exists, just drop the old one
+            await connection.query(`ALTER TABLE preinscripciones DROP COLUMN ${oldCol}`);
+          }
+        }
       }
-      if (!columnNames.includes('es_deportista')) {
-        await connection.query("ALTER TABLE preinscripciones ADD COLUMN es_deportista BOOLEAN DEFAULT FALSE");
+
+      // Add missing columns if they don't exist
+      const [updatedColumns]: any = await connection.query("SHOW COLUMNS FROM preinscripciones");
+      const updatedColumnNames = updatedColumns.map((c: any) => c.Field);
+      
+      const missingColumns = [
+        ['lugar_inscripcion', 'VARCHAR(255)'],
+        ['modalidad', 'VARCHAR(100)'],
+        ['numero_conadis', 'VARCHAR(50)'],
+        ['es_deportista', 'BOOLEAN DEFAULT FALSE'],
+        ['es_victima_violencia', 'BOOLEAN DEFAULT FALSE'],
+        ['es_servicio_militar', 'BOOLEAN DEFAULT FALSE'],
+        ['es_primeros_puestos', 'BOOLEAN DEFAULT FALSE'],
+        ['apoderado_dni', 'VARCHAR(20)'],
+        ['apoderado_nombres', 'VARCHAR(255)'],
+        ['apoderado_apellido_paterno', 'VARCHAR(255)'],
+        ['apoderado_apellido_materno', 'VARCHAR(255)'],
+        ['procedencia_provincia', 'VARCHAR(100)'],
+        ['procedencia_distrito', 'VARCHAR(100)'],
+        ['procedencia_direccion', 'TEXT'],
+        ['nacimiento_provincia', 'VARCHAR(100)'],
+        ['nacimiento_distrito', 'VARCHAR(100)'],
+        ['colegio_provincia', 'VARCHAR(100)'],
+        ['colegio_distrito', 'VARCHAR(100)'],
+        ['colegio_nivel', 'VARCHAR(50)'],
+        ['idioma', 'VARCHAR(255)'],
+        ['idioma_lee', 'BOOLEAN DEFAULT FALSE'],
+        ['idioma_habla', 'BOOLEAN DEFAULT FALSE'],
+        ['idioma_escribe', 'BOOLEAN DEFAULT FALSE'],
+        ['tipo_comunidad', 'VARCHAR(255)'],
+        ['codigo_carrera', 'VARCHAR(50)'],
+        ['monto_pago', 'DECIMAL(10, 2)'],
+        ['precio_pagar', 'DECIMAL(10, 2)'],
+        ['observacion', 'TEXT'],
+        ['modificado_por_id', 'INT']
+      ];
+
+      for (const [col, type] of missingColumns) {
+        if (!updatedColumnNames.includes(col)) {
+          await connection.query(`ALTER TABLE preinscripciones ADD COLUMN ${col} ${type}`);
+        }
       }
-      if (!columnNames.includes('es_victima_violencia')) {
-        await connection.query("ALTER TABLE preinscripciones ADD COLUMN es_victima_violencia BOOLEAN DEFAULT FALSE");
+      
+      // Add foreign key for modificado_por_id
+      const [fkCheck]: any = await connection.query(`
+        SELECT CONSTRAINT_NAME 
+        FROM information_schema.KEY_COLUMN_USAGE 
+        WHERE TABLE_NAME = 'preinscripciones' 
+        AND COLUMN_NAME = 'modificado_por_id' 
+        AND CONSTRAINT_NAME = 'fk_preinscripciones_modificado_por'
+      `);
+      if (fkCheck.length === 0) {
+        await connection.query(`
+          ALTER TABLE preinscripciones 
+          ADD CONSTRAINT fk_preinscripciones_modificado_por 
+          FOREIGN KEY (modificado_por_id) REFERENCES usuarios(id)
+        `);
       }
-      if (!columnNames.includes('es_servicio_militar')) {
-        await connection.query("ALTER TABLE preinscripciones ADD COLUMN es_servicio_militar BOOLEAN DEFAULT FALSE");
-      }
-      if (!columnNames.includes('es_primeros_puestos')) {
-        await connection.query("ALTER TABLE preinscripciones ADD COLUMN es_primeros_puestos BOOLEAN DEFAULT FALSE");
+
+      if (columnNames.includes('documento_numero') && !columnNames.includes('dni')) {
+        await connection.query("ALTER TABLE preinscripciones CHANGE COLUMN documento_numero dni VARCHAR(20)");
       }
 
       // Check for 'activos' in 'usuarios'
@@ -483,6 +678,16 @@ async function startServer() {
 
       // 3. ALTER TABLES (MIGRATIONS)
       const columns = [
+        "ALTER TABLE preinscripciones MODIFY COLUMN id INT AUTO_INCREMENT",
+        "ALTER TABLE preinscripciones MODIFY COLUMN colegio_tipo VARCHAR(100)",
+        "ALTER TABLE preinscripciones DROP COLUMN codigo_registro",
+        "ALTER TABLE preinscripciones DROP COLUMN documento_tipo",
+        "ALTER TABLE preinscripciones DROP COLUMN egreso_anio",
+        "ALTER TABLE preinscripciones DROP COLUMN departamento",
+        "ALTER TABLE preinscripciones DROP COLUMN provincia",
+        "ALTER TABLE preinscripciones DROP COLUMN distrito",
+        "ALTER TABLE preinscripciones DROP COLUMN carrera_id",
+        "ALTER TABLE preinscripciones DROP COLUMN tipo_examen",
         "ALTER TABLE preinscripciones ADD COLUMN anio_egreso INT",
         "ALTER TABLE preinscripciones ADD COLUMN carrera VARCHAR(255)",
         "ALTER TABLE preinscripciones ADD COLUMN modificado_por VARCHAR(255)",
@@ -497,12 +702,21 @@ async function startServer() {
         "ALTER TABLE reglamento ADD COLUMN indice_orden INT DEFAULT 0",
         "ALTER TABLE temario ADD COLUMN indice_orden INT DEFAULT 0",
         "ALTER TABLE carreras ADD COLUMN codigo VARCHAR(10)",
-        "ALTER TABLE modalidades ADD COLUMN precio_nacional DECIMAL(10,2) DEFAULT 0",
-        "ALTER TABLE modalidades ADD COLUMN precio_privado DECIMAL(10,2) DEFAULT 0",
+        "ALTER TABLE modalidades ADD COLUMN costo_nacional DECIMAL(10,2) DEFAULT 0",
+        "ALTER TABLE modalidades ADD COLUMN costo_privado DECIMAL(10,2) DEFAULT 0",
+        "ALTER TABLE modalidades ADD COLUMN codigo VARCHAR(50)",
+        "ALTER TABLE modalidades ADD COLUMN amazonico BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE modalidades ADD COLUMN descentralizado BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE modalidades ADD COLUMN pedir_documentacion BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE modalidades ADD COLUMN anio INT",
+        "ALTER TABLE modalidades ADD COLUMN fecha DATE",
+        "ALTER TABLE modalidades ADD COLUMN habilitado BOOLEAN DEFAULT TRUE",
         "ALTER TABLE modalidades ADD COLUMN eliminado BOOLEAN DEFAULT FALSE",
         "ALTER TABLE modalidades ADD COLUMN fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         "ALTER TABLE modalidades ADD COLUMN usar_rango BOOLEAN DEFAULT TRUE",
         "ALTER TABLE modalidades ADD COLUMN indice_orden INT DEFAULT 0",
+        "ALTER TABLE modalidades DROP COLUMN precio_nacional",
+        "ALTER TABLE modalidades DROP COLUMN precio_privado",
         "ALTER TABLE modalidades DROP COLUMN precio_amazonico",
         "ALTER TABLE modalidades DROP COLUMN es_descentralizado",
         "ALTER TABLE configuracion_inicio ADD COLUMN overlay_opacity DECIMAL(3,2) DEFAULT 0.5",
@@ -525,7 +739,8 @@ async function startServer() {
         "ALTER TABLE detalles_carreras MODIFY COLUMN imagen_url TEXT",
         "ALTER TABLE detalles_carreras ADD COLUMN imagen_zoom INT DEFAULT 100",
         "ALTER TABLE detalles_carreras ADD COLUMN imagen_offset_x INT DEFAULT 50",
-        "ALTER TABLE detalles_carreras ADD COLUMN imagen_offset_y INT DEFAULT 50"
+        "ALTER TABLE detalles_carreras ADD COLUMN imagen_offset_y INT DEFAULT 50",
+        "ALTER TABLE mapeo_idiomas ADD COLUMN orden INT DEFAULT 0"
       ];
 
       for (const sql of columns) {
@@ -585,6 +800,83 @@ async function startServer() {
     await fs.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2));
   }
 
+  app.get("/api/mapeo-idiomas", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT * FROM mapeo_idiomas ORDER BY orden ASC, idioma ASC");
+      res.json(rows);
+    } catch (e) {
+      res.status(500).json({ error: "Error fetching mapeo idiomas" });
+    }
+  });
+
+  app.get("/api/mapeo-idiomas/:idioma", async (req, res) => {
+    try {
+      const [rows]: any = await pool.query("SELECT * FROM mapeo_idiomas WHERE idioma = ?", [req.params.idioma]);
+      if (rows.length > 0) {
+        res.json(rows[0]);
+      } else {
+        res.status(404).json({ error: "Mapping not found" });
+      }
+    } catch (e) {
+      res.status(500).json({ error: "Error fetching mapping" });
+    }
+  });
+
+  app.post("/api/mapeo-idiomas", async (req, res) => {
+    const { idioma, pueblo_indigena, tipo_comunidad } = req.body;
+    try {
+      const [maxRows]: any = await pool.query("SELECT MAX(orden) as maxOrden FROM mapeo_idiomas");
+      const nextOrden = (maxRows[0].maxOrden || 0) + 1;
+      await pool.query(
+        "INSERT INTO mapeo_idiomas (idioma, pueblo_indigena, tipo_comunidad, orden) VALUES (?, ?, ?, ?)",
+        [idioma, pueblo_indigena, tipo_comunidad, nextOrden]
+      );
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Error creating mapping" });
+    }
+  });
+
+  app.put("/api/mapeo-idiomas/reorder", async (req, res) => {
+    const { items } = req.body; // Array of { id, orden }
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      for (const item of items) {
+        await connection.query("UPDATE mapeo_idiomas SET orden = ? WHERE id = ?", [item.orden, item.id]);
+      }
+      await connection.commit();
+      res.json({ success: true });
+    } catch (e) {
+      await connection.rollback();
+      res.status(500).json({ error: "Error reordering mappings" });
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.put("/api/mapeo-idiomas/:id", async (req, res) => {
+    const { idioma, pueblo_indigena, tipo_comunidad } = req.body;
+    try {
+      await pool.query(
+        "UPDATE mapeo_idiomas SET idioma = ?, pueblo_indigena = ?, tipo_comunidad = ? WHERE id = ?",
+        [idioma, pueblo_indigena, tipo_comunidad, req.params.id]
+      );
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Error updating mapping" });
+    }
+  });
+
+  app.delete("/api/mapeo-idiomas/:id", async (req, res) => {
+    try {
+      await pool.query("DELETE FROM mapeo_idiomas WHERE id = ?", [req.params.id]);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Error deleting mapping" });
+    }
+  });
+
   app.get("/api/settings", async (req, res) => {
     const settings = await getSettings();
     
@@ -603,7 +895,7 @@ async function startServer() {
     try {
       const [rows]: any = await pool.query("SELECT * FROM configuracion_inicio WHERE id = 1");
       if (rows.length > 0) {
-        settings.inicio = rows[0];
+        settings.configuracionInicio = rows[0];
         settings.textoLogo = rows[0].texto_logo;
       }
     } catch (e) {
@@ -794,7 +1086,7 @@ async function startServer() {
   app.get("/api/cronograma", async (req, res) => {
     try {
       const [manualEventsRaw]: any = await pool.query("SELECT id, evento AS event, fecha AS date, fecha_inicio, fecha_fin, usar_rango, estado AS status, habilitado, indice_orden AS order_index FROM cronograma ORDER BY indice_orden ASC");
-      const [modalidades]: any = await pool.query("SELECT * FROM modalidades WHERE deshabilitado = 0 AND eliminado = 0");
+      const [modalidades]: any = await pool.query("SELECT * FROM modalidades WHERE habilitado = 1 AND eliminado = 0");
       
       const now = new Date();
       now.setHours(0, 0, 0, 0);
@@ -989,6 +1281,253 @@ async function startServer() {
     }
   });
 
+  // Lugares de Inscripción API
+  app.get("/api/lugares-inscripcion", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT id, nombre, indice_orden FROM lugares_inscripcion ORDER BY indice_orden ASC, nombre ASC");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "lugares_inscripcion");
+    }
+  });
+
+  // Ubicaciones API
+  app.get("/api/regiones", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT id, nombre FROM regiones ORDER BY nombre ASC");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "regiones");
+    }
+  });
+
+  app.post("/api/regiones", async (req, res) => {
+    try {
+      const { nombre, ubigeo } = req.body;
+      await pool.query("INSERT INTO regiones (nombre, ubigeo) VALUES (?, ?)", [nombre, ubigeo]);
+      res.status(201).json({ message: "Región creada" });
+    } catch (error) {
+      handleDbError(res, error, "regiones");
+    }
+  });
+
+  app.delete("/api/regiones/:id", async (req, res) => {
+    try {
+      await pool.query("DELETE FROM regiones WHERE id = ?", [req.params.id]);
+      res.json({ message: "Región eliminada" });
+    } catch (error) {
+      handleDbError(res, error, "regiones");
+    }
+  });
+
+  app.get("/api/provincias", async (req, res) => {
+    try {
+      const { region_id } = req.query;
+      const [rows] = await pool.query("SELECT id, nombre FROM provincias WHERE region_id = ? ORDER BY nombre ASC", [region_id]);
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "provincias");
+    }
+  });
+
+  app.post("/api/provincias", async (req, res) => {
+    try {
+      const { nombre, ubigeo, region_id } = req.body;
+      await pool.query("INSERT INTO provincias (nombre, ubigeo, region_id) VALUES (?, ?, ?)", [nombre, ubigeo, region_id]);
+      res.status(201).json({ message: "Provincia creada" });
+    } catch (error) {
+      handleDbError(res, error, "provincias");
+    }
+  });
+
+  app.delete("/api/provincias/:id", async (req, res) => {
+    try {
+      await pool.query("DELETE FROM provincias WHERE id = ?", [req.params.id]);
+      res.json({ message: "Provincia eliminada" });
+    } catch (error) {
+      handleDbError(res, error, "provincias");
+    }
+  });
+
+  app.get("/api/colegios", async (req, res) => {
+    try {
+      const { distrito_id } = req.query;
+      const connection = await mysql.createConnection(await getDbConfig());
+      let query = "SELECT * FROM colegios";
+      let params: any[] = [];
+      if (distrito_id) {
+        query += " WHERE distrito_id = ?";
+        params.push(distrito_id);
+      }
+      query += " ORDER BY nombre ASC";
+      const [rows] = await connection.execute(query, params);
+      await connection.end();
+      res.json(rows);
+    } catch (error) {
+      console.error("Error fetching colegios:", error);
+      res.status(500).json({ error: "Error fetching colegios" });
+    }
+  });
+
+  app.post("/api/colegios", async (req, res) => {
+    try {
+      const { codigo, nombre, direccion, nivel, gestion, distrito_id } = req.body;
+      const connection = await mysql.createConnection(await getDbConfig());
+      const [result] = await connection.execute(
+        "INSERT INTO colegios (codigo, nombre, direccion, nivel, gestion, distrito_id, creado_en) VALUES (?, ?, ?, ?, ?, ?, NOW())",
+        [codigo || '', nombre, direccion || '', nivel || '', gestion || '', distrito_id]
+      );
+      await connection.end();
+      res.json({ id: (result as any).insertId });
+    } catch (error) {
+      console.error("Error creating colegio:", error);
+      res.status(500).json({ error: "Error creating colegio" });
+    }
+  });
+
+  app.put("/api/colegios/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { codigo, nombre, direccion, nivel, gestion, distrito_id } = req.body;
+      const connection = await mysql.createConnection(await getDbConfig());
+      await connection.execute(
+        "UPDATE colegios SET codigo = ?, nombre = ?, direccion = ?, nivel = ?, gestion = ?, distrito_id = ?, actualizado_en = NOW() WHERE id = ?",
+        [codigo || '', nombre, direccion || '', nivel || '', gestion || '', distrito_id, id]
+      );
+      await connection.end();
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating colegio:", error);
+      res.status(500).json({ error: "Error updating colegio" });
+    }
+  });
+
+  app.delete("/api/colegios/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const connection = await mysql.createConnection(await getDbConfig());
+      await connection.execute("DELETE FROM colegios WHERE id = ?", [id]);
+      await connection.end();
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting colegio:", error);
+      res.status(500).json({ error: "Error deleting colegio" });
+    }
+  });
+
+  app.get("/api/distritos", async (req, res) => {
+    try {
+      const { provincia_id } = req.query;
+      const [rows] = await pool.query("SELECT id, nombre FROM distritos WHERE provincia_id = ? ORDER BY nombre ASC", [provincia_id]);
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "distritos");
+    }
+  });
+
+  app.post("/api/distritos", async (req, res) => {
+    try {
+      const { nombre, provincia_id } = req.body;
+      await pool.query("INSERT INTO distritos (nombre, provincia_id) VALUES (?, ?)", [nombre, provincia_id]);
+      res.status(201).json({ message: "Distrito creado" });
+    } catch (error) {
+      handleDbError(res, error, "distritos");
+    }
+  });
+
+  app.delete("/api/distritos/:id", async (req, res) => {
+    try {
+      await pool.query("DELETE FROM distritos WHERE id = ?", [req.params.id]);
+      res.json({ message: "Distrito eliminado" });
+    } catch (error) {
+      handleDbError(res, error, "distritos");
+    }
+  });
+
+  // Admin Lugares de Inscripción API
+  app.post("/api/admin/lugares-inscripcion", async (req, res) => {
+    try {
+      const { nombre } = req.body;
+      const [result]: any = await pool.query("INSERT INTO lugares_inscripcion (nombre) VALUES (?)", [nombre]);
+      res.json({ id: result.insertId, nombre });
+    } catch (error) {
+      handleDbError(res, error, "adding lugar_inscripcion");
+    }
+  });
+
+  app.get("/api/admin/database/backup", async (req, res) => {
+    try {
+      const [tables]: any = await pool.query("SHOW TABLES");
+      let sqlDump = `-- Database Backup ${new Date().toISOString()}\n\n`;
+
+      for (const tableRow of tables) {
+        const tableName = Object.values(tableRow)[0] as string;
+        
+        // Get Create Table
+        const [createTableRows]: any = await pool.query(`SHOW CREATE TABLE \`${tableName}\``);
+        sqlDump += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
+        sqlDump += `${createTableRows[0]['Create Table']};\n\n`;
+
+        // Get Data
+        const [rows]: any = await pool.query(`SELECT * FROM \`${tableName}\``);
+        for (const row of rows) {
+          const columns = Object.keys(row).map(c => `\`${c}\``).join(', ');
+          const values = Object.values(row).map(v => {
+            if (v === null) return 'NULL';
+            if (typeof v === 'string') return `'${v.replace(/'/g, "\\'")}'`;
+            if (v instanceof Date) {
+              if (isNaN(v.getTime())) return 'NULL'; // Handle invalid dates
+              return `'${v.toISOString().slice(0, 19).replace('T', ' ')}'`;
+            }
+            return v;
+          }).join(', ');
+          sqlDump += `INSERT INTO \`${tableName}\` (${columns}) VALUES (${values});\n`;
+        }
+        sqlDump += `\n`;
+      }
+
+      res.setHeader('Content-Type', 'application/sql');
+      res.setHeader('Content-Disposition', `attachment; filename=backup_${new Date().toISOString().slice(0,10)}.sql`);
+      res.send(sqlDump);
+    } catch (error) {
+      console.error("Backup error:", error);
+      res.status(500).json({ error: "Error generando el backup" });
+    }
+  });
+
+  app.put("/api/admin/lugares-inscripcion/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { nombre } = req.body;
+      await pool.query("UPDATE lugares_inscripcion SET nombre = ? WHERE id = ?", [nombre, id]);
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "updating lugar_inscripcion");
+    }
+  });
+
+  app.delete("/api/admin/lugares-inscripcion/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await pool.query("DELETE FROM lugares_inscripcion WHERE id = ?", [id]);
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "deleting lugar_inscripcion");
+    }
+  });
+
+  app.post("/api/admin/lugares-inscripcion/reorder", async (req, res) => {
+    try {
+      const { lugares } = req.body; // Array of { id, indice_orden }
+      for (const lugar of lugares) {
+        await pool.query("UPDATE lugares_inscripcion SET indice_orden = ? WHERE id = ?", [lugar.indice_orden, lugar.id]);
+      }
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "reordering lugares_inscripcion");
+    }
+  });
+
   // Detailed Carreras API
   app.get("/api/carreras-detalladas", async (req, res) => {
     try {
@@ -1038,7 +1577,26 @@ async function startServer() {
   app.get("/api/registrations/dni/:dni", async (req, res) => {
     try {
       const { dni } = req.params;
-      const [rows] = await pool.query("SELECT id, nombres, apellido_paterno, apellido_materno, documento_numero AS dni, correo AS email, telefono, fecha_nacimiento, genero, pueblo_indigena, departamento, provincia, distrito, colegio_nombre, colegio_tipo, anio_egreso, carrera, modalidad, estado AS status, fecha_creacion AS created_at, fecha_actualizacion AS updated_at, changed_by, tiene_condiciones_especiales AS has_special_conditions, numero_conadis AS conadis_number, es_deportista AS is_deportista, es_victima_violencia AS is_victima_violencia, es_servicio_militar AS is_servicio_militar, es_primeros_puestos AS is_primeros_puestos FROM preinscripciones WHERE documento_numero = ? ORDER BY fecha_creacion DESC LIMIT 1", [dni]);
+      const [rows] = await pool.query(`
+        SELECT 
+          id, nombres, apellido_paterno, apellido_materno, dni, correo AS email, telefono, 
+          fecha_nacimiento, genero, pueblo_indigena, tipo_comunidad, idioma, 
+          idioma_lee, idioma_habla, idioma_escribe,
+          procedencia_region AS procedenciaRegion, procedencia_provincia AS procedenciaProvincia, procedencia_distrito AS procedenciaDistrito, procedencia_direccion AS procedenciaDireccion,
+          nacimiento_region AS nacimientoRegion, nacimiento_provincia AS nacimientoProvincia, nacimiento_distrito AS nacimientoDistrito,
+          colegio_nombre AS schoolName, colegio_tipo AS schoolType, colegio_nivel AS schoolLevel,
+          colegio_region AS colegioRegion, colegio_provincia AS colegioProvincia, colegio_distrito AS colegioDistrito,
+          anio_egreso AS graduationYear, carrera, modalidad, lugar_inscripcion, 
+          estado AS status, fecha_creacion AS created_at, modificado_por AS changed_by, 
+          tiene_condiciones_especiales AS has_special_conditions, discapacidad, numero_conadis AS conadis_number, 
+          es_deportista AS is_deportista, es_victima_violencia AS is_victima_violencia, 
+          es_servicio_militar AS is_servicio_militar, es_primeros_puestos AS is_primeros_puestos, 
+          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno 
+        FROM preinscripciones 
+        WHERE dni = ? 
+        ORDER BY fecha_creacion DESC 
+        LIMIT 1
+      `, [dni]);
       const results = rows as any[];
       if (results.length === 0) {
         return res.status(404).json({ error: "No se encontró preinscripción con ese DNI" });
@@ -1052,7 +1610,24 @@ async function startServer() {
   // Get all registrations
   app.get("/api/registrations", async (req, res) => {
     try {
-      const [rows] = await pool.query("SELECT id, nombres, apellido_paterno, apellido_materno, documento_numero AS dni, correo AS email, telefono, fecha_nacimiento, genero, pueblo_indigena, departamento, provincia, distrito, colegio_nombre, colegio_tipo, anio_egreso, carrera, modalidad, estado AS status, fecha_creacion AS created_at, fecha_actualizacion AS updated_at, changed_by, tiene_condiciones_especiales AS has_special_conditions, numero_conadis AS conadis_number, es_deportista AS is_deportista, es_victima_violencia AS is_victima_violencia, es_servicio_militar AS is_servicio_militar, es_primeros_puestos AS is_primeros_puestos FROM preinscripciones ORDER BY fecha_creacion DESC");
+      const [rows] = await pool.query(`
+        SELECT 
+          id, nombres, apellido_paterno, apellido_materno, dni, correo AS email, telefono, 
+          fecha_nacimiento, genero, pueblo_indigena, tipo_comunidad, idioma,
+          idioma_lee, idioma_habla, idioma_escribe,
+          procedencia_region AS procedenciaRegion, procedencia_provincia AS procedenciaProvincia, procedencia_distrito AS procedenciaDistrito, procedencia_direccion AS procedenciaDireccion,
+          nacimiento_region AS nacimientoRegion, nacimiento_provincia AS nacimientoProvincia, nacimiento_distrito AS nacimientoDistrito,
+          colegio_nombre AS schoolName, colegio_tipo AS schoolType, colegio_nivel AS schoolLevel,
+          colegio_region AS colegioRegion, colegio_provincia AS colegioProvincia, colegio_distrito AS colegioDistrito,
+          anio_egreso AS graduationYear, carrera, modalidad, lugar_inscripcion, 
+          estado AS status, fecha_creacion AS created_at, modificado_por AS changed_by, 
+          tiene_condiciones_especiales AS has_special_conditions, discapacidad, numero_conadis AS conadis_number, 
+          es_deportista AS is_deportista, es_victima_violencia AS is_victima_violencia, 
+          es_servicio_militar AS is_servicio_militar, es_primeros_puestos AS is_primeros_puestos, 
+          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno 
+        FROM preinscripciones 
+        ORDER BY fecha_creacion DESC
+      `);
       res.json(rows);
     } catch (error) {
       handleDbError(res, error, "registrations");
@@ -1072,14 +1647,28 @@ async function startServer() {
         birthDate,
         gender,
         indigenousPeople,
-        department,
-        province,
-        district,
+        tipoComunidad,
+        idioma,
+        idiomaLee,
+        idiomaHabla,
+        idiomaEscribe,
+        procedenciaRegion,
+        procedenciaProvincia,
+        procedenciaDistrito,
+        procedenciaDireccion,
+        nacimientoRegion,
+        nacimientoProvincia,
+        nacimientoDistrito,
         schoolName,
         schoolType,
+        schoolLevel,
+        colegioRegion,
+        colegioProvincia,
+        colegioDistrito,
         graduationYear,
         career,
         modality,
+        lugarInscripcion,
         changedBy,
         hasSpecialConditions,
         discapacidad,
@@ -1088,9 +1677,15 @@ async function startServer() {
         isVictimaViolencia,
         isServicioMilitar,
         isPrimerosPuestos,
+        apoderadoDni,
+        apoderadoNombres,
+        apoderadoApellidoPaterno,
+        apoderadoApellidoMaterno
       } = req.body;
 
       // Validate if student is in the master list (registrados)
+      // Commented out to allow any user to pre-register during testing
+      /*
       const [registeredRows]: any = await pool.query(
         "SELECT id, dni, nombres, apellido_paterno, apellido_materno, correo AS email, telefono FROM registrados WHERE dni = ?",
         [dni]
@@ -1101,22 +1696,45 @@ async function startServer() {
           error: "El DNI ingresado no se encuentra en la lista de postulantes habilitados. Por favor, verifique sus datos o contacte con soporte." 
         });
       }
+      */
+
+      // Get career code
+      const [careerRows]: any = await pool.query("SELECT codigo FROM carreras WHERE nombre = ?", [career]);
+      const careerCode = careerRows[0]?.codigo || '';
+
+      // Get modality costs
+      const [modalityRows]: any = await pool.query("SELECT costo_nacional, costo_privado FROM modalidades WHERE nombre = ?", [modality]);
+      const costoNacional = modalityRows[0]?.costo_nacional || 0;
+      const costoPrivado = modalityRows[0]?.costo_privado || 0;
+      
+      const montoPago = schoolType === 'Privado' ? costoPrivado : costoNacional;
 
       const [result] = await pool.query(
         `INSERT INTO preinscripciones (
-          nombres, apellido_paterno, apellido_materno, documento_numero, correo, telefono, 
-          fecha_nacimiento, genero, pueblo_indigena, departamento, provincia, 
-          distrito, colegio_nombre, colegio_tipo, anio_egreso, carrera, modalidad, estado, changed_by,
+          nombres, apellido_paterno, apellido_materno, dni, correo, telefono, 
+          fecha_nacimiento, genero, pueblo_indigena, tipo_comunidad, idioma,
+          idioma_lee, idioma_habla, idioma_escribe,
+          procedencia_region, procedencia_provincia, procedencia_distrito, procedencia_direccion,
+          nacimiento_region, nacimiento_provincia, nacimiento_distrito,
+          colegio_nombre, colegio_tipo, colegio_nivel, colegio_region, colegio_provincia, colegio_distrito,
+          anio_egreso, carrera, modalidad, lugar_inscripcion, estado, modificado_por,
           tiene_condiciones_especiales, discapacidad, numero_conadis, es_deportista, 
-          es_victima_violencia, es_servicio_militar, es_primeros_puestos, codigo_registro, documento_tipo
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          es_victima_violencia, es_servicio_militar, es_primeros_puestos,
+          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno,
+          codigo_carrera, monto_pago
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           names, paternalSurname, maternalSurname, dni, email, phone,
-          birthDate, gender, indigenousPeople, department, province,
-          district, schoolName, schoolType, graduationYear, career, modality, changedBy,
+          birthDate || null, gender, indigenousPeople, tipoComunidad, idioma,
+          idiomaLee ? 1 : 0, idiomaHabla ? 1 : 0, idiomaEscribe ? 1 : 0,
+          procedenciaRegion, procedenciaProvincia, procedenciaDistrito, procedenciaDireccion,
+          nacimientoRegion, nacimientoProvincia, nacimientoDistrito,
+          schoolName, schoolType, schoolLevel, colegioRegion, colegioProvincia, colegioDistrito,
+          graduationYear || null, career, modality, lugarInscripcion, changedBy || null,
           hasSpecialConditions ? 1 : 0, discapacidad ? 1 : 0, conadisNumber, isDeportista ? 1 : 0,
           isVictimaViolencia ? 1 : 0, isServicioMilitar ? 1 : 0, isPrimerosPuestos ? 1 : 0,
-          `UNIQ-${Date.now().toString().slice(-6)}`, 'DNI'
+          apoderadoDni, apoderadoNombres, apoderadoApellidoPaterno, apoderadoApellidoMaterno,
+          careerCode, montoPago
         ]
       );
 
@@ -1151,6 +1769,193 @@ async function startServer() {
     }
   });
 
+  // Create registration (Admin)
+  app.post("/api/admin/registrations", async (req, res) => {
+    try {
+      const {
+        names,
+        paternalSurname,
+        maternalSurname,
+        dni,
+        email,
+        phone,
+        birthDate,
+        gender,
+        indigenousPeople,
+        tipoComunidad,
+        idioma,
+        idiomaLee,
+        idiomaHabla,
+        idiomaEscribe,
+        procedenciaRegion,
+        procedenciaProvincia,
+        procedenciaDistrito,
+        procedenciaDireccion,
+        nacimientoRegion,
+        nacimientoProvincia,
+        nacimientoDistrito,
+        schoolName,
+        schoolType,
+        schoolLevel,
+        colegioRegion,
+        colegioProvincia,
+        colegioDistrito,
+        graduationYear,
+        career,
+        modality,
+        lugarInscripcion,
+        hasSpecialConditions,
+        discapacidad,
+        conadisNumber,
+        isDeportista,
+        isVictimaViolencia,
+        isServicioMilitar,
+        isPrimerosPuestos,
+        apoderadoDni,
+        apoderadoNombres,
+        apoderadoApellidoPaterno,
+        apoderadoApellidoMaterno
+      } = req.body;
+
+      // Get career code
+      const [careerRows]: any = await pool.query("SELECT codigo FROM carreras WHERE nombre = ?", [career]);
+      const careerCode = careerRows[0]?.codigo || '';
+
+      // Get modality costs
+      const [modalityRows]: any = await pool.query("SELECT costo_nacional, costo_privado FROM modalidades WHERE nombre = ?", [modality]);
+      const costoNacional = modalityRows[0]?.costo_nacional || 0;
+      const costoPrivado = modalityRows[0]?.costo_privado || 0;
+      
+      const montoPago = schoolType === 'Privado' ? costoPrivado : costoNacional;
+
+      const [result] = await pool.query(
+        `INSERT INTO preinscripciones (
+          nombres, apellido_paterno, apellido_materno, dni, correo, telefono, 
+          fecha_nacimiento, genero, pueblo_indigena, tipo_comunidad, idioma,
+          idioma_lee, idioma_habla, idioma_escribe,
+          procedencia_region, procedencia_provincia, procedencia_distrito, procedencia_direccion,
+          nacimiento_region, nacimiento_provincia, nacimiento_distrito,
+          colegio_nombre, colegio_tipo, colegio_nivel, colegio_region, colegio_provincia, colegio_distrito,
+          anio_egreso, carrera, modalidad, lugar_inscripcion, estado, modificado_por,
+          tiene_condiciones_especiales, discapacidad, numero_conadis, es_deportista, 
+          es_victima_violencia, es_servicio_militar, es_primeros_puestos,
+          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno,
+          codigo_carrera, monto_pago
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', 'Admin', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          names, paternalSurname, maternalSurname, dni, email, phone,
+          birthDate || null, gender, indigenousPeople, tipoComunidad, idioma,
+          idiomaLee ? 1 : 0, idiomaHabla ? 1 : 0, idiomaEscribe ? 1 : 0,
+          procedenciaRegion, procedenciaProvincia, procedenciaDistrito, procedenciaDireccion,
+          nacimientoRegion, nacimientoProvincia, nacimientoDistrito,
+          schoolName, schoolType, schoolLevel, colegioRegion, colegioProvincia, colegioDistrito,
+          graduationYear || null, career, modality, lugarInscripcion,
+          hasSpecialConditions ? 1 : 0, discapacidad ? 1 : 0, conadisNumber, isDeportista ? 1 : 0,
+          isVictimaViolencia ? 1 : 0, isServicioMilitar ? 1 : 0, isPrimerosPuestos ? 1 : 0,
+          apoderadoDni, apoderadoNombres, apoderadoApellidoPaterno, apoderadoApellidoMaterno,
+          careerCode, montoPago
+        ]
+      );
+
+      res.json({ success: true, id: (result as any).insertId });
+    } catch (error) {
+      handleDbError(res, error, "creating registration (admin)");
+    }
+  });
+
+  // Update registration
+  app.put("/api/registrations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        names,
+        paternalSurname,
+        maternalSurname,
+        dni,
+        email,
+        phone,
+        birthDate,
+        gender,
+        indigenousPeople,
+        tipoComunidad,
+        idioma,
+        idiomaLee,
+        idiomaHabla,
+        idiomaEscribe,
+        procedenciaRegion,
+        procedenciaProvincia,
+        procedenciaDistrito,
+        procedenciaDireccion,
+        nacimientoRegion,
+        nacimientoProvincia,
+        nacimientoDistrito,
+        schoolName,
+        schoolType,
+        schoolLevel,
+        colegioRegion,
+        colegioProvincia,
+        colegioDistrito,
+        graduationYear,
+        career,
+        modality,
+        lugarInscripcion,
+        hasSpecialConditions,
+        discapacidad,
+        conadisNumber,
+        isDeportista,
+        isVictimaViolencia,
+        isServicioMilitar,
+        isPrimerosPuestos,
+        apoderadoDni,
+        apoderadoNombres,
+        apoderadoApellidoPaterno,
+        apoderadoApellidoMaterno
+      } = req.body;
+
+      await pool.query(
+        `UPDATE preinscripciones SET 
+          nombres = ?, apellido_paterno = ?, apellido_materno = ?, dni = ?, correo = ?, 
+          telefono = ?, fecha_nacimiento = ?, genero = ?, pueblo_indigena = ?, tipo_comunidad = ?, idioma = ?,
+          idioma_lee = ?, idioma_habla = ?, idioma_escribe = ?,
+          procedencia_region = ?, procedencia_provincia = ?, procedencia_distrito = ?, procedencia_direccion = ?,
+          nacimiento_region = ?, nacimiento_provincia = ?, nacimiento_distrito = ?,
+          colegio_nombre = ?, colegio_tipo = ?, colegio_nivel = ?, colegio_region = ?, colegio_provincia = ?, colegio_distrito = ?,
+          anio_egreso = ?, carrera = ?, modalidad = ?, lugar_inscripcion = ?, tiene_condiciones_especiales = ?, 
+          discapacidad = ?, numero_conadis = ?, es_deportista = ?, es_victima_violencia = ?, es_servicio_militar = ?, 
+          es_primeros_puestos = ?, apoderado_dni = ?, apoderado_nombres = ?, apoderado_apellido_paterno = ?, 
+          apoderado_apellido_materno = ?, modificado_por = 'Admin'
+        WHERE id = ?`,
+        [
+          names, paternalSurname, maternalSurname, dni, email, phone,
+          birthDate || null, gender, indigenousPeople, tipoComunidad, idioma,
+          idiomaLee ? 1 : 0, idiomaHabla ? 1 : 0, idiomaEscribe ? 1 : 0,
+          procedenciaRegion, procedenciaProvincia, procedenciaDistrito, procedenciaDireccion,
+          nacimientoRegion, nacimientoProvincia, nacimientoDistrito,
+          schoolName, schoolType, schoolLevel, colegioRegion, colegioProvincia, colegioDistrito,
+          graduationYear || null, career, modality, lugarInscripcion, hasSpecialConditions ? 1 : 0,
+          discapacidad ? 1 : 0, conadisNumber, isDeportista ? 1 : 0, isVictimaViolencia ? 1 : 0, isServicioMilitar ? 1 : 0,
+          isPrimerosPuestos ? 1 : 0, apoderadoDni, apoderadoNombres, apoderadoApellidoPaterno,
+          apoderadoApellidoMaterno, id
+        ]
+      );
+      
+      res.json({ success: true, message: "Registration updated successfully" });
+    } catch (error) {
+      handleDbError(res, error, "updating registration");
+    }
+  });
+
+  // Delete registration
+  app.delete("/api/registrations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await pool.query("DELETE FROM preinscripciones WHERE id = ?", [id]);
+      res.json({ success: true, message: "Registration deleted successfully" });
+    } catch (error) {
+      handleDbError(res, error, "deleting registration");
+    }
+  });
+
   // Update registration status
   app.patch("/api/registrations/:id/status", async (req, res) => {
     try {
@@ -1162,7 +1967,7 @@ async function startServer() {
       
       if (rows.length > 0) {
         const registration = rows[0];
-        await pool.query("UPDATE preinscripciones SET estado = ?, changed_by = ? WHERE id = ?", [status, changedBy, id]);
+        await pool.query("UPDATE preinscripciones SET estado = ?, modificado_por = ? WHERE id = ?", [status, changedBy || null, id]);
 
         // Send status update email
         const statusColor = status === "Validado" ? "#047857" : "#b91c1c";
@@ -1439,9 +2244,9 @@ async function startServer() {
   app.get("/api/modalidades", async (req, res) => {
     try {
       // Auto-disable modalities that have expired (only those not already eliminated)
-      await pool.query("UPDATE modalidades SET deshabilitado = 1 WHERE fecha_fin < CURDATE() AND deshabilitado = 0 AND eliminado = 0");
+      await pool.query("UPDATE modalidades SET habilitado = 0 WHERE fecha_fin < CURDATE() AND habilitado = 1 AND eliminado = 0");
       // Auto-enable modalities that are now within validity (only those not already eliminated)
-      await pool.query("UPDATE modalidades SET deshabilitado = 0 WHERE fecha_fin >= CURDATE() AND deshabilitado = 1 AND eliminado = 0");
+      await pool.query("UPDATE modalidades SET habilitado = 1 WHERE fecha_fin >= CURDATE() AND habilitado = 0 AND eliminado = 0");
       
       const [rows] = await pool.query("SELECT * FROM modalidades ORDER BY indice_orden ASC, id DESC");
       res.json(rows);
@@ -1452,24 +2257,33 @@ async function startServer() {
 
   app.post("/api/modalidades", async (req, res) => {
     try {
-      const { nombre, fecha_inicio, fecha_fin, usar_rango, precio_nacional, precio_privado, deshabilitado } = req.body;
+      const { 
+        nombre, codigo, amazonico, descentralizado, pedir_documentacion, 
+        anio, fecha, fecha_inicio, fecha_fin, usar_rango, 
+        costo_nacional, costo_privado, habilitado 
+      } = req.body;
       const fmt_fecha_inicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
       const fmt_fecha_fin = fecha_fin ? fecha_fin.split('T')[0] : null;
+      const fmt_fecha = fecha ? fecha.split('T')[0] : null;
       
       // Auto-calculate disabled state based on date if it's within validity
-      let final_deshabilitado = deshabilitado ? 1 : 0;
+      let final_habilitado = habilitado ? 1 : 0;
       if (usar_rango && fmt_fecha_fin) {
         const today = new Date().toISOString().split('T')[0];
         if (fmt_fecha_fin >= today) {
-          final_deshabilitado = 0; // Auto-enable if within validity
+          final_habilitado = 1; // Auto-enable if within validity
         } else {
-          final_deshabilitado = 1; // Auto-disable if expired
+          final_habilitado = 0; // Auto-disable if expired
         }
       }
 
       await pool.query(
-        "INSERT INTO modalidades (nombre, fecha_inicio, fecha_fin, usar_rango, precio_nacional, precio_privado, deshabilitado) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [nombre, fmt_fecha_inicio, fmt_fecha_fin, usar_rango !== undefined ? usar_rango : true, precio_nacional || 0, precio_privado || 0, final_deshabilitado]
+        "INSERT INTO modalidades (nombre, codigo, amazonico, descentralizado, pedir_documentacion, anio, fecha, fecha_inicio, fecha_fin, usar_rango, costo_nacional, costo_privado, habilitado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+          nombre, codigo, amazonico ? 1 : 0, descentralizado ? 1 : 0, pedir_documentacion ? 1 : 0, 
+          anio, fmt_fecha, fmt_fecha_inicio, fmt_fecha_fin, usar_rango !== undefined ? usar_rango : true, 
+          costo_nacional || 0, costo_privado || 0, final_habilitado
+        ]
       );
       res.json({ success: true });
     } catch (error) {
@@ -1480,25 +2294,34 @@ async function startServer() {
   app.put("/api/modalidades/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { nombre, fecha_inicio, fecha_fin, usar_rango, precio_nacional, precio_privado, deshabilitado } = req.body;
+      const { 
+        nombre, codigo, amazonico, descentralizado, pedir_documentacion, 
+        anio, fecha, fecha_inicio, fecha_fin, usar_rango, 
+        costo_nacional, costo_privado, habilitado 
+      } = req.body;
       const fmt_fecha_inicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
       const fmt_fecha_fin = fecha_fin ? fecha_fin.split('T')[0] : null;
+      const fmt_fecha = fecha ? fecha.split('T')[0] : null;
 
       // Auto-calculate disabled state based on date if it's within validity
-      let final_deshabilitado = deshabilitado ? 1 : 0;
+      let final_habilitado = habilitado ? 1 : 0;
       if (usar_rango && fmt_fecha_fin) {
         const today = new Date().toISOString().split('T')[0];
         if (fmt_fecha_fin >= today) {
-          final_deshabilitado = 0; // Auto-enable if within validity
+          final_habilitado = 1; // Auto-enable if within validity
         } else {
-          final_deshabilitado = 1; // Auto-disable if expired
+          final_habilitado = 0; // Auto-disable if expired
         }
       }
 
       // Perform direct update to maintain the Primary Key (id)
       await pool.query(
-        "UPDATE modalidades SET nombre = ?, fecha_inicio = ?, fecha_fin = ?, usar_rango = ?, precio_nacional = ?, precio_privado = ?, deshabilitado = ? WHERE id = ?",
-        [nombre, fmt_fecha_inicio, fmt_fecha_fin, usar_rango !== undefined ? usar_rango : true, precio_nacional || 0, precio_privado || 0, final_deshabilitado, id]
+        "UPDATE modalidades SET nombre = ?, codigo = ?, amazonico = ?, descentralizado = ?, pedir_documentacion = ?, anio = ?, fecha = ?, fecha_inicio = ?, fecha_fin = ?, usar_rango = ?, costo_nacional = ?, costo_privado = ?, habilitado = ? WHERE id = ?",
+        [
+          nombre, codigo, amazonico ? 1 : 0, descentralizado ? 1 : 0, pedir_documentacion ? 1 : 0, 
+          anio, fmt_fecha, fmt_fecha_inicio, fmt_fecha_fin, usar_rango !== undefined ? usar_rango : true, 
+          costo_nacional || 0, costo_privado || 0, final_habilitado, id
+        ]
       );
       
       res.json({ success: true });
@@ -1511,7 +2334,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       // Soft delete: mark as eliminated and disabled to keep as historical
-      await pool.query("UPDATE modalidades SET eliminado = 1, deshabilitado = 1 WHERE id = ?", [id]);
+      await pool.query("UPDATE modalidades SET eliminado = 1, habilitado = 0 WHERE id = ?", [id]);
       res.json({ success: true });
     } catch (error) {
       handleDbError(res, error, "deleting modalidad");
@@ -1563,8 +2386,19 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    app.get("*", async (req, res) => {
+      try {
+        let html = await fs.readFile(path.join(distPath, "index.html"), "utf-8");
+        const [rows]: any = await pool.query("SELECT * FROM configuracion_inicio WHERE id = 1");
+        if (rows.length > 0) {
+          const settings = rows[0];
+          const settingsScript = `<script>window.__INITIAL_SETTINGS__ = ${JSON.stringify({ configuracionInicio: settings, textoLogo: settings.texto_logo })};</script>`;
+          html = html.replace("</head>", `${settingsScript}</head>`);
+        }
+        res.send(html);
+      } catch (e) {
+        res.sendFile(path.join(distPath, "index.html"));
+      }
     });
   }
 

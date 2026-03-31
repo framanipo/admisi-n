@@ -7,6 +7,7 @@ export const ConfiguracionDatabaseView = ({ onBack }: { onBack: () => void }) =>
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isBackupLoading, setIsBackupLoading] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
@@ -119,6 +120,35 @@ export const ConfiguracionDatabaseView = ({ onBack }: { onBack: () => void }) =>
             <p className="text-sm mt-1">{testResult.message}</p>
           </div>
         )}
+
+        <div className="mt-10 pt-8 border-t border-stone-100">
+          <h3 className="text-lg font-bold text-stone-800 mb-4">Respaldo de Base de Datos</h3>
+          <button 
+            onClick={async () => {
+              setIsBackupLoading(true);
+              try {
+                const res = await fetch('/api/db-backup');
+                if (res.ok) {
+                  const blob = await res.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `backup_${new Date().toISOString()}.sql`;
+                  a.click();
+                } else {
+                  alert('Error al generar el backup');
+                }
+              } finally {
+                setIsBackupLoading(false);
+              }
+            }}
+            disabled={isBackupLoading}
+            className="flex items-center gap-2 px-6 py-3 bg-[#0891b2] text-white font-bold rounded-xl hover:bg-[#0891b2]/90 transition-all disabled:opacity-50"
+          >
+            {isBackupLoading ? <RefreshCw size={18} className="animate-spin" /> : <Database size={18} />} 
+            {isBackupLoading ? 'Generando...' : 'Generar Backup (.sql)'}
+          </button>
+        </div>
 
         <div className="mt-10 pt-8 border-t border-stone-100 flex justify-between items-center">
           <button onClick={onBack} className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all">

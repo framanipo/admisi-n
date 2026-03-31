@@ -154,7 +154,7 @@ export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () =
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre del Evento</label>
                       <input 
-                        value={ev.event}
+                        value={ev.event || ''}
                         onChange={e => updateEvent(idx, 'event', e.target.value)}
                         disabled={ev.isAutomatic}
                         className={`w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-bold text-stone-800 ${ev.isAutomatic ? 'bg-white/50 cursor-not-allowed' : ''}`}
@@ -253,7 +253,7 @@ export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () =
             <label className="text-sm font-bold text-stone-700">URL de Imagen de Fondo</label>
             <div className="flex gap-4">
               <input 
-                value={config.fondo_url} 
+                value={config.fondo_url || ''} 
                 onChange={e => setConfig({...config, fondo_url: e.target.value})}
                 className="flex-1 p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
                 placeholder="https://ejemplo.com/fondo-cronograma.jpg"
@@ -272,7 +272,7 @@ export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () =
                 min="0"
                 max="1"
                 step="0.05"
-                value={config.overlay_opacity}
+                value={config.overlay_opacity ?? 0}
                 onChange={e => setConfig({...config, overlay_opacity: parseFloat(e.target.value)})}
                 className="flex-1 h-2 bg-stone-100 rounded-lg appearance-none cursor-pointer accent-uniq-cyan"
               />

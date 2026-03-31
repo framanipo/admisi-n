@@ -14,10 +14,10 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
     if (editForm.fecha_fin) {
       const today = new Date().toISOString().split('T')[0];
       const isExpired = editForm.fecha_fin < today;
-      if (isExpired && !editForm.deshabilitado) {
-        setEditForm((prev: any) => ({ ...prev, deshabilitado: true }));
-      } else if (!isExpired && editForm.deshabilitado) {
-        setEditForm((prev: any) => ({ ...prev, deshabilitado: false }));
+      if (isExpired && editForm.habilitado) {
+        setEditForm((prev: any) => ({ ...prev, habilitado: false }));
+      } else if (!isExpired && !editForm.habilitado) {
+        setEditForm((prev: any) => ({ ...prev, habilitado: true }));
       }
     }
   }, [editForm.fecha_fin]);
@@ -52,12 +52,18 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: editForm.nombre,
+          codigo: editForm.codigo || '',
+          amazonico: !!editForm.amazonico,
+          descentralizado: !!editForm.descentralizado,
+          pedir_documentacion: !!editForm.pedir_documentacion,
+          anio: editForm.anio || new Date().getFullYear(),
+          fecha: editForm.fecha || '',
           fecha_inicio: editForm.fecha_inicio,
           fecha_fin: editForm.fecha_fin,
           usar_rango: editForm.usar_rango !== undefined ? editForm.usar_rango : true,
-          precio_nacional: editForm.precio_nacional || 0,
-          precio_privado: editForm.precio_privado || 0,
-          deshabilitado: editForm.deshabilitado
+          costo_nacional: editForm.costo_nacional || 0,
+          costo_privado: editForm.costo_privado || 0,
+          habilitado: editForm.habilitado !== undefined ? editForm.habilitado : true
         })
       });
       if (response.ok) {
@@ -89,7 +95,12 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
 
   const startEdit = (m: any) => {
     setEditingId(m.id || -1);
-    setEditForm(m);
+    setEditForm({
+      ...m,
+      costo_nacional: m.costo_nacional || m.precio_nacional || 0,
+      costo_privado: m.costo_privado || m.precio_privado || 0,
+      habilitado: m.habilitado !== undefined ? m.habilitado : !m.deshabilitado
+    });
   };
 
   return (
@@ -106,7 +117,12 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
             </div>
           </div>
           <button 
-            onClick={() => startEdit({ nombre: '', fecha_inicio: '', fecha_fin: '', usar_rango: true, precio_nacional: 0, precio_privado: 0, deshabilitado: false })} 
+            onClick={() => startEdit({ 
+              nombre: '', codigo: '', amazonico: false, descentralizado: false, 
+              pedir_documentacion: false, anio: new Date().getFullYear(), 
+              fecha: '', fecha_inicio: '', fecha_fin: '', usar_rango: true, 
+              costo_nacional: 0, costo_privado: 0, habilitado: true 
+            })} 
             className="flex items-center justify-center gap-2 px-8 py-4 bg-uniq-cyan text-white font-bold rounded-2xl hover:bg-uniq-cyan/90 transition-all shadow-lg shadow-uniq-cyan/20 active:scale-95"
           >
             <Plus size={20} /> Nueva Modalidad
@@ -131,102 +147,220 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
                   className={`relative overflow-hidden rounded-3xl border transition-all ${editingId === m.id ? 'border-uniq-cyan/20 bg-uniq-cyan/5 ring-4 ring-uniq-cyan/10' : 'border-stone-100 bg-stone-50/50 hover:bg-white hover:shadow-lg hover:border-stone-200'}`}
                 >
                   {editingId === m.id ? (
-                    <div className="p-8 space-y-8">
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre de la Modalidad</label>
-                            <input 
-                              type="text" 
-                              value={editForm.nombre} 
-                              onChange={e => setEditForm({...editForm, nombre: e.target.value})} 
-                              className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all font-bold text-stone-800"
-                              placeholder="Ej: Ordinario 2026-I"
-                            />
-                          </div>
-                          <div className="flex items-center gap-3 p-4 bg-white border border-stone-200 rounded-2xl">
-                            <input 
-                              type="checkbox" 
-                              id="usar_rango"
-                              checked={editForm.usar_rango !== false} 
-                              onChange={e => {
-                                const checked = e.target.checked;
-                                setEditForm({
-                                  ...editForm, 
-                                  usar_rango: checked,
-                                  fecha_fin: checked ? editForm.fecha_fin : ''
-                                });
-                              }}
-                              className="w-5 h-5 accent-uniq-cyan rounded"
-                            />
-                            <label htmlFor="usar_rango" className="text-sm font-bold text-stone-700 cursor-pointer select-none">
-                              Utilizar rango de fechas (Inicio y Fin)
-                            </label>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha Inicio</label>
-                              <input 
-                                type="date" 
-                                value={editForm.fecha_inicio?.split('T')[0] || ''} 
-                                onChange={e => setEditForm({...editForm, fecha_inicio: e.target.value})} 
-                                className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
-                              />
+                    <div className="p-8 md:p-10 space-y-12">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                        <div className="space-y-10">
+                          {/* Caja 1: Información Principal */}
+                          <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm space-y-6">
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="w-8 h-8 bg-uniq-cyan/10 text-uniq-cyan rounded-lg flex items-center justify-center">
+                                <Edit2 size={16} />
+                              </div>
+                              <h4 className="text-sm font-bold text-stone-800 uppercase tracking-wider">Información Principal</h4>
                             </div>
-                            <div className={`space-y-2 transition-opacity ${editForm.usar_rango === false ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
-                              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha Fin</label>
-                              <input 
-                                type="date" 
-                                value={editForm.fecha_fin?.split('T')[0] || ''} 
-                                onChange={e => setEditForm({...editForm, fecha_fin: e.target.value})} 
-                                className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
-                              />
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre</label>
+                                <input 
+                                  type="text" 
+                                  value={editForm.nombre || ''} 
+                                  onChange={e => setEditForm({...editForm, nombre: e.target.value})} 
+                                  className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all font-bold text-stone-800"
+                                  placeholder="Ej: Ordinario"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Código</label>
+                                <input 
+                                  type="text" 
+                                  value={editForm.codigo || ''} 
+                                  onChange={e => setEditForm({...editForm, codigo: e.target.value})} 
+                                  className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
+                                  placeholder="Ej: ORD"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Año</label>
+                                <input 
+                                  type="number" 
+                                  value={editForm.anio || ''} 
+                                  onChange={e => setEditForm({...editForm, anio: parseInt(e.target.value) || 0})} 
+                                  className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha General</label>
+                                <input 
+                                  type="date" 
+                                  value={editForm.fecha?.split('T')[0] || ''} 
+                                  onChange={e => setEditForm({...editForm, fecha: e.target.value})} 
+                                  className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Caja 2: Atributos Especiales */}
+                          <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm space-y-6">
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="w-8 h-8 bg-amber-500/10 text-amber-600 rounded-lg flex items-center justify-center">
+                                <Check size={16} />
+                              </div>
+                              <h4 className="text-sm font-bold text-stone-800 uppercase tracking-wider">Atributos Especiales</h4>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3">
+                              <div className="flex items-center justify-between p-4 bg-stone-50/50 border border-stone-200 rounded-2xl hover:bg-white transition-colors cursor-pointer" onClick={() => setEditForm({...editForm, amazonico: !editForm.amazonico})}>
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editForm.amazonico ? 'bg-green-100 text-green-600' : 'bg-stone-200 text-stone-400'}`}>
+                                    <Check size={14} />
+                                  </div>
+                                  <span className="text-sm font-bold text-stone-700">Modalidad Amazónica</span>
+                                </div>
+                                <input 
+                                  type="checkbox" 
+                                  checked={!!editForm.amazonico} 
+                                  onChange={e => setEditForm({...editForm, amazonico: e.target.checked})}
+                                  className="w-5 h-5 accent-uniq-cyan rounded"
+                                  onClick={e => e.stopPropagation()}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between p-4 bg-stone-50/50 border border-stone-200 rounded-2xl hover:bg-white transition-colors cursor-pointer" onClick={() => setEditForm({...editForm, descentralizado: !editForm.descentralizado})}>
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editForm.descentralizado ? 'bg-blue-100 text-blue-600' : 'bg-stone-200 text-stone-400'}`}>
+                                    <Check size={14} />
+                                  </div>
+                                  <span className="text-sm font-bold text-stone-700">Modalidad Descentralizada</span>
+                                </div>
+                                <input 
+                                  type="checkbox" 
+                                  checked={!!editForm.descentralizado} 
+                                  onChange={e => setEditForm({...editForm, descentralizado: e.target.checked})}
+                                  className="w-5 h-5 accent-uniq-cyan rounded"
+                                  onClick={e => e.stopPropagation()}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between p-4 bg-stone-50/50 border border-stone-200 rounded-2xl hover:bg-white transition-colors cursor-pointer" onClick={() => setEditForm({...editForm, pedir_documentacion: !editForm.pedir_documentacion})}>
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editForm.pedir_documentacion ? 'bg-purple-100 text-purple-600' : 'bg-stone-200 text-stone-400'}`}>
+                                    <Check size={14} />
+                                  </div>
+                                  <span className="text-sm font-bold text-stone-700">Requerir Documentación</span>
+                                </div>
+                                <input 
+                                  type="checkbox" 
+                                  checked={!!editForm.pedir_documentacion} 
+                                  onChange={e => setEditForm({...editForm, pedir_documentacion: e.target.checked})}
+                                  className="w-5 h-5 accent-uniq-cyan rounded"
+                                  onClick={e => e.stopPropagation()}
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Precio Nacional</label>
-                              <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
+
+                        <div className="space-y-10">
+                          {/* Caja 3: Configuración de Fechas */}
+                          <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm space-y-6">
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="w-8 h-8 bg-uniq-cyan/10 text-uniq-cyan rounded-lg flex items-center justify-center">
+                                <Calendar size={16} />
+                              </div>
+                              <h4 className="text-sm font-bold text-stone-800 uppercase tracking-wider">Fechas y Plazos</h4>
+                            </div>
+                            <div className="flex items-center justify-between p-4 bg-stone-50/50 border border-stone-200 rounded-2xl">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editForm.usar_rango !== false ? 'bg-uniq-cyan/10 text-uniq-cyan' : 'bg-stone-200 text-stone-400'}`}>
+                                  <Calendar size={14} />
+                                </div>
+                                <span className="text-sm font-bold text-stone-700">Usar Rango de Fechas</span>
+                              </div>
+                              <input 
+                                type="checkbox" 
+                                checked={editForm.usar_rango !== false} 
+                                onChange={e => {
+                                  const checked = e.target.checked;
+                                  setEditForm({
+                                    ...editForm, 
+                                    usar_rango: checked,
+                                    fecha_fin: checked ? editForm.fecha_fin : ''
+                                  });
+                                }}
+                                className="w-5 h-5 accent-uniq-cyan rounded"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha Inicio</label>
                                 <input 
-                                  type="number" 
-                                  value={editForm.precio_nacional} 
-                                  onChange={e => setEditForm({...editForm, precio_nacional: parseFloat(e.target.value)})} 
-                                  className="w-full pl-12 pr-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
+                                  type="date" 
+                                  value={editForm.fecha_inicio?.split('T')[0] || ''} 
+                                  onChange={e => setEditForm({...editForm, fecha_inicio: e.target.value})} 
+                                  className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
                                 />
                               </div>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Precio Privado</label>
-                              <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
+                              <div className={`space-y-2 transition-opacity ${editForm.usar_rango === false ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha Fin</label>
                                 <input 
-                                  type="number" 
-                                  value={editForm.precio_privado} 
-                                  onChange={e => setEditForm({...editForm, precio_privado: parseFloat(e.target.value)})} 
-                                  className="w-full pl-12 pr-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
+                                  type="date" 
+                                  value={editForm.fecha_fin?.split('T')[0] || ''} 
+                                  onChange={e => setEditForm({...editForm, fecha_fin: e.target.value})} 
+                                  className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
                                 />
                               </div>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 gap-4">
-                            <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200">
+
+                          {/* Caja 4: Costos y Estado */}
+                          <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm space-y-6">
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="w-8 h-8 bg-lime-500/10 text-lime-600 rounded-lg flex items-center justify-center">
+                                <Save size={16} />
+                              </div>
+                              <h4 className="text-sm font-bold text-stone-800 uppercase tracking-wider">Costos y Estado</h4>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Costo Nacional</label>
+                                <div className="relative">
+                                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
+                                  <input 
+                                    type="number" 
+                                    value={editForm.costo_nacional || 0} 
+                                    onChange={e => setEditForm({...editForm, costo_nacional: parseFloat(e.target.value)})} 
+                                    className="w-full pl-12 pr-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Costo Privado</label>
+                                <div className="relative">
+                                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
+                                  <input 
+                                    type="number" 
+                                    value={editForm.costo_privado || 0} 
+                                    onChange={e => setEditForm({...editForm, costo_privado: parseFloat(e.target.value)})} 
+                                    className="w-full pl-12 pr-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between p-4 bg-stone-50/50 rounded-2xl border border-stone-200">
                               <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${editForm.deshabilitado ? 'bg-red-50 text-red-500' : 'bg-lime-50 text-lime-600'}`}>
-                                  {editForm.deshabilitado ? <X size={20} /> : <Check size={20} />}
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${!editForm.habilitado ? 'bg-red-50 text-red-500' : 'bg-lime-50 text-lime-600'}`}>
+                                  {!editForm.habilitado ? <X size={20} /> : <Check size={20} />}
                                 </div>
                                 <div>
-                                  <p className="text-sm font-bold text-stone-800">{editForm.deshabilitado ? 'Deshabilitada' : 'Habilitada'}</p>
+                                  <p className="text-sm font-bold text-stone-800">{editForm.habilitado ? 'Habilitada' : 'Deshabilitada'}</p>
                                   <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Estado de la modalidad</p>
                                 </div>
                               </div>
                               <button 
-                                onClick={() => setEditForm({...editForm, deshabilitado: !editForm.deshabilitado})}
-                                className={`w-12 h-6 rounded-full relative transition-colors ${editForm.deshabilitado ? 'bg-stone-200' : 'bg-lime-500'}`}
+                                onClick={() => setEditForm({...editForm, habilitado: !editForm.habilitado})}
+                                className={`w-12 h-6 rounded-full relative transition-colors ${!editForm.habilitado ? 'bg-stone-200' : 'bg-lime-500'}`}
                               >
-                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${editForm.deshabilitado ? 'left-1' : 'left-7'}`} />
+                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${!editForm.habilitado ? 'left-1' : 'left-7'}`} />
                               </button>
                             </div>
                           </div>
@@ -250,14 +384,17 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
                       </div>
                     </div>
                   ) : (
-                    <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="p-6 md:p-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
                       <div className="flex items-start gap-5">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${m.deshabilitado ? 'bg-stone-100 text-stone-400' : 'bg-uniq-cyan/10 text-uniq-cyan'}`}>
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${!m.habilitado ? 'bg-stone-100 text-stone-400' : 'bg-uniq-cyan/10 text-uniq-cyan'}`}>
                           <Calendar size={24} />
                         </div>
                         <div className="space-y-1">
-                          <h3 className="text-xl font-bold text-stone-800">{m.nombre}</h3>
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-stone-500">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xl font-bold text-stone-800">{m.nombre}</h3>
+                            {m.codigo && <span className="px-2 py-0.5 bg-stone-100 text-stone-500 text-[10px] font-bold rounded-md">{m.codigo}</span>}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-stone-500">
                             <span className="flex items-center gap-1.5">
                               <Calendar size={14} className="text-uniq-cyan" />
                               {m.usar_rango ? (
@@ -272,20 +409,25 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
                             </span>
                             <span className="flex items-center gap-1.5">
                               <span className="text-amber-500 font-bold">S/</span>
-                              {m.precio_nacional} (Nac.) / S/ {m.precio_privado} (Priv.)
+                              {m.costo_nacional || m.precio_nacional} (Nac.) / S/ {m.costo_privado || m.precio_privado} (Priv.)
                             </span>
-                            {m.fecha_creacion && (
+                            {m.anio && (
                               <span className="flex items-center gap-1.5">
-                                <span className="text-stone-400">Creado:</span>
-                                {new Date(m.fecha_creacion).toLocaleDateString()}
+                                <span className="text-stone-400">Año:</span>
+                                {m.anio}
                               </span>
                             )}
+                            <div className="flex items-center gap-2 mt-1">
+                              {m.amazonico === 1 && <span className="px-2 py-0.5 bg-green-50 text-green-600 text-[9px] font-bold rounded-full border border-green-100">Amazónico</span>}
+                              {m.descentralizado === 1 && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-bold rounded-full border border-blue-100">Descentralizado</span>}
+                              {m.pedir_documentacion === 1 && <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-[9px] font-bold rounded-full border border-purple-100">Doc. Req.</span>}
+                            </div>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between md:justify-end gap-4">
-                        <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${m.eliminado ? 'bg-stone-100 text-stone-500 border-stone-200' : m.deshabilitado ? 'bg-red-50 text-red-500 border-red-100' : 'bg-lime-50 text-lime-600 border-lime-100'}`}>
-                          {m.eliminado ? 'Histórico' : m.deshabilitado ? 'Deshabilitado' : 'Activo'}
+                        <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${m.eliminado ? 'bg-stone-100 text-stone-500 border-stone-200' : !m.habilitado ? 'bg-red-50 text-red-500 border-red-100' : 'bg-lime-50 text-lime-600 border-lime-100'}`}>
+                          {m.eliminado ? 'Histórico' : !m.habilitado ? 'Deshabilitado' : 'Activo'}
                         </div>
                         <div className="flex items-center gap-2">
                           <button 
@@ -314,109 +456,231 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="p-8 bg-uniq-cyan/5 border-2 border-dashed border-uniq-cyan/20 rounded-[2.5rem] space-y-8"
+                  className="p-8 bg-uniq-cyan/5 border-2 border-dashed border-uniq-cyan/20 rounded-[2.5rem] space-y-10"
                 >
                   <div className="flex items-center gap-4 mb-2">
-                    <div className="w-10 h-10 bg-uniq-cyan/10 text-uniq-cyan rounded-xl flex items-center justify-center">
-                      <Plus size={20} />
+                    <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center shadow-inner">
+                      <Plus size={24} />
                     </div>
-                    <h3 className="text-xl font-bold text-stone-800">Nueva Modalidad</h3>
+                    <div>
+                      <h3 className="text-2xl font-bold text-stone-800">Nueva Modalidad</h3>
+                      <p className="text-stone-500 text-sm font-medium">Completa los datos para crear una nueva modalidad.</p>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre de la Modalidad</label>
-                        <input 
-                          type="text" 
-                          value={editForm.nombre} 
-                          onChange={e => setEditForm({...editForm, nombre: e.target.value})} 
-                          className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
-                          placeholder="Ej: Ordinario 2026-I"
-                        />
-                      </div>
-                      <div className="flex items-center gap-3 p-4 bg-white border border-stone-200 rounded-2xl">
-                        <input 
-                          type="checkbox" 
-                          id="new_usar_rango"
-                          checked={editForm.usar_rango !== false} 
-                          onChange={e => {
-                            const checked = e.target.checked;
-                            setEditForm({
-                              ...editForm, 
-                              usar_rango: checked,
-                              fecha_fin: checked ? editForm.fecha_fin : ''
-                            });
-                          }}
-                          className="w-5 h-5 accent-uniq-cyan rounded"
-                        />
-                        <label htmlFor="new_usar_rango" className="text-sm font-bold text-stone-700 cursor-pointer select-none">
-                          Utilizar rango de fechas (Inicio y Fin)
-                        </label>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha Inicio</label>
-                          <input 
-                            type="date" 
-                            value={editForm.fecha_inicio} 
-                            onChange={e => setEditForm({...editForm, fecha_inicio: e.target.value})} 
-                            className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
-                          />
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    <div className="space-y-10">
+                      {/* Caja 1: Información Principal */}
+                      <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm space-y-6">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 bg-uniq-cyan/10 text-uniq-cyan rounded-lg flex items-center justify-center">
+                            <Edit2 size={16} />
+                          </div>
+                          <h4 className="text-sm font-bold text-stone-800 uppercase tracking-wider">Información Principal</h4>
                         </div>
-                        <div className={`space-y-2 transition-opacity ${editForm.usar_rango === false ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha Fin</label>
-                          <input 
-                            type="date" 
-                            value={editForm.fecha_fin} 
-                            onChange={e => setEditForm({...editForm, fecha_fin: e.target.value})} 
-                            className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
-                          />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre</label>
+                            <input 
+                              type="text" 
+                              value={editForm.nombre || ''} 
+                              onChange={e => setEditForm({...editForm, nombre: e.target.value})} 
+                              className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all font-bold text-stone-800"
+                              placeholder="Ej: Ordinario"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Código</label>
+                            <input 
+                              type="text" 
+                              value={editForm.codigo || ''} 
+                              onChange={e => setEditForm({...editForm, codigo: e.target.value})} 
+                              className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
+                              placeholder="Ej: ORD"
+                            />
+                          </div>
+                        </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Año</label>
+                                <input 
+                                  type="number" 
+                                  value={editForm.anio || ''} 
+                                  onChange={e => setEditForm({...editForm, anio: parseInt(e.target.value) || 0})} 
+                                  className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha General</label>
+                                <input 
+                                  type="date" 
+                                  value={editForm.fecha || ''} 
+                                  onChange={e => setEditForm({...editForm, fecha: e.target.value})} 
+                                  className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
+                                />
+                              </div>
+                            </div>
+                      </div>
+
+                      {/* Caja 2: Atributos Especiales */}
+                      <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm space-y-6">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 bg-amber-500/10 text-amber-600 rounded-lg flex items-center justify-center">
+                            <Check size={16} />
+                          </div>
+                          <h4 className="text-sm font-bold text-stone-800 uppercase tracking-wider">Atributos Especiales</h4>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3">
+                          <div className="flex items-center justify-between p-4 bg-stone-50/50 border border-stone-200 rounded-2xl hover:bg-white transition-colors cursor-pointer" onClick={() => setEditForm({...editForm, amazonico: !editForm.amazonico})}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editForm.amazonico ? 'bg-green-100 text-green-600' : 'bg-stone-200 text-stone-400'}`}>
+                                <Check size={14} />
+                              </div>
+                              <span className="text-sm font-bold text-stone-700">Modalidad Amazónica</span>
+                            </div>
+                            <input 
+                              type="checkbox" 
+                              checked={!!editForm.amazonico} 
+                              onChange={e => setEditForm({...editForm, amazonico: e.target.checked})}
+                              className="w-5 h-5 accent-uniq-cyan rounded"
+                              onClick={e => e.stopPropagation()}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between p-4 bg-stone-50/50 border border-stone-200 rounded-2xl hover:bg-white transition-colors cursor-pointer" onClick={() => setEditForm({...editForm, descentralizado: !editForm.descentralizado})}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editForm.descentralizado ? 'bg-blue-100 text-blue-600' : 'bg-stone-200 text-stone-400'}`}>
+                                <Check size={14} />
+                              </div>
+                              <span className="text-sm font-bold text-stone-700">Modalidad Descentralizada</span>
+                            </div>
+                            <input 
+                              type="checkbox" 
+                              checked={!!editForm.descentralizado} 
+                              onChange={e => setEditForm({...editForm, descentralizado: e.target.checked})}
+                              className="w-5 h-5 accent-uniq-cyan rounded"
+                              onClick={e => e.stopPropagation()}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between p-4 bg-stone-50/50 border border-stone-200 rounded-2xl hover:bg-white transition-colors cursor-pointer" onClick={() => setEditForm({...editForm, pedir_documentacion: !editForm.pedir_documentacion})}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editForm.pedir_documentacion ? 'bg-purple-100 text-purple-600' : 'bg-stone-200 text-stone-400'}`}>
+                                <Check size={14} />
+                              </div>
+                              <span className="text-sm font-bold text-stone-700">Requerir Documentación</span>
+                            </div>
+                            <input 
+                              type="checkbox" 
+                              checked={!!editForm.pedir_documentacion} 
+                              onChange={e => setEditForm({...editForm, pedir_documentacion: e.target.checked})}
+                              className="w-5 h-5 accent-uniq-cyan rounded"
+                              onClick={e => e.stopPropagation()}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Precio Nacional</label>
-                          <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
-                            <input 
-                              type="number" 
-                              value={editForm.precio_nacional} 
-                              onChange={e => setEditForm({...editForm, precio_nacional: parseFloat(e.target.value)})} 
-                              className="w-full pl-12 pr-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
-                            />
+
+                    <div className="space-y-10">
+                      {/* Caja 3: Configuración de Fechas */}
+                      <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm space-y-6">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 bg-uniq-cyan/10 text-uniq-cyan rounded-lg flex items-center justify-center">
+                            <Calendar size={16} />
                           </div>
+                          <h4 className="text-sm font-bold text-stone-800 uppercase tracking-wider">Fechas y Plazos</h4>
                         </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Precio Privado</label>
-                          <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
-                            <input 
-                              type="number" 
-                              value={editForm.precio_privado} 
-                              onChange={e => setEditForm({...editForm, precio_privado: parseFloat(e.target.value)})} 
-                              className="w-full pl-12 pr-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200">
+                        <div className="flex items-center justify-between p-4 bg-stone-50/50 border border-stone-200 rounded-2xl">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${editForm.deshabilitado ? 'bg-red-50 text-red-500' : 'bg-lime-50 text-lime-600'}`}>
-                              {editForm.deshabilitado ? <X size={20} /> : <Check size={20} />}
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editForm.usar_rango !== false ? 'bg-uniq-cyan/10 text-uniq-cyan' : 'bg-stone-200 text-stone-400'}`}>
+                              <Calendar size={14} />
+                            </div>
+                            <span className="text-sm font-bold text-stone-700">Usar Rango de Fechas</span>
+                          </div>
+                          <input 
+                            type="checkbox" 
+                            checked={editForm.usar_rango !== false} 
+                            onChange={e => {
+                              const checked = e.target.checked;
+                              setEditForm({
+                                ...editForm, 
+                                usar_rango: checked,
+                                fecha_fin: checked ? editForm.fecha_fin : ''
+                              });
+                            }}
+                            className="w-5 h-5 accent-uniq-cyan rounded"
+                          />
+                        </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha Inicio</label>
+                                <input 
+                                  type="date" 
+                                  value={editForm.fecha_inicio || ''} 
+                                  onChange={e => setEditForm({...editForm, fecha_inicio: e.target.value})} 
+                                  className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
+                                />
+                              </div>
+                              <div className={`space-y-2 transition-opacity ${editForm.usar_rango === false ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha Fin</label>
+                                <input 
+                                  type="date" 
+                                  value={editForm.fecha_fin || ''} 
+                                  onChange={e => setEditForm({...editForm, fecha_fin: e.target.value})} 
+                                  className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
+                                />
+                              </div>
+                            </div>
+                      </div>
+
+                      {/* Caja 4: Costos y Estado */}
+                      <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm space-y-6">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 bg-lime-500/10 text-lime-600 rounded-lg flex items-center justify-center">
+                            <Save size={16} />
+                          </div>
+                          <h4 className="text-sm font-bold text-stone-800 uppercase tracking-wider">Costos y Estado</h4>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Costo Nacional</label>
+                            <div className="relative">
+                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
+                              <input 
+                                type="number" 
+                                value={editForm.costo_nacional || 0} 
+                                onChange={e => setEditForm({...editForm, costo_nacional: parseFloat(e.target.value)})} 
+                                className="w-full pl-12 pr-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Costo Privado</label>
+                            <div className="relative">
+                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
+                              <input 
+                                type="number" 
+                                value={editForm.costo_privado || 0} 
+                                onChange={e => setEditForm({...editForm, costo_privado: parseFloat(e.target.value)})} 
+                                className="w-full pl-12 pr-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between p-4 bg-stone-50/50 rounded-2xl border border-stone-200">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${!editForm.habilitado ? 'bg-red-50 text-red-500' : 'bg-lime-50 text-lime-600'}`}>
+                              {!editForm.habilitado ? <X size={20} /> : <Check size={20} />}
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-stone-800">{editForm.deshabilitado ? 'Deshabilitada' : 'Habilitada'}</p>
+                              <p className="text-sm font-bold text-stone-800">{editForm.habilitado ? 'Habilitada' : 'Deshabilitada'}</p>
                               <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Estado de la modalidad</p>
                             </div>
                           </div>
                           <button 
-                            onClick={() => setEditForm({...editForm, deshabilitado: !editForm.deshabilitado})}
-                            className={`w-12 h-6 rounded-full relative transition-colors ${editForm.deshabilitado ? 'bg-stone-200' : 'bg-lime-500'}`}
+                            onClick={() => setEditForm({...editForm, habilitado: !editForm.habilitado})}
+                            className={`w-12 h-6 rounded-full relative transition-colors ${!editForm.habilitado ? 'bg-stone-200' : 'bg-lime-500'}`}
                           >
-                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${editForm.deshabilitado ? 'left-1' : 'left-7'}`} />
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${!editForm.habilitado ? 'left-1' : 'left-7'}`} />
                           </button>
                         </div>
                       </div>
