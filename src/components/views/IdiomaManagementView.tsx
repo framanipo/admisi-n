@@ -7,7 +7,7 @@ export const IdiomaManagementView: React.FC<{ onBack: () => void }> = ({ onBack 
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ idioma: '', pueblo_indigena: '', tipo_comunidad: '' });
+  const [formData, setFormData] = useState({ idioma: '' });
   const [isReordering, setIsReordering] = useState(false);
 
   const fetchMappings = async () => {
@@ -44,7 +44,7 @@ export const IdiomaManagementView: React.FC<{ onBack: () => void }> = ({ onBack 
         fetchMappings();
         setIsAdding(false);
         setEditingId(null);
-        setFormData({ idioma: '', pueblo_indigena: '', tipo_comunidad: '' });
+        setFormData({ idioma: '' });
       }
     } catch (e) {
       console.error("Error saving mapping:", e);
@@ -54,9 +54,7 @@ export const IdiomaManagementView: React.FC<{ onBack: () => void }> = ({ onBack 
   const handleEdit = (mapping: any) => {
     setEditingId(mapping.id);
     setFormData({ 
-      idioma: mapping.idioma, 
-      pueblo_indigena: mapping.pueblo_indigena || '', 
-      tipo_comunidad: mapping.tipo_comunidad || '' 
+      idioma: mapping.idioma
     });
     setIsAdding(true);
   };
@@ -112,29 +110,21 @@ export const IdiomaManagementView: React.FC<{ onBack: () => void }> = ({ onBack 
         <div className="flex items-center justify-between mb-8">
           <div>
             <h2 className="text-3xl font-extrabold text-stone-900">Gestión de Idiomas</h2>
-            <p className="text-stone-500 mt-1">Configura el mapeo automático de Idioma, Pueblo Indígena y Tipo de Comunidad.</p>
+            <p className="text-stone-500 mt-1">Configura el mapeo automático de Idioma.</p>
           </div>
           <div className="flex gap-2">
             <button onClick={onBack} className="px-6 py-3 bg-stone-100 text-stone-700 rounded-2xl font-bold text-sm hover:bg-stone-200 transition-all">Volver al Panel</button>
-            <button onClick={() => { setIsAdding(true); setEditingId(null); setFormData({ idioma: '', pueblo_indigena: '', tipo_comunidad: '' }); }} className="px-6 py-3 bg-uniq-cyan text-white rounded-2xl font-bold text-sm hover:bg-uniq-cyan/90 transition-all">+ Agregar Mapeo</button>
+            <button onClick={() => { setIsAdding(true); setEditingId(null); setFormData({ idioma: '' }); }} className="px-6 py-3 bg-uniq-cyan text-white rounded-2xl font-bold text-sm hover:bg-uniq-cyan/90 transition-all">+ Agregar Mapeo</button>
           </div>
         </div>
 
         {isAdding && (
           <div className="p-6 rounded-2xl shadow-sm border border-stone-100 bg-stone-50 mb-8">
             <h3 className="font-bold text-stone-800 mb-4">{editingId ? 'Editar Mapeo' : 'Nuevo Mapeo'}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-stone-500 uppercase">Idioma</label>
                 <input className="w-full p-2 border rounded-xl" value={formData.idioma} onChange={e => setFormData({...formData, idioma: e.target.value.toUpperCase()})} placeholder="EJ. QUECHUA" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-stone-500 uppercase">Tipo de Comunidad</label>
-                <input className="w-full p-2 border rounded-xl" value={formData.tipo_comunidad} onChange={e => setFormData({...formData, tipo_comunidad: e.target.value.toUpperCase()})} placeholder="EJ. AMAZÓNICO" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-stone-500 uppercase">Pueblo Indígena</label>
-                <input className="w-full p-2 border rounded-xl" value={formData.pueblo_indigena} onChange={e => setFormData({...formData, pueblo_indigena: e.target.value.toUpperCase()})} placeholder="EJ. ANDINO" />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
@@ -159,8 +149,6 @@ export const IdiomaManagementView: React.FC<{ onBack: () => void }> = ({ onBack 
                 <tr>
                   <th className="px-6 py-4 font-bold w-16">Orden</th>
                   <th className="px-6 py-4 font-bold">Idioma</th>
-                  <th className="px-6 py-4 font-bold">Tipo de Comunidad</th>
-                  <th className="px-6 py-4 font-bold">Pueblo Indígena</th>
                   <th className="px-6 py-4 font-bold text-right">Acciones</th>
                 </tr>
               </thead>
@@ -186,8 +174,6 @@ export const IdiomaManagementView: React.FC<{ onBack: () => void }> = ({ onBack 
                       </div>
                     </td>
                     <td className="px-6 py-4 font-bold text-stone-800">{m.idioma}</td>
-                    <td className="px-6 py-4 text-stone-600">{m.tipo_comunidad || '-'}</td>
-                    <td className="px-6 py-4 text-stone-600">{m.pueblo_indigena || '-'}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
                         <button onClick={() => handleEdit(m)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={16} /></button>

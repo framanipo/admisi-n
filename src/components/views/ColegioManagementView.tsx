@@ -159,11 +159,11 @@ export const ColegioManagementView: React.FC<{ onBack: () => void }> = ({ onBack
                 <div key={c.id} className="p-4 rounded-xl shadow-sm border border-stone-100 bg-white">
                     {editingId === c.id ? (
                         <div className="space-y-2">
-                            <input className="w-full p-2 border rounded" value={editData.codigo} onChange={e => setEditData({...editData, codigo: e.target.value})} placeholder="Código" />
-                            <input className="w-full p-2 border rounded" value={editData.nombre} onChange={e => setEditData({...editData, nombre: e.target.value})} placeholder="Nombre" />
-                            <input className="w-full p-2 border rounded" value={editData.direccion} onChange={e => setEditData({...editData, direccion: e.target.value})} placeholder="Dirección" />
-                            <input className="w-full p-2 border rounded" value={editData.nivel} onChange={e => setEditData({...editData, nivel: e.target.value})} placeholder="Nivel" />
-                            <input className="w-full p-2 border rounded" value={editData.gestion} onChange={e => setEditData({...editData, gestion: e.target.value})} placeholder="Gestión" />
+                            <input className="w-full p-2 border rounded" value={editData.codigo || ''} onChange={e => setEditData({...editData, codigo: e.target.value})} placeholder="Código" />
+                            <input className="w-full p-2 border rounded" value={editData.nombre || ''} onChange={e => setEditData({...editData, nombre: e.target.value})} placeholder="Nombre" />
+                            <input className="w-full p-2 border rounded" value={editData.direccion || ''} onChange={e => setEditData({...editData, direccion: e.target.value})} placeholder="Dirección" />
+                            <input className="w-full p-2 border rounded" value={editData.nivel || ''} onChange={e => setEditData({...editData, nivel: e.target.value})} placeholder="Nivel" />
+                            <input className="w-full p-2 border rounded" value={editData.gestion || ''} onChange={e => setEditData({...editData, gestion: e.target.value})} placeholder="Gestión" />
                             <div className="flex gap-2">
                                 <button className="bg-green-500 text-white px-3 py-1 rounded" onClick={() => handleEdit(c.id, editData)}>Guardar</button>
                                 <button className="bg-stone-300 text-white px-3 py-1 rounded" onClick={() => setEditingId(null)}>Cancelar</button>

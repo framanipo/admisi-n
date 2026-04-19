@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ChevronLeft, Save, BookOpen, Edit2, Upload, Loader2, Search } from 'lucide-react';
-import { Career, DEFAULT_CAREERS } from './data/defaultCareers';
+import { Career, DEFAULT_CAREERS } from '../../data/defaultCareers';
 
 export const ConfiguracionCarrerasView = ({ onBack, onUpdate }: { onBack: () => void, onUpdate: () => void }) => {
   const [careers, setCareers] = useState<Career[]>([]);

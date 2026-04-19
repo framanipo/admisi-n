@@ -150,7 +150,7 @@ export const ConfiguracionTiposExamenView = ({ onBack, onUpdate, onGoToCronogram
                             <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre del Tipo de Examen</label>
                             <input 
                               type="text" 
-                              value={editForm.nombre} 
+                              value={editForm.nombre || ''} 
                               onChange={e => setEditForm({...editForm, nombre: e.target.value})} 
                               className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all font-bold text-stone-800"
                               placeholder="Ej: Ordinario 2026-I"
@@ -233,7 +233,7 @@ export const ConfiguracionTiposExamenView = ({ onBack, onUpdate, onGoToCronogram
                                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
                                 <input 
                                   type="number" 
-                                  value={editForm.costo_nacional} 
+                                  value={editForm.costo_nacional ?? 0} 
                                   onChange={e => setEditForm({...editForm, costo_nacional: parseFloat(e.target.value)})} 
                                   className="w-full pl-12 pr-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
                                 />
@@ -245,7 +245,7 @@ export const ConfiguracionTiposExamenView = ({ onBack, onUpdate, onGoToCronogram
                                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
                                 <input 
                                   type="number" 
-                                  value={editForm.costo_privado} 
+                                  value={editForm.costo_privado ?? 0} 
                                   onChange={e => setEditForm({...editForm, costo_privado: parseFloat(e.target.value)})} 
                                   className="w-full pl-12 pr-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
                                 />
@@ -369,7 +369,7 @@ export const ConfiguracionTiposExamenView = ({ onBack, onUpdate, onGoToCronogram
                         <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre del Tipo de Examen</label>
                         <input 
                           type="text" 
-                          value={editForm.nombre} 
+                          value={editForm.nombre || ''} 
                           onChange={e => setEditForm({...editForm, nombre: e.target.value})} 
                           className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
                           placeholder="Ej: Ordinario 2026-I"
@@ -428,7 +428,7 @@ export const ConfiguracionTiposExamenView = ({ onBack, onUpdate, onGoToCronogram
                           <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha Inicio</label>
                           <input 
                             type="date" 
-                            value={editForm.fecha_inicio} 
+                            value={editForm.fecha_inicio || ''} 
                             onChange={e => setEditForm({...editForm, fecha_inicio: e.target.value})} 
                             className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
                           />
@@ -437,7 +437,7 @@ export const ConfiguracionTiposExamenView = ({ onBack, onUpdate, onGoToCronogram
                           <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Fecha Fin</label>
                           <input 
                             type="date" 
-                            value={editForm.fecha_fin} 
+                            value={editForm.fecha_fin || ''} 
                             onChange={e => setEditForm({...editForm, fecha_fin: e.target.value})} 
                             className="w-full px-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
                           />
@@ -452,7 +452,7 @@ export const ConfiguracionTiposExamenView = ({ onBack, onUpdate, onGoToCronogram
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
                             <input 
                               type="number" 
-                              value={editForm.costo_nacional} 
+                              value={editForm.costo_nacional ?? 0} 
                               onChange={e => setEditForm({...editForm, costo_nacional: parseFloat(e.target.value)})} 
                               className="w-full pl-12 pr-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
                             />
@@ -464,7 +464,7 @@ export const ConfiguracionTiposExamenView = ({ onBack, onUpdate, onGoToCronogram
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">S/</span>
                             <input 
                               type="number" 
-                              value={editForm.costo_privado} 
+                              value={editForm.costo_privado ?? 0} 
                               onChange={e => setEditForm({...editForm, costo_privado: parseFloat(e.target.value)})} 
                               className="w-full pl-12 pr-5 py-4 bg-white border border-stone-200 rounded-2xl outline-none focus:border-uniq-cyan transition-all font-bold text-stone-800"
                             />

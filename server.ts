@@ -103,7 +103,7 @@ async function startServer() {
   let pool = mysql.createPool({
     ...dbSettings,
     waitForConnections: true,
-    connectionLimit: 5,
+    connectionLimit: 20,
     queueLimit: 0,
     connectTimeout: 5000,
     enableKeepAlive: true,
@@ -116,7 +116,7 @@ async function startServer() {
     pool = mysql.createPool({
       ...newConfig,
       waitForConnections: true,
-      connectionLimit: 5,
+      connectionLimit: 20,
       queueLimit: 0,
       connectTimeout: 5000,
       enableKeepAlive: true,
@@ -197,6 +197,8 @@ async function startServer() {
       
       // 1. CREATE TABLES
       
+      await connection.query("INSERT IGNORE INTO configuracion_seguridad (id, modificacion_habilitada) VALUES (1, FALSE)");
+
       // Table for Usuarios
       await connection.query(`
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -342,8 +344,6 @@ async function startServer() {
           usar_rango BOOLEAN DEFAULT TRUE,
           costo_nacional DECIMAL(10,2) DEFAULT 0,
           costo_privado DECIMAL(10,2) DEFAULT 0,
-          habilitado BOOLEAN DEFAULT TRUE,
-          deshabilitado BOOLEAN DEFAULT FALSE,
           eliminado BOOLEAN DEFAULT FALSE,
           fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           indice_orden INT DEFAULT 0
@@ -394,6 +394,45 @@ async function startServer() {
           fondo_url VARCHAR(255) NOT NULL DEFAULT 'https://picsum.photos/seed/quillabamba/1920/1080'
         )
       `);
+
+      // Table for Configuracion PDF
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS configuracion_pdf (
+          id INT PRIMARY KEY DEFAULT 1,
+          titulo VARCHAR(255) DEFAULT 'FICHA DE PRE-INSCRIPCIÓN',
+          subtitulo VARCHAR(255) DEFAULT 'ADMISIÓN 2026',
+          logo_url VARCHAR(255),
+          logo_size INT DEFAULT 25,
+          show_side_logos BOOLEAN DEFAULT TRUE,
+          primary_color VARCHAR(7) DEFAULT '#000000',
+          recomendaciones TEXT,
+          config_data JSON,
+          fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Check if config_data column exists (for existing tables)
+      try {
+        const [cols]: any = await connection.query("SHOW COLUMNS FROM configuracion_pdf LIKE 'config_data'");
+        if (cols.length === 0) {
+          await connection.query("ALTER TABLE configuracion_pdf ADD COLUMN config_data JSON");
+        }
+      } catch (e) {
+        console.error("Error checking/adding config_data column:", e);
+      }
+
+      // Insert default PDF config if not exists
+      const [pdfRows]: any = await connection.query("SELECT id FROM configuracion_pdf WHERE id = 1");
+      if (pdfRows.length === 0) {
+        const defaultRecs = JSON.stringify([
+          '1. Imprima esta ficha y preséntela el día del examen de admisión.',
+          '2. Debe llevar esta ficha junto con su VOUCHER DE PAGO a la Oficina de Admisión para confirmar su inscripción.',
+          '3. Lleve consigo su DNI original y carnet de postulante.',
+          '4. Preséntese al local de examen con 1 hora de anticipación.',
+          '5. Está prohibido el ingreso con celulares, relojes inteligentes u otros dispositivos electrónicos.'
+        ]);
+        await connection.query("INSERT INTO configuracion_pdf (id, recomendaciones) VALUES (1, ?)", [defaultRecs]);
+      }
 
       // Table for Lugares de Inscripción
       await connection.query(`
@@ -446,27 +485,321 @@ async function startServer() {
         CREATE TABLE IF NOT EXISTS mapeo_idiomas (
           id INT AUTO_INCREMENT PRIMARY KEY,
           idioma VARCHAR(255) NOT NULL UNIQUE,
-          pueblo_indigena VARCHAR(255),
-          tipo_comunidad VARCHAR(255),
           orden INT DEFAULT 0
         )
       `);
 
+      // Table for Idiomas (Simplified)
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS idiomas (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          nombre VARCHAR(255) NOT NULL UNIQUE
+        )
+      `);
+
+      const [idiomasRows]: any = await connection.query("SELECT COUNT(*) as count FROM idiomas");
+      if (idiomasRows[0].count !== 49) {
+        await connection.query("DELETE FROM idiomas");
+        await connection.query(`
+          INSERT INTO idiomas (id, nombre) VALUES 
+          (1, 'ACHUAR'),
+          (2, 'AIMARA'),
+          (3, 'AMAHUACA'),
+          (4, 'ARABELA'),
+          (5, 'ASHANIKA'),
+          (6, 'ASHENINKA'),
+          (7, 'AWAJÚN'),
+          (8, 'BORA'),
+          (9, 'CASHINAHUA'),
+          (10, 'CHAMICURO'),
+          (11, 'ESE EJA'),
+          (12, 'ESPAÑOL'),
+          (13, 'HARAKBUT'),
+          (14, 'IKITU'),
+          (15, 'IÑAPARI'),
+          (16, 'ISKONAWA'),
+          (17, 'JAQARU'),
+          (18, 'KAKATAIBO'),
+          (19, 'KAKINTE'),
+          (20, 'KANDOZI-CHAPRA'),
+          (21, 'KAPANAWA'),
+          (22, 'KAWKI'),
+          (23, 'KUKAMA KUKAMIRIA'),
+          (24, 'MADIJA'),
+          (25, 'MAIJIKI'),
+          (26, 'MATSÉS'),
+          (27, 'MATSIGENKA'),
+          (28, 'UNICHE'),
+          (29, 'MURUI-MUINANI'),
+          (30, 'NAHUA'),
+          (31, 'NANTI'),
+          (32, 'NOMATSIGENGA'),
+          (33, 'OCAINA'),
+          (34, 'OMAGUA'),
+          (35, 'QUECHUA'),
+          (36, 'RESÍGARO'),
+          (37, 'SECOYA'),
+          (38, 'SHARANAHUA'),
+          (39, 'SHAWI'),
+          (40, 'SHIPIBO-KONIBO'),
+          (41, 'SHIWILU'),
+          (42, 'TAUSHIRO'),
+          (43, 'TICUNA'),
+          (44, 'URARINA'),
+          (45, 'WAMPIS'),
+          (46, 'YAGUA'),
+          (47, 'YAMINAHUA'),
+          (48, 'YANESHA'),
+          (49, 'YINE')
+        `);
+      }
+
+      // Table for Años de Egreso
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS anios_egreso (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          anio INT NOT NULL UNIQUE
+        )
+      `);
+
+      const [aniosRows]: any = await connection.query("SELECT COUNT(*) as count FROM anios_egreso");
+      if (aniosRows[0].count === 0) {
+        const currentYear = 2026;
+        const years = [];
+        for (let i = 0; i < 100; i++) {
+          years.push([currentYear - i]);
+        }
+        await connection.query("INSERT INTO anios_egreso (anio) VALUES ?", [years]);
+      }
+
       const [mapeoRows]: any = await connection.query("SELECT COUNT(*) as count FROM mapeo_idiomas");
       if (mapeoRows[0].count === 0) {
         await connection.query(`
-          INSERT INTO mapeo_idiomas (idioma, pueblo_indigena, tipo_comunidad, orden) VALUES 
-          ('CASTELLANO', '', '', 1),
-          ('QUECHUA', 'ANDINO', '', 2),
-          ('AIMARA', 'ANDINO', '', 3),
-          ('MATSHIGENKA', '', 'AMAZÓNICO', 4),
-          ('YINE', '', 'AMAZÓNICO', 5),
-          ('ASHANINKA', '', 'AMAZÓNICO', 6),
-          ('CAQUINTE', '', 'AMAZÓNICO', 7),
-          ('SHIPIBO', '', 'AMAZÓNICO', 8),
-          ('AWAJUN', '', 'AMAZÓNICO', 9),
-          ('OTROS', '', 'AMAZÓNICO', 10)
+          INSERT INTO mapeo_idiomas (idioma, orden) VALUES 
+          ('ESPAÑOL', 1),
+          ('QUECHUA', 2),
+          ('AIMARA', 3),
+          ('MATSHIGENKA', 4),
+          ('YINE', 5),
+          ('ASHANINKA', 6),
+          ('CAQUINTE', 7),
+          ('SHIPIBO', 8),
+          ('AWAJUN', 9),
+          ('OTROS', 10)
         `);
+      } else {
+        // Migration: Rename CASTELLANO to ESPAÑOL if it exists
+        await connection.query("UPDATE mapeo_idiomas SET idioma = 'ESPAÑOL' WHERE idioma = 'CASTELLANO'");
+      }
+
+      // Table for Paises
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS paises (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          pais VARCHAR(255) NOT NULL,
+          nacionalidad VARCHAR(255) NOT NULL
+        )
+      `);
+
+      const [paisesRows]: any = await connection.query("SELECT COUNT(*) as count FROM paises");
+      if (paisesRows[0].count === 0) {
+        const countries = [
+          ['Perú', 'Peruana'],
+          ['Afganistán', 'Afgana'],
+          ['Albania', 'Albanesa'],
+          ['Alemania', 'Alemana'],
+          ['Andorra', 'Andorrana'],
+          ['Angola', 'Angoleña'],
+          ['Antigua y Barbuda', 'Antiguana'],
+          ['Arabia Saudita', 'Saudí'],
+          ['Argelia', 'Argelina'],
+          ['Argentina', 'Argentina'],
+          ['Armenia', 'Armenia'],
+          ['Australia', 'Australiana'],
+          ['Austria', 'Austriaca'],
+          ['Azerbaiyán', 'Azerbaiyana'],
+          ['Bahamas', 'Bahameña'],
+          ['Bangladés', 'Bangladesí'],
+          ['Barbados', 'Barbadense'],
+          ['Baréin', 'Bareiní'],
+          ['Bélgica', 'Belga'],
+          ['Belice', 'Beliceña'],
+          ['Benín', 'Beninesa'],
+          ['Bielorrusia', 'Bielorrusa'],
+          ['Birmania', 'Birmana'],
+          ['Bolivia', 'Boliviana'],
+          ['Bosnia y Herzegovina', 'Bosnia'],
+          ['Botsuana', 'Botsuana'],
+          ['Brasil', 'Brasileña'],
+          ['Brunéi', 'Bruneana'],
+          ['Bulgaria', 'Búlgara'],
+          ['Burkina Faso', 'Burkinesa'],
+          ['Burundi', 'Burundesa'],
+          ['Bután', 'Butanesa'],
+          ['Cabo Verde', 'Caboverdiana'],
+          ['Camboya', 'Camboyana'],
+          ['Camerún', 'Camerunesa'],
+          ['Canadá', 'Canadiense'],
+          ['Catar', 'Catarí'],
+          ['Chad', 'Chadiana'],
+          ['Chile', 'Chilena'],
+          ['China', 'China'],
+          ['Chipre', 'Chipriota'],
+          ['Ciudad del Vaticano', 'Vaticana'],
+          ['Colombia', 'Colombiana'],
+          ['Comoras', 'Comorense'],
+          ['Corea del Norte', 'Norcoreana'],
+          ['Corea del Sur', 'Surcoreana'],
+          ['Costa de Marfil', 'Marfileña'],
+          ['Costa Rica', 'Costarricense'],
+          ['Croacia', 'Croata'],
+          ['Cuba', 'Cubana'],
+          ['Dinamarca', 'Danesa'],
+          ['Dominica', 'Dominiquesa'],
+          ['Ecuador', 'Ecuatoriana'],
+          ['Egipto', 'Egipcia'],
+          ['El Salvador', 'Salvadoreña'],
+          ['Emiratos Árabes Unidos', 'Emiratí'],
+          ['Eritrea', 'Eritrea'],
+          ['Eslovaquia', 'Eslovaca'],
+          ['Eslovenia', 'Eslovena'],
+          ['España', 'Española'],
+          ['Estados Unidos', 'Estadounidense'],
+          ['Estonia', 'Estonia'],
+          ['Etiopía', 'Etíope'],
+          ['Filipinas', 'Filipina'],
+          ['Finlandia', 'Finlandesa'],
+          ['Fiyi', 'Fiyiana'],
+          ['Francia', 'Francesa'],
+          ['Gabón', 'Gabonesa'],
+          ['Gambia', 'Gambiana'],
+          ['Georgia', 'Georgiana'],
+          ['Ghana', 'Ghanesa'],
+          ['Granada', 'Granadina'],
+          ['Grecia', 'Griega'],
+          ['Guatemala', 'Guatemalteca'],
+          ['Guinea ecuatorial', 'Ecuatoguineana'],
+          ['Guinea', 'Guineana'],
+          ['Guinea-Bisáu', 'Guineana'],
+          ['Guyana', 'Guyanesa'],
+          ['Haití', 'Haitiana'],
+          ['Honduras', 'Hondureña'],
+          ['Hungría', 'Húngara'],
+          ['India', 'India'],
+          ['Indonesia', 'Indonesia'],
+          ['Irak', 'Iraquí'],
+          ['Irán', 'Iraní'],
+          ['Irlanda', 'Irlandesa'],
+          ['Islandia', 'Islandesa'],
+          ['Islas Marshall', 'Marshalesa'],
+          ['Islas Salomón', 'Salomonense'],
+          ['Israel', 'Israelí'],
+          ['Italia', 'Italiana'],
+          ['Jamaica', 'Jamaiquina'],
+          ['Japón', 'Japonesa'],
+          ['Jordania', 'Jordana'],
+          ['Kazajistán', 'Kazaja'],
+          ['Kenia', 'Keniata'],
+          ['Kirguistán', 'Kirguisa'],
+          ['Kiribati', 'Kiribatiana'],
+          ['Kuwait', 'Kuwaití'],
+          ['Laos', 'Laosiana'],
+          ['Lesoto', 'Lesotense'],
+          ['Letonia', 'Letona'],
+          ['Líbano', 'Libanesa'],
+          ['Liberia', 'Liberiana'],
+          ['Libia', 'Libia'],
+          ['Liechtenstein', 'Liechtensteiniana'],
+          ['Lituania', 'Lituana'],
+          ['Luxemburgo', 'Luxemburguesa'],
+          ['Madagascar', 'Malgache'],
+          ['Malasia', 'Malasia'],
+          ['Malaui', 'Malauí'],
+          ['Maldivas', 'Maldiva'],
+          ['Malí', 'Maliense'],
+          ['Malta', 'Maltesa'],
+          ['Marruecos', 'Marroquí'],
+          ['Mauricio', 'Mauriciana'],
+          ['Mauritania', 'Mauritana'],
+          ['México', 'Mexicana'],
+          ['Micronesia', 'Micronesia'],
+          ['Moldavia', 'Moldava'],
+          ['Mónaco', 'Monegasca'],
+          ['Mongolia', 'Mongola'],
+          ['Montenegro', 'Montenegrina'],
+          ['Mozambique', 'Mozambiqueña'],
+          ['Namibia', 'Namibia'],
+          ['Nauru', 'Nauruana'],
+          ['Nepal', 'Nepalí'],
+          ['Nicaragua', 'Nicaragüense'],
+          ['Níger', 'Nigerina'],
+          ['Nigeria', 'Nigeriana'],
+          ['Noruega', 'Noruega'],
+          ['Nueva Zelanda', 'Neozelandesa'],
+          ['Omán', 'Omaní'],
+          ['Países Bajos', 'Neerlandesa'],
+          ['Pakistán', 'Pakistaní'],
+          ['Palaos', 'Palauana'],
+          ['Panamá', 'Panameña'],
+          ['Papúa Nueva Guinea', 'Papú'],
+          ['Paraguay', 'Paraguaya'],
+          ['Polonia', 'Polaca'],
+          ['Portugal', 'Portuguesa'],
+          ['Reino Unido', 'Británica'],
+          ['República Centroafricana', 'Centroafricana'],
+          ['República Checa', 'Checa'],
+          ['República de Macedonia', 'Macedonia'],
+          ['República del Congo', 'Congoleña'],
+          ['República Democrática del Congo', 'Congoleña'],
+          ['República Dominicana', 'Dominicana'],
+          ['República Sudafricana', 'Sudafricana'],
+          ['Ruanda', 'Ruandesa'],
+          ['Rumanía', 'Rumana'],
+          ['Rusia', 'Rusa'],
+          ['Samoa', 'Samoana'],
+          ['San Cristóbal y Nieves', 'Cristobaleña'],
+          ['San Marino', 'Sanmarinense'],
+          ['San Vicente y las Granadinas', 'Sanvicentina'],
+          ['Santa Lucía', 'Santalucense'],
+          ['Santo Tomé y Príncipe', 'Santotomense'],
+          ['Senegal', 'Senegalesa'],
+          ['Serbia', 'Serbia'],
+          ['Seychelles', 'Seychellense'],
+          ['Sierra Leona', 'Sierraleonesa'],
+          ['Singapur', 'Singapurense'],
+          ['Siria', 'Siria'],
+          ['Somalia', 'Somalí'],
+          ['Sri Lanka', 'Ceilanesa'],
+          ['Suazilandia', 'Suazi'],
+          ['Sudán del Sur', 'Sursudanesa'],
+          ['Sudán', 'Sudanesa'],
+          ['Suecia', 'Sueca'],
+          ['Suiza', 'Suiza'],
+          ['Surinam', 'Surinamesa'],
+          ['Tailandia', 'Tailandesa'],
+          ['Tanzania', 'Tanzana'],
+          ['Tayikistán', 'Tayika'],
+          ['Timor Oriental', 'Timorense'],
+          ['Togo', 'Togolesa'],
+          ['Tonga', 'Tongana'],
+          ['Trinidad y Tobago', 'Trinitense'],
+          ['Túnez', 'Tunecina'],
+          ['Turkmenistán', 'Turcomana'],
+          ['Turquía', 'Turca'],
+          ['Tuvalu', 'Tuvaluana'],
+          ['Ucrania', 'Ucraniana'],
+          ['Uganda', 'Ugandesa'],
+          ['Uruguay', 'Uruguaya'],
+          ['Uzbekistán', 'Uzbeka'],
+          ['Vanuatu', 'Vanuatuense'],
+          ['Venezuela', 'Venezolana'],
+          ['Vietnam', 'Vietnamita'],
+          ['Yemen', 'Yemení'],
+          ['Yibuti', 'Yibutiana'],
+          ['Zambia', 'Zambiana'],
+          ['Zimbabue', 'Zimbabuense']
+        ];
+        await connection.query("INSERT INTO paises (pais, nacionalidad) VALUES ?", [countries]);
       }
 
       // Table for Provincias
@@ -502,6 +835,24 @@ async function startServer() {
         await connection.query("INSERT INTO distritos (id, nombre, provincia_id) SELECT id, name, province_id FROM districts");
       }
 
+      // Table for Ubigeo Nacimiento (Place of Birth)
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS ubigeo_nacimiento (
+          ubigeo INT PRIMARY KEY,
+          nombre VARCHAR(255) NOT NULL,
+          provincia_id INT
+        )
+      `);
+
+      // Populate ubigeo_nacimiento from distritos if empty
+      const [ubigeoCount]: any = await connection.query("SELECT COUNT(*) as count FROM ubigeo_nacimiento");
+      if (ubigeoCount[0].count === 0) {
+        await connection.query(`
+          INSERT INTO ubigeo_nacimiento (ubigeo, nombre, provincia_id)
+          SELECT id, nombre, provincia_id FROM distritos
+        `);
+      }
+
       // Table for Preinscripciones
       await connection.query(`
         CREATE TABLE IF NOT EXISTS preinscripciones (
@@ -511,11 +862,11 @@ async function startServer() {
           apellido_materno VARCHAR(255) NOT NULL,
           dni VARCHAR(20) NOT NULL,
           correo VARCHAR(255) NOT NULL,
-          telefono VARCHAR(20),
+          movil VARCHAR(20),
           fecha_nacimiento DATE,
           genero VARCHAR(20),
-          pueblo_indigena VARCHAR(50),
-          tipo_comunidad VARCHAR(255),
+          pais VARCHAR(255) DEFAULT 'Perú',
+          nacionalidad VARCHAR(255) DEFAULT 'Peruana',
           idioma VARCHAR(255),
           idioma_lee BOOLEAN DEFAULT FALSE,
           idioma_habla BOOLEAN DEFAULT FALSE,
@@ -527,6 +878,7 @@ async function startServer() {
           nacimiento_region VARCHAR(100),
           nacimiento_provincia VARCHAR(100),
           nacimiento_distrito VARCHAR(100),
+          nacimiento_ubigeo VARCHAR(10),
           colegio_nombre VARCHAR(255),
           colegio_tipo VARCHAR(50),
           colegio_nivel VARCHAR(50),
@@ -550,14 +902,55 @@ async function startServer() {
           apoderado_nombres VARCHAR(255),
           apoderado_apellido_paterno VARCHAR(255),
           apoderado_apellido_materno VARCHAR(255),
+          apoderado_movil VARCHAR(20),
+          codigo_carrera VARCHAR(50),
+          monto_pago DECIMAL(10, 2),
           fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
-      // Rename department columns to region columns if they exist
+      // Table for codigo_segurida
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS codigo_segurida (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          dni VARCHAR(20) NOT NULL,
+          codigo VARCHAR(10) NOT NULL,
+          usado BOOLEAN DEFAULT FALSE,
+          fecha_generacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          fecha_uso TIMESTAMP NULL,
+          UNIQUE KEY unique_dni (dni)
+        )
+      `);
+
+      // Delete traces of DNI 44107713
+      await connection.query("DELETE FROM preinscripciones WHERE dni = '44107713'");
+      await connection.query("DELETE FROM codigo_segurida WHERE dni = '44107713'");
+      try {
+        await connection.query("DELETE FROM Codigo_seguridad WHERE dni = '44107713'");
+      } catch (e) {
+        // Old table might not exist
+      }
+
+      // Add missing columns if they don't exist
       const [preinscripcionesColumns]: any = await connection.query("SHOW COLUMNS FROM preinscripciones");
       const columnNames = preinscripcionesColumns.map((c: any) => c.Field);
-      
+
+      if (!columnNames.includes('codigo_carrera')) {
+        await connection.query("ALTER TABLE preinscripciones ADD COLUMN codigo_carrera VARCHAR(50) AFTER apoderado_movil");
+      }
+      if (!columnNames.includes('monto_pago')) {
+        await connection.query("ALTER TABLE preinscripciones ADD COLUMN monto_pago DECIMAL(10, 2) AFTER codigo_carrera");
+      }
+
+      // Drop obsolete columns as per user request
+      const obsoleteColumns = ['pueblo_indigena', 'tipo_comunidad', 'precio_pagar', 'pueblo_indigena_tipo_comunidad'];
+      for (const col of obsoleteColumns) {
+        if (columnNames.includes(col)) {
+          await connection.query(`ALTER TABLE preinscripciones DROP COLUMN ${col}`);
+        }
+      }
+
+      // Rename department columns to region columns if they exist
       const renameColumns = [
         ['procedencia_departamento', 'procedencia_region', 'VARCHAR(100)'],
         ['nacimiento_departamento', 'nacimiento_region', 'VARCHAR(100)'],
@@ -591,11 +984,13 @@ async function startServer() {
         ['apoderado_nombres', 'VARCHAR(255)'],
         ['apoderado_apellido_paterno', 'VARCHAR(255)'],
         ['apoderado_apellido_materno', 'VARCHAR(255)'],
+        ['apoderado_movil', 'VARCHAR(20)'],
         ['procedencia_provincia', 'VARCHAR(100)'],
         ['procedencia_distrito', 'VARCHAR(100)'],
         ['procedencia_direccion', 'TEXT'],
         ['nacimiento_provincia', 'VARCHAR(100)'],
         ['nacimiento_distrito', 'VARCHAR(100)'],
+        ['nacimiento_ubigeo', 'VARCHAR(10)'],
         ['colegio_provincia', 'VARCHAR(100)'],
         ['colegio_distrito', 'VARCHAR(100)'],
         ['colegio_nivel', 'VARCHAR(50)'],
@@ -603,10 +998,11 @@ async function startServer() {
         ['idioma_lee', 'BOOLEAN DEFAULT FALSE'],
         ['idioma_habla', 'BOOLEAN DEFAULT FALSE'],
         ['idioma_escribe', 'BOOLEAN DEFAULT FALSE'],
-        ['tipo_comunidad', 'VARCHAR(255)'],
+        ['pais', 'VARCHAR(255) DEFAULT "Perú"'],
+        ['nacionalidad', 'VARCHAR(255) DEFAULT "Peruana"'],
+        ['movil', 'VARCHAR(20)'],
         ['codigo_carrera', 'VARCHAR(50)'],
         ['monto_pago', 'DECIMAL(10, 2)'],
-        ['precio_pagar', 'DECIMAL(10, 2)'],
         ['observacion', 'TEXT'],
         ['modificado_por_id', 'INT']
       ];
@@ -710,7 +1106,6 @@ async function startServer() {
         "ALTER TABLE modalidades ADD COLUMN pedir_documentacion BOOLEAN DEFAULT FALSE",
         "ALTER TABLE modalidades ADD COLUMN anio INT",
         "ALTER TABLE modalidades ADD COLUMN fecha DATE",
-        "ALTER TABLE modalidades ADD COLUMN habilitado BOOLEAN DEFAULT TRUE",
         "ALTER TABLE modalidades ADD COLUMN eliminado BOOLEAN DEFAULT FALSE",
         "ALTER TABLE modalidades ADD COLUMN fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         "ALTER TABLE modalidades ADD COLUMN usar_rango BOOLEAN DEFAULT TRUE",
@@ -740,7 +1135,9 @@ async function startServer() {
         "ALTER TABLE detalles_carreras ADD COLUMN imagen_zoom INT DEFAULT 100",
         "ALTER TABLE detalles_carreras ADD COLUMN imagen_offset_x INT DEFAULT 50",
         "ALTER TABLE detalles_carreras ADD COLUMN imagen_offset_y INT DEFAULT 50",
-        "ALTER TABLE mapeo_idiomas ADD COLUMN orden INT DEFAULT 0"
+        "ALTER TABLE mapeo_idiomas ADD COLUMN orden INT DEFAULT 0",
+        "ALTER TABLE codigo_segurida MODIFY COLUMN codigo VARCHAR(10) NOT NULL",
+        "CREATE TABLE IF NOT EXISTS configuracion_seguridad (id INT PRIMARY KEY DEFAULT 1, modificacion_habilitada BOOLEAN DEFAULT FALSE, fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)"
       ];
 
       for (const sql of columns) {
@@ -800,6 +1197,56 @@ async function startServer() {
     await fs.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2));
   }
 
+  // Idiomas API
+  app.get("/api/paises", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT * FROM paises ORDER BY (pais = 'Perú') DESC, pais ASC");
+      res.json(rows);
+    } catch (error) {
+      console.error("Error fetching paises:", error);
+      res.status(500).json({ error: "Failed to fetch paises" });
+    }
+  });
+
+  app.get("/api/ubigeo-nacimiento", async (req, res) => {
+    try {
+      const [rows] = await pool.query(`
+        SELECT 
+          u.ubigeo, 
+          u.nombre as distrito, 
+          p.nombre as provincia, 
+          r.nombre as region
+        FROM ubigeo_nacimiento u
+        JOIN provincias p ON u.provincia_id = p.id
+        JOIN regiones r ON p.region_id = r.id
+        ORDER BY u.nombre ASC
+      `);
+      res.json(rows);
+    } catch (error) {
+      console.error("Error fetching ubigeo_nacimiento:", error);
+      res.status(500).json({ error: "Failed to fetch ubigeo_nacimiento" });
+    }
+  });
+
+  app.get("/api/idiomas", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT id, nombre FROM idiomas ORDER BY (CASE WHEN nombre = 'ESPAÑOL' THEN 0 ELSE 1 END), nombre ASC");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "idiomas");
+    }
+  });
+
+  // Años de Egreso API
+  app.get("/api/anios-egreso", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT id, anio FROM anios_egreso ORDER BY anio DESC");
+      res.json(rows);
+    } catch (error) {
+      handleDbError(res, error, "anios_egreso");
+    }
+  });
+
   app.get("/api/mapeo-idiomas", async (req, res) => {
     try {
       const [rows] = await pool.query("SELECT * FROM mapeo_idiomas ORDER BY orden ASC, idioma ASC");
@@ -823,13 +1270,13 @@ async function startServer() {
   });
 
   app.post("/api/mapeo-idiomas", async (req, res) => {
-    const { idioma, pueblo_indigena, tipo_comunidad } = req.body;
+    const { idioma } = req.body;
     try {
       const [maxRows]: any = await pool.query("SELECT MAX(orden) as maxOrden FROM mapeo_idiomas");
       const nextOrden = (maxRows[0].maxOrden || 0) + 1;
       await pool.query(
-        "INSERT INTO mapeo_idiomas (idioma, pueblo_indigena, tipo_comunidad, orden) VALUES (?, ?, ?, ?)",
-        [idioma, pueblo_indigena, tipo_comunidad, nextOrden]
+        "INSERT INTO mapeo_idiomas (idioma, orden) VALUES (?, ?)",
+        [idioma, nextOrden]
       );
       res.json({ success: true });
     } catch (e) {
@@ -856,11 +1303,11 @@ async function startServer() {
   });
 
   app.put("/api/mapeo-idiomas/:id", async (req, res) => {
-    const { idioma, pueblo_indigena, tipo_comunidad } = req.body;
+    const { idioma } = req.body;
     try {
       await pool.query(
-        "UPDATE mapeo_idiomas SET idioma = ?, pueblo_indigena = ?, tipo_comunidad = ? WHERE id = ?",
-        [idioma, pueblo_indigena, tipo_comunidad, req.params.id]
+        "UPDATE mapeo_idiomas SET idioma = ? WHERE id = ?",
+        [idioma, req.params.id]
       );
       res.json({ success: true });
     } catch (e) {
@@ -1073,7 +1520,7 @@ async function startServer() {
   const handleDbError = (res: express.Response, error: any, context: string) => {
     console.error(`Error fetching ${context}:`, error);
     if (error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED' || error.code === 'ER_HOST_NOT_PRIVILEGED' || error.code === 'ER_ACCESS_DENIED_ERROR') {
-      res.status(503).json({ 
+      res.status(500).json({ 
         error: "Database Connection Error", 
         details: "El servidor de base de datos no responde o el acceso fue denegado. Asegúrese de autorizar la IP 34.34.229.10 en cPanel (Remote MySQL)." 
       });
@@ -1086,7 +1533,7 @@ async function startServer() {
   app.get("/api/cronograma", async (req, res) => {
     try {
       const [manualEventsRaw]: any = await pool.query("SELECT id, evento AS event, fecha AS date, fecha_inicio, fecha_fin, usar_rango, estado AS status, habilitado, indice_orden AS order_index FROM cronograma ORDER BY indice_orden ASC");
-      const [modalidades]: any = await pool.query("SELECT * FROM modalidades WHERE habilitado = 1 AND eliminado = 0");
+      const [modalidades]: any = await pool.query("SELECT * FROM modalidades WHERE eliminado = 0");
       
       const now = new Date();
       now.setHours(0, 0, 0, 0);
@@ -1580,7 +2027,7 @@ async function startServer() {
       const [rows] = await pool.query(`
         SELECT 
           id, nombres, apellido_paterno, apellido_materno, dni, correo AS email, telefono, 
-          fecha_nacimiento, genero, pueblo_indigena, tipo_comunidad, idioma, 
+          fecha_nacimiento, genero, idioma, 
           idioma_lee, idioma_habla, idioma_escribe,
           procedencia_region AS procedenciaRegion, procedencia_provincia AS procedenciaProvincia, procedencia_distrito AS procedenciaDistrito, procedencia_direccion AS procedenciaDireccion,
           nacimiento_region AS nacimientoRegion, nacimiento_provincia AS nacimientoProvincia, nacimiento_distrito AS nacimientoDistrito,
@@ -1591,7 +2038,8 @@ async function startServer() {
           tiene_condiciones_especiales AS has_special_conditions, discapacidad, numero_conadis AS conadis_number, 
           es_deportista AS is_deportista, es_victima_violencia AS is_victima_violencia, 
           es_servicio_militar AS is_servicio_militar, es_primeros_puestos AS is_primeros_puestos, 
-          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno 
+          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno,
+          monto_pago
         FROM preinscripciones 
         WHERE dni = ? 
         ORDER BY fecha_creacion DESC 
@@ -1612,11 +2060,11 @@ async function startServer() {
     try {
       const [rows] = await pool.query(`
         SELECT 
-          id, nombres, apellido_paterno, apellido_materno, dni, correo AS email, telefono, 
-          fecha_nacimiento, genero, pueblo_indigena, tipo_comunidad, idioma,
+          id, nombres, apellido_paterno, apellido_materno, dni, correo AS email, movil, 
+          fecha_nacimiento, genero, idioma,
           idioma_lee, idioma_habla, idioma_escribe,
           procedencia_region AS procedenciaRegion, procedencia_provincia AS procedenciaProvincia, procedencia_distrito AS procedenciaDistrito, procedencia_direccion AS procedenciaDireccion,
-          nacimiento_region AS nacimientoRegion, nacimiento_provincia AS nacimientoProvincia, nacimiento_distrito AS nacimientoDistrito,
+          nacimiento_region AS nacimientoRegion, nacimiento_provincia AS nacimientoProvincia, nacimiento_distrito AS nacimientoDistrito, nacimiento_ubigeo AS nacimientoUbigeo,
           colegio_nombre AS schoolName, colegio_tipo AS schoolType, colegio_nivel AS schoolLevel,
           colegio_region AS colegioRegion, colegio_provincia AS colegioProvincia, colegio_distrito AS colegioDistrito,
           anio_egreso AS graduationYear, carrera, modalidad, lugar_inscripcion, 
@@ -1624,7 +2072,8 @@ async function startServer() {
           tiene_condiciones_especiales AS has_special_conditions, discapacidad, numero_conadis AS conadis_number, 
           es_deportista AS is_deportista, es_victima_violencia AS is_victima_violencia, 
           es_servicio_militar AS is_servicio_militar, es_primeros_puestos AS is_primeros_puestos, 
-          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno 
+          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno, apoderado_movil,
+          monto_pago
         FROM preinscripciones 
         ORDER BY fecha_creacion DESC
       `);
@@ -1643,11 +2092,11 @@ async function startServer() {
         maternalSurname,
         dni,
         email,
-        phone,
+        movil,
         birthDate,
         gender,
-        indigenousPeople,
-        tipoComunidad,
+        pais,
+        nacionalidad,
         idioma,
         idiomaLee,
         idiomaHabla,
@@ -1659,6 +2108,7 @@ async function startServer() {
         nacimientoRegion,
         nacimientoProvincia,
         nacimientoDistrito,
+        nacimientoUbigeo,
         schoolName,
         schoolType,
         schoolLevel,
@@ -1680,23 +2130,9 @@ async function startServer() {
         apoderadoDni,
         apoderadoNombres,
         apoderadoApellidoPaterno,
-        apoderadoApellidoMaterno
+        apoderadoApellidoMaterno,
+        apoderadoMovil
       } = req.body;
-
-      // Validate if student is in the master list (registrados)
-      // Commented out to allow any user to pre-register during testing
-      /*
-      const [registeredRows]: any = await pool.query(
-        "SELECT id, dni, nombres, apellido_paterno, apellido_materno, correo AS email, telefono FROM registrados WHERE dni = ?",
-        [dni]
-      );
-
-      if (registeredRows.length === 0) {
-        return res.status(403).json({ 
-          error: "El DNI ingresado no se encuentra en la lista de postulantes habilitados. Por favor, verifique sus datos o contacte con soporte." 
-        });
-      }
-      */
 
       // Get career code
       const [careerRows]: any = await pool.query("SELECT codigo FROM carreras WHERE nombre = ?", [career]);
@@ -1707,40 +2143,50 @@ async function startServer() {
       const costoNacional = modalityRows[0]?.costo_nacional || 0;
       const costoPrivado = modalityRows[0]?.costo_privado || 0;
       
-      const montoPago = schoolType === 'Privado' ? costoPrivado : costoNacional;
+      const typeLower = (schoolType || '').toLowerCase();
+      const montoPago = (typeLower.includes('privad') || typeLower.includes('particular')) ? costoPrivado : costoNacional;
 
       const [result] = await pool.query(
         `INSERT INTO preinscripciones (
-          nombres, apellido_paterno, apellido_materno, dni, correo, telefono, 
-          fecha_nacimiento, genero, pueblo_indigena, tipo_comunidad, idioma,
+          nombres, apellido_paterno, apellido_materno, dni, correo, movil, 
+          fecha_nacimiento, genero, pais, nacionalidad, idioma,
           idioma_lee, idioma_habla, idioma_escribe,
           procedencia_region, procedencia_provincia, procedencia_distrito, procedencia_direccion,
-          nacimiento_region, nacimiento_provincia, nacimiento_distrito,
+          nacimiento_region, nacimiento_provincia, nacimiento_distrito, nacimiento_ubigeo,
           colegio_nombre, colegio_tipo, colegio_nivel, colegio_region, colegio_provincia, colegio_distrito,
-          anio_egreso, carrera, modalidad, lugar_inscripcion, estado, modificado_por,
+          anio_egreso, carrera, modalidad, lugar_inscripcion, modificado_por, estado,
           tiene_condiciones_especiales, discapacidad, numero_conadis, es_deportista, 
           es_victima_violencia, es_servicio_militar, es_primeros_puestos,
-          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno,
+          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno, apoderado_movil,
           codigo_carrera, monto_pago
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          names, paternalSurname, maternalSurname, dni, email, phone,
-          birthDate || null, gender, indigenousPeople, tipoComunidad, idioma,
+          names, paternalSurname, maternalSurname, dni, email, movil,
+          birthDate || null, gender, pais || 'Perú', nacionalidad || 'Peruana', idioma,
           idiomaLee ? 1 : 0, idiomaHabla ? 1 : 0, idiomaEscribe ? 1 : 0,
           procedenciaRegion, procedenciaProvincia, procedenciaDistrito, procedenciaDireccion,
-          nacimientoRegion, nacimientoProvincia, nacimientoDistrito,
+          nacimientoRegion, nacimientoProvincia, nacimientoDistrito, nacimientoUbigeo,
           schoolName, schoolType, schoolLevel, colegioRegion, colegioProvincia, colegioDistrito,
           graduationYear || null, career, modality, lugarInscripcion, changedBy || null,
           hasSpecialConditions ? 1 : 0, discapacidad ? 1 : 0, conadisNumber, isDeportista ? 1 : 0,
           isVictimaViolencia ? 1 : 0, isServicioMilitar ? 1 : 0, isPrimerosPuestos ? 1 : 0,
-          apoderadoDni, apoderadoNombres, apoderadoApellidoPaterno, apoderadoApellidoMaterno,
+          apoderadoDni, apoderadoNombres, apoderadoApellidoPaterno, apoderadoApellidoMaterno, apoderadoMovil,
           careerCode, montoPago
         ]
       );
 
       const insertId = (result as any).insertId;
 
-      // Send confirmation email
+      // Generate a 6-digit security code starting with 'Q'
+      const securityCode = Math.floor(10000 + Math.random() * 90000).toString();
+      
+      // Save security code
+      await pool.query(
+        "INSERT INTO codigo_segurida (dni, codigo) VALUES (?, ?) ON DUPLICATE KEY UPDATE codigo = ?, usado = FALSE, fecha_generacion = CURRENT_TIMESTAMP",
+        [dni, securityCode, securityCode]
+      );
+
+      // Send confirmation email (without security code as per user request)
       await sendEmail(
         email,
         "Confirmación de Inscripción - UNIQ Admisión",
@@ -1763,7 +2209,7 @@ async function startServer() {
         `
       );
 
-      res.status(201).json({ id: insertId, status: "Pendiente" });
+      res.status(201).json({ id: insertId, status: "Pendiente", securityCode });
     } catch (error) {
       handleDbError(res, error, "creating registration");
     }
@@ -1778,11 +2224,9 @@ async function startServer() {
         maternalSurname,
         dni,
         email,
-        phone,
+        movil,
         birthDate,
         gender,
-        indigenousPeople,
-        tipoComunidad,
         idioma,
         idiomaLee,
         idiomaHabla,
@@ -1794,6 +2238,7 @@ async function startServer() {
         nacimientoRegion,
         nacimientoProvincia,
         nacimientoDistrito,
+        nacimientoUbigeo,
         schoolName,
         schoolType,
         schoolLevel,
@@ -1814,7 +2259,8 @@ async function startServer() {
         apoderadoDni,
         apoderadoNombres,
         apoderadoApellidoPaterno,
-        apoderadoApellidoMaterno
+        apoderadoApellidoMaterno,
+        apoderadoMovil
       } = req.body;
 
       // Get career code
@@ -1826,44 +2272,109 @@ async function startServer() {
       const costoNacional = modalityRows[0]?.costo_nacional || 0;
       const costoPrivado = modalityRows[0]?.costo_privado || 0;
       
-      const montoPago = schoolType === 'Privado' ? costoPrivado : costoNacional;
+      const typeLower = (schoolType || '').toLowerCase();
+      const montoPago = (typeLower.includes('privad') || typeLower.includes('particular')) ? costoPrivado : costoNacional;
 
       const [result] = await pool.query(
         `INSERT INTO preinscripciones (
-          nombres, apellido_paterno, apellido_materno, dni, correo, telefono, 
-          fecha_nacimiento, genero, pueblo_indigena, tipo_comunidad, idioma,
+          nombres, apellido_paterno, apellido_materno, dni, correo, movil, 
+          fecha_nacimiento, genero, idioma,
           idioma_lee, idioma_habla, idioma_escribe,
           procedencia_region, procedencia_provincia, procedencia_distrito, procedencia_direccion,
-          nacimiento_region, nacimiento_provincia, nacimiento_distrito,
+          nacimiento_region, nacimiento_provincia, nacimiento_distrito, nacimiento_ubigeo,
           colegio_nombre, colegio_tipo, colegio_nivel, colegio_region, colegio_provincia, colegio_distrito,
-          anio_egreso, carrera, modalidad, lugar_inscripcion, estado, modificado_por,
+          anio_egreso, career, modality, lugar_inscripcion, estado, modificado_por,
           tiene_condiciones_especiales, discapacidad, numero_conadis, es_deportista, 
           es_victima_violencia, es_servicio_militar, es_primeros_puestos,
-          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno,
+          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno, apoderado_movil,
           codigo_carrera, monto_pago
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', 'Admin', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', 'Admin', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          names, paternalSurname, maternalSurname, dni, email, phone,
-          birthDate || null, gender, indigenousPeople, tipoComunidad, idioma,
+          names, paternalSurname, maternalSurname, dni, email, movil,
+          birthDate || null, gender, idioma,
           idiomaLee ? 1 : 0, idiomaHabla ? 1 : 0, idiomaEscribe ? 1 : 0,
           procedenciaRegion, procedenciaProvincia, procedenciaDistrito, procedenciaDireccion,
-          nacimientoRegion, nacimientoProvincia, nacimientoDistrito,
+          nacimientoRegion, nacimientoProvincia, nacimientoDistrito, nacimientoUbigeo,
           schoolName, schoolType, schoolLevel, colegioRegion, colegioProvincia, colegioDistrito,
           graduationYear || null, career, modality, lugarInscripcion,
           hasSpecialConditions ? 1 : 0, discapacidad ? 1 : 0, conadisNumber, isDeportista ? 1 : 0,
           isVictimaViolencia ? 1 : 0, isServicioMilitar ? 1 : 0, isPrimerosPuestos ? 1 : 0,
-          apoderadoDni, apoderadoNombres, apoderadoApellidoPaterno, apoderadoApellidoMaterno,
+          apoderadoDni, apoderadoNombres, apoderadoApellidoPaterno, apoderadoApellidoMaterno, apoderadoMovil,
           careerCode, montoPago
         ]
       );
 
-      res.json({ success: true, id: (result as any).insertId });
+      const insertId = (result as any).insertId;
+
+      // Generate a 6-digit security code starting with 'Q'
+      const securityCode = 'Q' + Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Save security code
+      await pool.query(
+        "INSERT INTO codigo_segurida (dni, codigo) VALUES (?, ?) ON DUPLICATE KEY UPDATE codigo = ?, usado = FALSE, fecha_generacion = CURRENT_TIMESTAMP",
+        [dni, securityCode, securityCode]
+      );
+
+      res.json({ success: true, id: insertId, securityCode });
     } catch (error) {
       handleDbError(res, error, "creating registration (admin)");
     }
   });
 
   // Update registration
+  // Check if DNI exists and if it has an unused security code
+  app.get("/api/registrations/check-dni/:dni", async (req, res) => {
+    try {
+      const { dni } = req.params;
+      const [rows]: any = await pool.query("SELECT id, nombres, apellido_paterno, apellido_materno FROM preinscripciones WHERE dni = ?", [dni]);
+      
+      if (rows.length === 0) {
+        return res.json({ exists: false });
+      }
+
+      const [codeRows]: any = await pool.query("SELECT usado FROM codigo_segurida WHERE dni = ?", [dni]);
+      const canModify = codeRows.length > 0 && !codeRows[0].usado;
+
+      res.json({ 
+        exists: true, 
+        canModify,
+        registration: rows[0]
+      });
+    } catch (error) {
+      handleDbError(res, error, "checking DNI");
+    }
+  });
+
+  // Validate security code
+  app.post("/api/registrations/validate-code", async (req, res) => {
+    try {
+      const { dni, code } = req.body;
+      const [rows]: any = await pool.query("SELECT id, codigo, usado FROM codigo_segurida WHERE dni = ?", [dni]);
+
+      if (rows.length === 0) {
+        return res.status(404).json({ message: "No se encontró un código para este DNI." });
+      }
+
+      if (rows[0].usado) {
+        return res.status(400).json({ message: "Este código ya ha sido utilizado para una modificación." });
+      }
+
+      if (rows[0].codigo !== code) {
+        return res.status(400).json({ message: "Código de seguridad incorrecto." });
+      }
+
+      // Get the full registration data
+      const [regRows]: any = await pool.query("SELECT * FROM preinscripciones WHERE dni = ?", [dni]);
+
+      res.json({ 
+        valid: true, 
+        registration: regRows[0]
+      });
+    } catch (error) {
+      handleDbError(res, error, "validating security code");
+    }
+  });
+
   app.put("/api/registrations/:id", async (req, res) => {
     try {
       const { id } = req.params;
@@ -1873,11 +2384,11 @@ async function startServer() {
         maternalSurname,
         dni,
         email,
-        phone,
+        movil,
         birthDate,
         gender,
-        indigenousPeople,
-        tipoComunidad,
+        pais,
+        nacionalidad,
         idioma,
         idiomaLee,
         idiomaHabla,
@@ -1889,6 +2400,7 @@ async function startServer() {
         nacimientoRegion,
         nacimientoProvincia,
         nacimientoDistrito,
+        nacimientoUbigeo,
         schoolName,
         schoolType,
         schoolLevel,
@@ -1909,33 +2421,56 @@ async function startServer() {
         apoderadoDni,
         apoderadoNombres,
         apoderadoApellidoPaterno,
-        apoderadoApellidoMaterno
+        apoderadoApellidoMaterno,
+        apoderadoMovil,
+        securityCode,
+        isPublicUpdate
       } = req.body;
+
+      // If it's a public update, validate and consume the security code
+      if (isPublicUpdate) {
+        if (!securityCode) {
+          return res.status(400).json({ message: "Se requiere un código de seguridad para realizar modificaciones." });
+        }
+
+        const [codeRows]: any = await pool.query("SELECT codigo, usado FROM codigo_segurida WHERE dni = ?", [dni]);
+        
+        if (codeRows.length === 0 || codeRows[0].codigo !== securityCode) {
+          return res.status(400).json({ message: "Código de seguridad inválido." });
+        }
+
+        if (codeRows[0].usado) {
+          return res.status(400).json({ message: "Este código de seguridad ya ha sido utilizado." });
+        }
+
+        // Mark code as used
+        await pool.query("UPDATE codigo_segurida SET usado = TRUE, fecha_uso = CURRENT_TIMESTAMP WHERE dni = ?", [dni]);
+      }
 
       await pool.query(
         `UPDATE preinscripciones SET 
           nombres = ?, apellido_paterno = ?, apellido_materno = ?, dni = ?, correo = ?, 
-          telefono = ?, fecha_nacimiento = ?, genero = ?, pueblo_indigena = ?, tipo_comunidad = ?, idioma = ?,
+          movil = ?, fecha_nacimiento = ?, genero = ?, pais = ?, nacionalidad = ?, idioma = ?,
           idioma_lee = ?, idioma_habla = ?, idioma_escribe = ?,
           procedencia_region = ?, procedencia_provincia = ?, procedencia_distrito = ?, procedencia_direccion = ?,
-          nacimiento_region = ?, nacimiento_provincia = ?, nacimiento_distrito = ?,
+          nacimiento_region = ?, nacimiento_provincia = ?, nacimiento_distrito = ?, nacimiento_ubigeo = ?,
           colegio_nombre = ?, colegio_tipo = ?, colegio_nivel = ?, colegio_region = ?, colegio_provincia = ?, colegio_distrito = ?,
           anio_egreso = ?, carrera = ?, modalidad = ?, lugar_inscripcion = ?, tiene_condiciones_especiales = ?, 
           discapacidad = ?, numero_conadis = ?, es_deportista = ?, es_victima_violencia = ?, es_servicio_militar = ?, 
           es_primeros_puestos = ?, apoderado_dni = ?, apoderado_nombres = ?, apoderado_apellido_paterno = ?, 
-          apoderado_apellido_materno = ?, modificado_por = 'Admin'
+          apoderado_apellido_materno = ?, apoderado_movil = ?, modificado_por = ?
         WHERE id = ?`,
         [
-          names, paternalSurname, maternalSurname, dni, email, phone,
-          birthDate || null, gender, indigenousPeople, tipoComunidad, idioma,
+          names, paternalSurname, maternalSurname, dni, email, movil,
+          birthDate || null, gender, pais, nacionalidad, idioma,
           idiomaLee ? 1 : 0, idiomaHabla ? 1 : 0, idiomaEscribe ? 1 : 0,
           procedenciaRegion, procedenciaProvincia, procedenciaDistrito, procedenciaDireccion,
-          nacimientoRegion, nacimientoProvincia, nacimientoDistrito,
+          nacimientoRegion, nacimientoProvincia, nacimientoDistrito, nacimientoUbigeo,
           schoolName, schoolType, schoolLevel, colegioRegion, colegioProvincia, colegioDistrito,
           graduationYear || null, career, modality, lugarInscripcion, hasSpecialConditions ? 1 : 0,
           discapacidad ? 1 : 0, conadisNumber, isDeportista ? 1 : 0, isVictimaViolencia ? 1 : 0, isServicioMilitar ? 1 : 0,
           isPrimerosPuestos ? 1 : 0, apoderadoDni, apoderadoNombres, apoderadoApellidoPaterno,
-          apoderadoApellidoMaterno, id
+          apoderadoApellidoMaterno, apoderadoMovil, isPublicUpdate ? 'Usuario' : 'Admin', id
         ]
       );
       
@@ -2243,11 +2778,6 @@ async function startServer() {
 
   app.get("/api/modalidades", async (req, res) => {
     try {
-      // Auto-disable modalities that have expired (only those not already eliminated)
-      await pool.query("UPDATE modalidades SET habilitado = 0 WHERE fecha_fin < CURDATE() AND habilitado = 1 AND eliminado = 0");
-      // Auto-enable modalities that are now within validity (only those not already eliminated)
-      await pool.query("UPDATE modalidades SET habilitado = 1 WHERE fecha_fin >= CURDATE() AND habilitado = 0 AND eliminado = 0");
-      
       const [rows] = await pool.query("SELECT * FROM modalidades ORDER BY indice_orden ASC, id DESC");
       res.json(rows);
     } catch (error) {
@@ -2260,29 +2790,18 @@ async function startServer() {
       const { 
         nombre, codigo, amazonico, descentralizado, pedir_documentacion, 
         anio, fecha, fecha_inicio, fecha_fin, usar_rango, 
-        costo_nacional, costo_privado, habilitado 
+        costo_nacional, costo_privado
       } = req.body;
       const fmt_fecha_inicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
       const fmt_fecha_fin = fecha_fin ? fecha_fin.split('T')[0] : null;
       const fmt_fecha = fecha ? fecha.split('T')[0] : null;
       
-      // Auto-calculate disabled state based on date if it's within validity
-      let final_habilitado = habilitado ? 1 : 0;
-      if (usar_rango && fmt_fecha_fin) {
-        const today = new Date().toISOString().split('T')[0];
-        if (fmt_fecha_fin >= today) {
-          final_habilitado = 1; // Auto-enable if within validity
-        } else {
-          final_habilitado = 0; // Auto-disable if expired
-        }
-      }
-
       await pool.query(
-        "INSERT INTO modalidades (nombre, codigo, amazonico, descentralizado, pedir_documentacion, anio, fecha, fecha_inicio, fecha_fin, usar_rango, costo_nacional, costo_privado, habilitado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO modalidades (nombre, codigo, amazonico, descentralizado, pedir_documentacion, anio, fecha, fecha_inicio, fecha_fin, usar_rango, costo_nacional, costo_privado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
           nombre, codigo, amazonico ? 1 : 0, descentralizado ? 1 : 0, pedir_documentacion ? 1 : 0, 
           anio, fmt_fecha, fmt_fecha_inicio, fmt_fecha_fin, usar_rango !== undefined ? usar_rango : true, 
-          costo_nacional || 0, costo_privado || 0, final_habilitado
+          costo_nacional || 0, costo_privado || 0
         ]
       );
       res.json({ success: true });
@@ -2297,30 +2816,19 @@ async function startServer() {
       const { 
         nombre, codigo, amazonico, descentralizado, pedir_documentacion, 
         anio, fecha, fecha_inicio, fecha_fin, usar_rango, 
-        costo_nacional, costo_privado, habilitado 
+        costo_nacional, costo_privado
       } = req.body;
       const fmt_fecha_inicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
       const fmt_fecha_fin = fecha_fin ? fecha_fin.split('T')[0] : null;
       const fmt_fecha = fecha ? fecha.split('T')[0] : null;
 
-      // Auto-calculate disabled state based on date if it's within validity
-      let final_habilitado = habilitado ? 1 : 0;
-      if (usar_rango && fmt_fecha_fin) {
-        const today = new Date().toISOString().split('T')[0];
-        if (fmt_fecha_fin >= today) {
-          final_habilitado = 1; // Auto-enable if within validity
-        } else {
-          final_habilitado = 0; // Auto-disable if expired
-        }
-      }
-
       // Perform direct update to maintain the Primary Key (id)
       await pool.query(
-        "UPDATE modalidades SET nombre = ?, codigo = ?, amazonico = ?, descentralizado = ?, pedir_documentacion = ?, anio = ?, fecha = ?, fecha_inicio = ?, fecha_fin = ?, usar_rango = ?, costo_nacional = ?, costo_privado = ?, habilitado = ? WHERE id = ?",
+        "UPDATE modalidades SET nombre = ?, codigo = ?, amazonico = ?, descentralizado = ?, pedir_documentacion = ?, anio = ?, fecha = ?, fecha_inicio = ?, fecha_fin = ?, usar_rango = ?, costo_nacional = ?, costo_privado = ? WHERE id = ?",
         [
           nombre, codigo, amazonico ? 1 : 0, descentralizado ? 1 : 0, pedir_documentacion ? 1 : 0, 
           anio, fmt_fecha, fmt_fecha_inicio, fmt_fecha_fin, usar_rango !== undefined ? usar_rango : true, 
-          costo_nacional || 0, costo_privado || 0, final_habilitado, id
+          costo_nacional || 0, costo_privado || 0, id
         ]
       );
       
@@ -2333,8 +2841,8 @@ async function startServer() {
   app.delete("/api/modalidades/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      // Soft delete: mark as eliminated and disabled to keep as historical
-      await pool.query("UPDATE modalidades SET eliminado = 1, habilitado = 0 WHERE id = ?", [id]);
+      // Soft delete: mark as eliminated to keep as historical
+      await pool.query("UPDATE modalidades SET eliminado = 1 WHERE id = ?", [id]);
       res.json({ success: true });
     } catch (error) {
       handleDbError(res, error, "deleting modalidad");
@@ -2376,6 +2884,80 @@ async function startServer() {
     }
   });
 
+  // Configuracion Seguridad
+  app.get("/api/configuracion-seguridad", async (req, res) => {
+    try {
+      const [rows]: any = await pool.query("SELECT modificacion_habilitada FROM configuracion_seguridad WHERE id = 1");
+      res.json(rows[0] || { modificacion_habilitada: false });
+    } catch (error) {
+      handleDbError(res, error, "fetching configuracion seguridad");
+    }
+  });
+
+  app.post("/api/configuracion-seguridad", async (req, res) => {
+    try {
+      const { modificacion_habilitada } = req.body;
+      await pool.query("UPDATE configuracion_seguridad SET modificacion_habilitada = ? WHERE id = 1", [modificacion_habilitada ? 1 : 0]);
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "updating configuracion seguridad");
+    }
+  });
+
+  // Configuracion PDF
+  app.get("/api/configuracion-pdf", async (req, res) => {
+    try {
+      const [rows]: any = await pool.query("SELECT * FROM configuracion_pdf WHERE id = 1");
+      if (rows.length === 0) {
+        return res.json({});
+      }
+      const config = rows[0];
+      if (config.recomendaciones && typeof config.recomendaciones === 'string') {
+        try {
+          config.recomendaciones = JSON.parse(config.recomendaciones);
+        } catch (e) {
+          config.recomendaciones = [];
+        }
+      }
+      if (config.config_data && typeof config.config_data === 'string') {
+        try {
+          config.config_data = JSON.parse(config.config_data);
+        } catch (e) {
+          config.config_data = {};
+        }
+      }
+      res.json(config);
+    } catch (error) {
+      handleDbError(res, error, "fetching pdf config");
+    }
+  });
+
+  app.post("/api/configuracion-pdf", async (req, res) => {
+    try {
+      const { titulo, subtitulo, logo_url, logo_size, show_side_logos, primary_color, recomendaciones, config_data } = req.body;
+      const recsJson = JSON.stringify(recomendaciones || []);
+      const configDataJson = JSON.stringify(config_data || {});
+      
+      await pool.query(
+        `INSERT INTO configuracion_pdf (id, titulo, subtitulo, logo_url, logo_size, show_side_logos, primary_color, recomendaciones, config_data) 
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?) 
+         ON DUPLICATE KEY UPDATE 
+         titulo = VALUES(titulo), 
+         subtitulo = VALUES(subtitulo), 
+         logo_url = VALUES(logo_url), 
+         logo_size = VALUES(logo_size), 
+         show_side_logos = VALUES(show_side_logos), 
+         primary_color = VALUES(primary_color), 
+         recomendaciones = VALUES(recomendaciones),
+         config_data = VALUES(config_data)`,
+        [titulo, subtitulo, logo_url, logo_size, show_side_logos ? 1 : 0, primary_color, recsJson, configDataJson]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "saving pdf config");
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -2390,9 +2972,26 @@ async function startServer() {
       try {
         let html = await fs.readFile(path.join(distPath, "index.html"), "utf-8");
         const [rows]: any = await pool.query("SELECT * FROM configuracion_inicio WHERE id = 1");
+        const [pdfRows]: any = await pool.query("SELECT * FROM configuracion_pdf WHERE id = 1");
+        
         if (rows.length > 0) {
           const settings = rows[0];
-          const settingsScript = `<script>window.__INITIAL_SETTINGS__ = ${JSON.stringify({ configuracionInicio: settings, textoLogo: settings.texto_logo })};</script>`;
+          const pdfSettings = pdfRows.length > 0 ? pdfRows[0] : {};
+          if (pdfSettings.recomendaciones) {
+            try {
+              pdfSettings.recomendaciones = JSON.parse(pdfSettings.recomendaciones);
+            } catch (e) {
+              pdfSettings.recomendaciones = [];
+            }
+          }
+
+          const initialSettings = {
+            configuracionInicio: settings,
+            textoLogo: settings.texto_logo,
+            pdfSettings: pdfSettings
+          };
+
+          const settingsScript = `<script>window.__INITIAL_SETTINGS__ = ${JSON.stringify(initialSettings)};</script>`;
           html = html.replace("</head>", `${settingsScript}</head>`);
         }
         res.send(html);
