@@ -14,10 +14,11 @@ dotenv.config({ override: true });
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "uniq_admision_secret_key_2026_!!"; // 32 chars
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; 
 const IV_LENGTH = 16;
 
 function encrypt(text: string) {
+  if (!ENCRYPTION_KEY) return text; // Cannot encrypt without key
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)), iv);
   let encrypted = cipher.update(text);
@@ -26,6 +27,7 @@ function encrypt(text: string) {
 }
 
 function decrypt(text: string) {
+  if (!ENCRYPTION_KEY) return text;
   try {
     const textParts = text.split(':');
     const iv = Buffer.from(textParts.shift()!, 'hex');
@@ -90,11 +92,11 @@ async function startServer() {
       return JSON.parse(configData);
     } catch (e) {
       return {
-        host: process.env.DB_HOST || "155.248.226.7",
+        host: process.env.DB_HOST,
         port: parseInt(process.env.DB_PORT || "3306"),
-        user: process.env.DB_USER || "uniq_admision",
-        password: process.env.DB_PASSWORD || "M1c4s1t4TI.2026",
-        database: process.env.DB_NAME || "uniq_admision",
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
       };
     }
   }
@@ -197,8 +199,6 @@ async function startServer() {
       
       // 1. CREATE TABLES
       
-      await connection.query("INSERT IGNORE INTO configuracion_seguridad (id, modificacion_habilitada) VALUES (1, FALSE)");
-
       // Table for Usuarios
       await connection.query(`
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -247,6 +247,8 @@ async function startServer() {
           capitulo VARCHAR(255) NOT NULL,
           titulo VARCHAR(255) NOT NULL,
           contenido TEXT NOT NULL,
+          url_archivo VARCHAR(255),
+          fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           indice_orden INT DEFAULT 0
         )
       `);
@@ -270,10 +272,29 @@ async function startServer() {
           nombre VARCHAR(255) NOT NULL,
           puntaje VARCHAR(50) NOT NULL,
           estado VARCHAR(50) NOT NULL,
-          dni VARCHAR(20)
+          dni VARCHAR(20),
+          career_id INT,
+          ano_admision INT NOT NULL,
+          modalidad VARCHAR(100),
+          colegio_procedencia VARCHAR(255),
+          FOREIGN KEY (career_id) REFERENCES carreras(id)
         )
       `);
 
+      // Add new columns to existing resultados table if they don't exist
+      try {
+        await connection.query("ALTER TABLE resultados ADD COLUMN career_id INT");
+        await connection.query("ALTER TABLE resultados ADD CONSTRAINT fk_career FOREIGN KEY (career_id) REFERENCES carreras(id)");
+      } catch (e: any) {
+        // Ignore error if column already exists (ER_DUP_FIELDNAME)
+        if (e.code !== 'ER_DUP_FIELDNAME' && !e.message.includes('Duplicate column name')) {
+           console.log("Could not add career_id column:", e.message);
+        }
+      }
+      try { await connection.query("ALTER TABLE resultados ADD COLUMN ano_admision INT"); } catch (e) {}
+      try { await connection.query("ALTER TABLE resultados ADD COLUMN modalidad VARCHAR(100)"); } catch (e) {}
+      try { await connection.query("ALTER TABLE resultados ADD COLUMN colegio_procedencia VARCHAR(255)"); } catch (e) {}
+      
       // Table for Carreras
       await connection.query(`
         CREATE TABLE IF NOT EXISTS carreras (
@@ -333,20 +354,15 @@ async function startServer() {
         CREATE TABLE IF NOT EXISTS modalidades (
           id INT AUTO_INCREMENT PRIMARY KEY,
           nombre VARCHAR(255) NOT NULL,
-          codigo VARCHAR(50),
-          amazonico BOOLEAN DEFAULT FALSE,
-          descentralizado BOOLEAN DEFAULT FALSE,
-          pedir_documentacion BOOLEAN DEFAULT FALSE,
           anio INT,
           fecha DATE,
-          fecha_inicio DATE,
-          fecha_fin DATE,
-          usar_rango BOOLEAN DEFAULT TRUE,
+          hora_fin VARCHAR(10) DEFAULT '12:59',
           costo_nacional DECIMAL(10,2) DEFAULT 0,
           costo_privado DECIMAL(10,2) DEFAULT 0,
           eliminado BOOLEAN DEFAULT FALSE,
           fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          indice_orden INT DEFAULT 0
+          indice_orden INT DEFAULT 0,
+          habilitado BOOLEAN DEFAULT TRUE
         )
       `);
 
@@ -375,15 +391,18 @@ async function startServer() {
           id INT PRIMARY KEY DEFAULT 1,
           titulo VARCHAR(255) NOT NULL,
           subtitulo TEXT NOT NULL,
-          imagen_url VARCHAR(255) NOT NULL
+          imagen_url VARCHAR(255) NOT NULL,
+          imagen_portal_url VARCHAR(255) DEFAULT ''
         )
       `);
 
-      // Table for Configuracion Portal (General settings like logo text)
+      // Table for Admision
       await connection.query(`
-        CREATE TABLE IF NOT EXISTS configuracion_portal (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          texto_logo VARCHAR(255) NOT NULL DEFAULT 'Admisión'
+        CREATE TABLE IF NOT EXISTS admision (
+          id INT PRIMARY KEY DEFAULT 1,
+          descripcion_admision VARCHAR(255) NOT NULL DEFAULT 'Admisión',
+          contador_visitas INT DEFAULT 0,
+          fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
       `);
 
@@ -391,7 +410,9 @@ async function startServer() {
       await connection.query(`
         CREATE TABLE IF NOT EXISTS configuracion_cronograma (
           id INT AUTO_INCREMENT PRIMARY KEY,
-          fondo_url VARCHAR(255) NOT NULL DEFAULT 'https://picsum.photos/seed/quillabamba/1920/1080'
+          fondo_url VARCHAR(255) NOT NULL DEFAULT 'https://picsum.photos/seed/quillabamba/1920/1080',
+          overlay_color VARCHAR(7) DEFAULT '#0c0a09',
+          overlay_opacity DECIMAL(3,2) DEFAULT 0.8
         )
       `);
 
@@ -498,10 +519,9 @@ async function startServer() {
       `);
 
       const [idiomasRows]: any = await connection.query("SELECT COUNT(*) as count FROM idiomas");
-      if (idiomasRows[0].count !== 49) {
-        await connection.query("DELETE FROM idiomas");
+      if (idiomasRows[0].count === 0) {
         await connection.query(`
-          INSERT INTO idiomas (id, nombre) VALUES 
+          INSERT IGNORE INTO idiomas (id, nombre) VALUES 
           (1, 'ACHUAR'),
           (2, 'AIMARA'),
           (3, 'AMAHUACA'),
@@ -857,11 +877,11 @@ async function startServer() {
       await connection.query(`
         CREATE TABLE IF NOT EXISTS preinscripciones (
           id INT AUTO_INCREMENT PRIMARY KEY,
-          nombres VARCHAR(255) NOT NULL,
-          apellido_paterno VARCHAR(255) NOT NULL,
-          apellido_materno VARCHAR(255) NOT NULL,
+          nombres TEXT NOT NULL,
+          apellido_paterno TEXT NOT NULL,
+          apellido_materno TEXT NOT NULL,
           dni VARCHAR(20) NOT NULL,
-          correo VARCHAR(255) NOT NULL,
+          correo TEXT NOT NULL,
           movil VARCHAR(20),
           fecha_nacimiento DATE,
           genero VARCHAR(20),
@@ -886,11 +906,11 @@ async function startServer() {
           colegio_provincia VARCHAR(100),
           colegio_distrito VARCHAR(100),
           anio_egreso INT,
-          carrera VARCHAR(255),
+          carrera TEXT,
           modalidad VARCHAR(100),
-          lugar_inscripcion VARCHAR(255),
+          lugar_inscripcion TEXT,
           estado ENUM('Pendiente', 'Validado', 'Observado') DEFAULT 'Pendiente',
-          modificado_por VARCHAR(255),
+          modificado_por TEXT,
           tiene_condiciones_especiales BOOLEAN DEFAULT FALSE,
           discapacidad BOOLEAN DEFAULT FALSE,
           numero_conadis VARCHAR(50),
@@ -899,13 +919,15 @@ async function startServer() {
           es_servicio_militar BOOLEAN DEFAULT FALSE,
           es_primeros_puestos BOOLEAN DEFAULT FALSE,
           apoderado_dni VARCHAR(20),
-          apoderado_nombres VARCHAR(255),
-          apoderado_apellido_paterno VARCHAR(255),
-          apoderado_apellido_materno VARCHAR(255),
+          apoderado_nombres TEXT,
+          apoderado_apellido_paterno TEXT,
+          apoderado_apellido_materno TEXT,
           apoderado_movil VARCHAR(20),
           codigo_carrera VARCHAR(50),
           monto_pago DECIMAL(10, 2),
-          fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          codigo_registro VARCHAR(50),
+          fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY unique_dni_modalidad (dni, modalidad)
         )
       `);
 
@@ -922,15 +944,6 @@ async function startServer() {
         )
       `);
 
-      // Delete traces of DNI 44107713
-      await connection.query("DELETE FROM preinscripciones WHERE dni = '44107713'");
-      await connection.query("DELETE FROM codigo_segurida WHERE dni = '44107713'");
-      try {
-        await connection.query("DELETE FROM Codigo_seguridad WHERE dni = '44107713'");
-      } catch (e) {
-        // Old table might not exist
-      }
-
       // Add missing columns if they don't exist
       const [preinscripcionesColumns]: any = await connection.query("SHOW COLUMNS FROM preinscripciones");
       const columnNames = preinscripcionesColumns.map((c: any) => c.Field);
@@ -940,6 +953,37 @@ async function startServer() {
       }
       if (!columnNames.includes('monto_pago')) {
         await connection.query("ALTER TABLE preinscripciones ADD COLUMN monto_pago DECIMAL(10, 2) AFTER codigo_carrera");
+      }
+      if (!columnNames.includes('codigo_registro')) {
+        await connection.query("ALTER TABLE preinscripciones ADD COLUMN codigo_registro VARCHAR(50) AFTER monto_pago");
+      }
+      
+      // Ensure unique constraint on dni, modalidad
+      const [indexRows]: any = await connection.query("SHOW INDEX FROM preinscripciones WHERE Key_name = 'unique_dni_modalidad'");
+      
+      // Fix Row Size Limit: ALTER large columns to TEXT
+      const columnsToText = ['nombres', 'apellido_paterno', 'apellido_materno', 'correo', 'carrera', 'lugar_inscripcion', 'modificado_por', 'apoderado_nombres', 'apoderado_apellido_paterno', 'apoderado_apellido_materno'];
+      for (const col of columnsToText) {
+          try { await connection.query(`ALTER TABLE preinscripciones MODIFY COLUMN ${col} TEXT`); } catch(e) {}
+      }
+
+      // Check if it is a composite index
+      const [compositeCheck]: any = await connection.query("SHOW INDEX FROM preinscripciones WHERE Key_name = 'unique_dni_modalidad' AND Column_name IN ('dni', 'modalidad')");
+      if (compositeCheck.length < 2) {
+        try {
+          // Drop existing if it's the wrong one
+          await connection.query("ALTER TABLE preinscripciones DROP INDEX IF EXISTS unique_dni_modalidad");
+          
+          // Remove duplicates if any to allow constraint creation
+          await connection.query(`
+            DELETE t1 FROM preinscripciones t1
+            INNER JOIN preinscripciones t2 
+            WHERE t1.id > t2.id AND t1.dni = t2.dni AND t1.modalidad = t2.modalidad
+          `);
+          await connection.query("ALTER TABLE preinscripciones ADD UNIQUE KEY unique_dni_modalidad (dni, modalidad)");
+        } catch(e) {
+          console.error("Could not add unique constraint to preinscripciones", e);
+        }
       }
 
       // Drop obsolete columns as per user request
@@ -1076,7 +1120,6 @@ async function startServer() {
       const columns = [
         "ALTER TABLE preinscripciones MODIFY COLUMN id INT AUTO_INCREMENT",
         "ALTER TABLE preinscripciones MODIFY COLUMN colegio_tipo VARCHAR(100)",
-        "ALTER TABLE preinscripciones DROP COLUMN codigo_registro",
         "ALTER TABLE preinscripciones DROP COLUMN documento_tipo",
         "ALTER TABLE preinscripciones DROP COLUMN egreso_anio",
         "ALTER TABLE preinscripciones DROP COLUMN departamento",
@@ -1115,37 +1158,52 @@ async function startServer() {
         "ALTER TABLE modalidades DROP COLUMN precio_amazonico",
         "ALTER TABLE modalidades DROP COLUMN es_descentralizado",
         "ALTER TABLE configuracion_inicio ADD COLUMN overlay_opacity DECIMAL(3,2) DEFAULT 0.5",
-        "ALTER TABLE configuracion_inicio ADD COLUMN overlay_color VARCHAR(20) DEFAULT '#000000'",
+        "ALTER TABLE configuracion_inicio ADD COLUMN IF NOT EXISTS overlay_color VARCHAR(20) DEFAULT '#000000'",
+        "ALTER TABLE configuracion_inicio ADD COLUMN IF NOT EXISTS hero_images JSON",
         "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_titulo VARCHAR(255) DEFAULT 'Excelencia UNIQ'",
         "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_subtitulo VARCHAR(255) DEFAULT 'Formación Intercultural'",
         "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_descripcion TEXT",
         "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_etiqueta VARCHAR(255) DEFAULT 'Título a nombre de la Nación'",
         "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_icono VARCHAR(50) DEFAULT 'GraduationCap'",
         "ALTER TABLE configuracion_inicio ADD COLUMN excelencia_etiqueta_icono VARCHAR(50) DEFAULT 'ShieldCheck'",
-        "ALTER TABLE configuracion_inicio ADD COLUMN fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-        "ALTER TABLE configuracion_portal MODIFY COLUMN id INT AUTO_INCREMENT",
-        "ALTER TABLE configuracion_portal ADD COLUMN imagen_portal_url VARCHAR(255)",
-        "ALTER TABLE configuracion_portal ADD COLUMN contador_visitas INT DEFAULT 0",
-        "ALTER TABLE configuracion_portal ADD COLUMN fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        "ALTER TABLE configuracion_inicio ADD COLUMN imagen_portal_url VARCHAR(255) DEFAULT ''",
+        "CREATE TABLE IF NOT EXISTS admision (id INT PRIMARY KEY DEFAULT 1, descripcion_admision VARCHAR(255) NOT NULL DEFAULT 'Admisión', contador_visitas INT DEFAULT 0, fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)",
+        "ALTER TABLE admision ADD COLUMN contador_visitas INT DEFAULT 0",
+        "ALTER TABLE modalidades ADD COLUMN hora_fin VARCHAR(10) DEFAULT '12:59'",
+        "ALTER TABLE modalidades DROP COLUMN IF EXISTS fecha_inicio",
+        "ALTER TABLE modalidades DROP COLUMN IF EXISTS fecha_fin",
+        "ALTER TABLE modalidades DROP COLUMN IF EXISTS codigo",
+        "ALTER TABLE modalidades DROP COLUMN IF EXISTS amazonico",
+        "ALTER TABLE modalidades DROP COLUMN IF EXISTS descentralizado",
+        "ALTER TABLE modalidades DROP COLUMN IF EXISTS pedir_documentacion",
+        "ALTER TABLE modalidades ADD COLUMN IF NOT EXISTS habilitado BOOLEAN DEFAULT TRUE",
+        "DROP TABLE IF EXISTS configuracion_portal",
         "ALTER TABLE configuracion_cronograma MODIFY COLUMN id INT AUTO_INCREMENT",
-        "ALTER TABLE configuracion_cronograma ADD COLUMN fondo_url VARCHAR(255) NOT NULL DEFAULT 'https://picsum.photos/seed/quillabamba/1920/1080'",
-        "ALTER TABLE configuracion_cronograma ADD COLUMN overlay_opacity DECIMAL(3,2) DEFAULT 0.6",
+        "ALTER TABLE configuracion_cronograma ADD COLUMN IF NOT EXISTS fondo_url VARCHAR(255) NOT NULL DEFAULT 'https://picsum.photos/seed/quillabamba/1920/1080'",
+        "ALTER TABLE configuracion_cronograma ADD COLUMN IF NOT EXISTS overlay_color VARCHAR(7) DEFAULT '#0c0a09'",
+        "ALTER TABLE configuracion_cronograma ADD COLUMN IF NOT EXISTS overlay_opacity DECIMAL(3,2) DEFAULT 0.8",
         "ALTER TABLE configuracion_cronograma ADD COLUMN fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
         "ALTER TABLE detalles_carreras MODIFY COLUMN imagen_url TEXT",
         "ALTER TABLE detalles_carreras ADD COLUMN imagen_zoom INT DEFAULT 100",
         "ALTER TABLE detalles_carreras ADD COLUMN imagen_offset_x INT DEFAULT 50",
         "ALTER TABLE detalles_carreras ADD COLUMN imagen_offset_y INT DEFAULT 50",
         "ALTER TABLE mapeo_idiomas ADD COLUMN orden INT DEFAULT 0",
-        "ALTER TABLE codigo_segurida MODIFY COLUMN codigo VARCHAR(10) NOT NULL",
-        "CREATE TABLE IF NOT EXISTS configuracion_seguridad (id INT PRIMARY KEY DEFAULT 1, modificacion_habilitada BOOLEAN DEFAULT FALSE, fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)"
+        "ALTER TABLE codigo_segurida MODIFY COLUMN codigo VARCHAR(10) NOT NULL"
       ];
 
       for (const sql of columns) {
         try {
           await connection.query(sql);
         } catch (e: any) {
-          // Ignore if already exists or column not found for drop
-          if (e.code !== 'ER_DUP_FIELDNAME' && e.code !== 'ER_CANT_DROP_FIELD_OR_KEY') {
+          // Ignore certain errors during migrations
+          if (
+            e.code !== 'ER_DUP_FIELDNAME' && 
+            e.code !== 'ER_CANT_DROP_FIELD_OR_KEY' &&
+            e.code !== 'ER_BAD_FIELD_ERROR' &&
+            e.code !== 'ER_NO_SUCH_TABLE' &&
+            e.code !== 'ER_ROW_SIZE_TOO_LARGE' &&
+            !e.message.includes('Row size too large')
+          ) {
             console.error(`[DB MIGRATION ERROR] ${sql}:`, e.message);
           }
         }
@@ -1158,8 +1216,8 @@ async function startServer() {
           VALUES (1, 'Tu futuro comienza aquí', 'Formamos profesionales líderes con visión intercultural y compromiso social.', 'https://picsum.photos/seed/uniq-hero/1920/1080', 0.5, '#000000', 'Excelencia UNIQ', 'Formación Intercultural', 'Programas acreditados y docentes de primer nivel para tu formación profesional.', 'Título a nombre de la Nación', 'GraduationCap', 'ShieldCheck')
         `);
         await connection.query(`
-          INSERT IGNORE INTO configuracion_portal (id, texto_logo)
-          VALUES (1, 'Admisión ${new Date().getFullYear()}')
+          INSERT IGNORE INTO admision (id, descripcion_admision, contador_visitas)
+          VALUES (1, 'Admisión ${new Date().getFullYear()}', 0)
         `);
         await connection.query(`
           INSERT IGNORE INTO configuracion_cronograma (id, fondo_url)
@@ -1342,27 +1400,28 @@ async function startServer() {
     try {
       const [rows]: any = await pool.query("SELECT * FROM configuracion_inicio WHERE id = 1");
       if (rows.length > 0) {
-        settings.configuracionInicio = rows[0];
-        settings.textoLogo = rows[0].texto_logo;
+        const config = rows[0];
+        settings.configuracionInicio = config;
+        settings.imagenPortalUrl = config.imagen_portal_url;
       }
     } catch (e) {
       console.error("Error fetching inicio config from DB:", e);
     }
 
-    // Merge Portal config from DB
+    // Fetch Admision config from DB (including visits)
     try {
-      const [rows]: any = await pool.query("SELECT texto_logo, imagen_portal_url, contador_visitas, fecha_modificacion FROM configuracion_portal ORDER BY id DESC LIMIT 1");
+      const [rows]: any = await pool.query("SELECT descripcion_admision, contador_visitas, fecha_modificacion FROM admision WHERE id = 1");
       if (rows.length > 0) {
-        settings.textoLogo = rows[0].texto_logo;
-        settings.imagenPortalUrl = rows[0].imagen_portal_url;
+        settings.descripcionAdmision = rows[0].descripcion_admision;
         settings.contadorVisitas = rows[0].contador_visitas;
         settings.fechaModificacion = rows[0].fecha_modificacion;
       } else {
-        settings.textoLogo = `Admisión ${new Date().getFullYear()}`;
+        settings.descripcionAdmision = `Admisión ${new Date().getFullYear()}`;
+        settings.contadorVisitas = 0;
       }
     } catch (e) {
-      console.error("Error fetching portal config from DB:", e);
-      settings.textoLogo = `Admisión ${new Date().getFullYear()}`;
+      console.error("Error fetching admission config from DB:", e);
+      settings.descripcionAdmision = `Admisión ${new Date().getFullYear()}`;
     }
 
     // Merge Cronograma config from DB
@@ -1407,16 +1466,16 @@ async function startServer() {
       }
     }
 
-    // Save Portal config to DB if present
-    if (newSettings.textoLogo !== undefined) {
+    // Save Admision config to DB if present
+    if (newSettings.descripcionAdmision !== undefined) {
       try {
         await pool.query(
-          "INSERT INTO configuracion_portal (id, texto_logo) VALUES (1, ?) ON DUPLICATE KEY UPDATE texto_logo = ?",
-          [newSettings.textoLogo, newSettings.textoLogo]
+          "INSERT INTO admision (id, descripcion_admision) VALUES (1, ?) ON DUPLICATE KEY UPDATE descripcion_admision = ?",
+          [newSettings.descripcionAdmision, newSettings.descripcionAdmision]
         );
-        delete newSettings.textoLogo;
+        delete newSettings.descripcionAdmision;
       } catch (e) {
-        console.error("Error saving portal config to DB:", e);
+        console.error("Error saving admission config to DB:", e);
       }
     }
 
@@ -1529,6 +1588,31 @@ async function startServer() {
     }
   };
 
+  const parseDbDate = (val: any) => {
+    if (!val) return null;
+    let d: Date;
+    if (val instanceof Date) {
+      d = new Date(val);
+    } else {
+      // If it's a string like YYYY-MM-DD, append time to treat it as local
+      const dateStr = typeof val === 'string' ? val.split('T')[0] : String(val);
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        d = new Date(dateStr + 'T00:00:00');
+      } else {
+        d = new Date(val);
+      }
+    }
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const formatDateToIso = (val: any) => {
+    const d = parseDbDate(val);
+    if (!d) return '';
+    return d.toISOString().split('T')[0];
+  };
+
   // Cronograma API
   app.get("/api/cronograma", async (req, res) => {
     try {
@@ -1536,44 +1620,40 @@ async function startServer() {
       const [modalidades]: any = await pool.query("SELECT * FROM modalidades WHERE eliminado = 0");
       
       const now = new Date();
-      now.setHours(0, 0, 0, 0);
+      const peruTimeNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Lima" }));
+      const peruTime = new Date(peruTimeNow);
+      peruTime.setHours(0, 0, 0, 0);
 
       const manualEvents = manualEventsRaw.map((ev: any) => {
-        let status = ev.status;
+        let status = 'pendiente';
         
-        // Auto-calculate status if dates are present
-        if (ev.fecha_inicio && (ev.usar_rango ? ev.fecha_fin : true)) {
-          const inicio = new Date(ev.fecha_inicio);
-          inicio.setHours(0, 0, 0, 0);
-          
-          if (ev.usar_rango && ev.fecha_fin) {
-            const fin = new Date(ev.fecha_fin);
-            fin.setHours(0, 0, 0, 0);
-            if (now > fin) status = 'completado';
-            else if (now >= inicio) status = 'activo';
+        const inicio = parseDbDate(ev.fecha_inicio);
+        const fin = ev.usar_rango ? parseDbDate(ev.fecha_fin) : null;
+
+        if (inicio) {
+          if (ev.usar_rango && fin) {
+            if (peruTime > fin) status = 'completado';
+            else if (peruTime >= inicio) status = 'activo';
             else status = 'pendiente';
           } else {
-            // Only start date
-            if (now > inicio) status = 'completado';
-            else if (now.getTime() === inicio.getTime()) status = 'activo';
+            if (peruTime > inicio) status = 'completado';
+            else if (peruTime.getTime() === inicio.getTime()) status = 'activo';
             else status = 'pendiente';
           }
         } else if (ev.date) {
-          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-          if (dateRegex.test(ev.date)) {
-            const eventDate = new Date(ev.date + 'T00:00:00');
-            eventDate.setHours(0, 0, 0, 0);
-            if (now > eventDate) status = 'completado';
-            else if (now.getTime() === eventDate.getTime()) status = 'activo';
+          const legacyDate = parseDbDate(ev.date);
+          if (legacyDate) {
+            if (peruTime > legacyDate) status = 'completado';
+            else if (peruTime.getTime() === legacyDate.getTime()) status = 'activo';
             else status = 'pendiente';
           }
         }
 
-        const inicioStr = ev.fecha_inicio ? new Date(ev.fecha_inicio).toISOString().split('T')[0] : '';
-        const finStr = ev.fecha_fin ? new Date(ev.fecha_fin).toISOString().split('T')[0] : '';
+        const inicioStr = formatDateToIso(ev.fecha_inicio);
+        const finStr = formatDateToIso(ev.fecha_fin);
 
         let displayDate = ev.date || '';
-        if (ev.fecha_inicio) {
+        if (inicioStr) {
           if (ev.usar_rango) {
             displayDate = finStr ? `${inicioStr} - ${finStr}` : inicioStr;
           } else {
@@ -1596,30 +1676,42 @@ async function startServer() {
       });
 
       const automaticEvents = modalidades.map((m: any) => {
-        const inicio = new Date(m.fecha_inicio);
-        inicio.setHours(0, 0, 0, 0);
-        
         let status = 'pendiente';
-        if (m.usar_rango && m.fecha_fin) {
-          const fin = new Date(m.fecha_fin);
-          fin.setHours(0, 0, 0, 0);
-          if (now > fin) status = 'completado';
-          else if (now >= inicio) status = 'activo';
-        } else {
-          if (now > inicio) status = 'completado';
-          else if (now.getTime() === inicio.getTime()) status = 'activo';
+        // Use fecha as fallback for inicio
+        const inicio = parseDbDate(m.fecha);
+        
+        let finFull: Date | null = null;
+        if (inicio) {
+          finFull = new Date(inicio);
+          if (m.hora_fin) {
+            const [h, min] = m.hora_fin.split(':').map(Number);
+            finFull.setHours(h || 23, min || 59, 59);
+          } else {
+            finFull.setHours(23, 59, 59, 999);
+          }
+        }
+
+        if (inicio) {
+          // If current time is past the full end time (date + hour)
+          if (finFull && peruTimeNow > finFull) {
+            status = 'completado';
+          } else if (peruTime >= inicio) {
+            status = 'activo';
+          } else {
+            status = 'pendiente';
+          }
         }
         
-        const inicioStr = m.fecha_inicio ? new Date(m.fecha_inicio).toISOString().split('T')[0] : '';
-        const finStr = m.fecha_fin ? new Date(m.fecha_fin).toISOString().split('T')[0] : '';
+        const fechaStr = formatDateToIso(m.fecha);
         
         return {
           id: `modalidad-${m.id}`,
           event: m.nombre,
-          date: m.usar_rango ? (finStr ? `${inicioStr} - ${finStr}` : inicioStr) : inicioStr,
-          fecha_inicio: inicioStr,
-          fecha_fin: finStr,
-          usar_rango: !!m.usar_rango,
+          date: fechaStr,
+          fecha_inicio: fechaStr,
+          fecha_fin: fechaStr,
+          hora_fin: m.hora_fin,
+          usar_rango: false,
           status: status,
           isAutomatic: true,
           habilitado: true,
@@ -1646,32 +1738,50 @@ async function startServer() {
       const connection = await pool.getConnection();
       try {
         await connection.beginTransaction();
-        await connection.query("DELETE FROM cronograma");
         
         for (let i = 0; i < events.length; i++) {
           const ev = events[i];
           if (ev.isAutomatic) {
             // Update modality order
-            const modalityId = ev.id.replace('modalidad-', '');
+            const modalityId = ev.id.toString().replace('modalidad-', '');
             await connection.query(
               "UPDATE modalidades SET indice_orden = ? WHERE id = ?",
               [i, modalityId]
             );
           } else {
             // Save manual event
-            await connection.query(
-              "INSERT INTO cronograma (evento, fecha, fecha_inicio, fecha_fin, usar_rango, estado, habilitado, indice_orden) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-              [
-                ev.event, 
-                ev.date || '', 
-                ev.fecha_inicio || null, 
-                ev.fecha_fin || null, 
-                ev.usar_rango !== undefined ? ev.usar_rango : true,
-                ev.status || 'pendiente', 
-                ev.habilitado !== undefined ? ev.habilitado : true,
-                i
-              ]
-            );
+            if (ev.id) {
+               // Update existing event
+               await connection.query(
+                "UPDATE cronograma SET evento = ?, fecha = ?, fecha_inicio = ?, fecha_fin = ?, usar_rango = ?, estado = ?, habilitado = ?, indice_orden = ? WHERE id = ?",
+                [
+                  ev.event || ev.evento, 
+                  ev.date || ev.fecha || '', 
+                  ev.fecha_inicio || null, 
+                  ev.fecha_fin || null, 
+                  ev.usar_rango !== undefined ? ev.usar_rango : true,
+                  ev.status || ev.estado || 'pendiente', 
+                  ev.habilitado !== undefined ? ev.habilitado : true,
+                  i,
+                  ev.id
+                ]
+              );
+            } else {
+              // Insert new event
+              await connection.query(
+                "INSERT INTO cronograma (evento, fecha, fecha_inicio, fecha_fin, usar_rango, estado, habilitado, indice_orden) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                  ev.event || ev.evento, 
+                  ev.date || ev.fecha || '', 
+                  ev.fecha_inicio || null, 
+                  ev.fecha_fin || null, 
+                  ev.usar_rango !== undefined ? ev.usar_rango : true,
+                  ev.status || ev.estado || 'pendiente', 
+                  ev.habilitado !== undefined ? ev.habilitado : true,
+                  i
+                ]
+              );
+            }
           }
         }
         
@@ -1711,7 +1821,13 @@ async function startServer() {
   // Resultados API
   app.get("/api/resultados", async (req, res) => {
     try {
-      const [rows] = await pool.query("SELECT id, posicion AS pos, nombre AS name, puntaje AS score, estado AS status, dni FROM resultados ORDER BY posicion ASC");
+      const [rows] = await pool.query(`
+        SELECT r.id, r.posicion AS pos, r.nombre AS name, r.puntaje AS score, r.estado AS status, r.dni, 
+               r.ano_admision, r.modalidad, r.colegio_procedencia, c.nombre AS carrera 
+        FROM resultados r 
+        LEFT JOIN carreras c ON r.career_id = c.id 
+        ORDER BY r.posicion ASC
+      `);
       res.json(rows);
     } catch (error) {
       handleDbError(res, error, "resultados");
@@ -2039,7 +2155,7 @@ async function startServer() {
           es_deportista AS is_deportista, es_victima_violencia AS is_victima_violencia, 
           es_servicio_militar AS is_servicio_militar, es_primeros_puestos AS is_primeros_puestos, 
           apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno,
-          monto_pago
+          monto_pago, codigo_registro
         FROM preinscripciones 
         WHERE dni = ? 
         ORDER BY fecha_creacion DESC 
@@ -2060,22 +2176,24 @@ async function startServer() {
     try {
       const [rows] = await pool.query(`
         SELECT 
-          id, nombres, apellido_paterno, apellido_materno, dni, correo AS email, movil, 
-          fecha_nacimiento, genero, idioma,
-          idioma_lee, idioma_habla, idioma_escribe,
-          procedencia_region AS procedenciaRegion, procedencia_provincia AS procedenciaProvincia, procedencia_distrito AS procedenciaDistrito, procedencia_direccion AS procedenciaDireccion,
-          nacimiento_region AS nacimientoRegion, nacimiento_provincia AS nacimientoProvincia, nacimiento_distrito AS nacimientoDistrito, nacimiento_ubigeo AS nacimientoUbigeo,
-          colegio_nombre AS schoolName, colegio_tipo AS schoolType, colegio_nivel AS schoolLevel,
-          colegio_region AS colegioRegion, colegio_provincia AS colegioProvincia, colegio_distrito AS colegioDistrito,
-          anio_egreso AS graduationYear, carrera, modalidad, lugar_inscripcion, 
-          estado AS status, fecha_creacion AS created_at, modificado_por AS changed_by, 
-          tiene_condiciones_especiales AS has_special_conditions, discapacidad, numero_conadis AS conadis_number, 
-          es_deportista AS is_deportista, es_victima_violencia AS is_victima_violencia, 
-          es_servicio_militar AS is_servicio_militar, es_primeros_puestos AS is_primeros_puestos, 
-          apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno, apoderado_movil,
-          monto_pago
-        FROM preinscripciones 
-        ORDER BY fecha_creacion DESC
+          p.id, p.nombres, p.apellido_paterno, p.apellido_materno, p.dni, p.correo AS email, p.movil, 
+          p.fecha_nacimiento, p.genero, p.pais, p.nacionalidad, p.idioma,
+          p.idioma_lee, p.idioma_habla, p.idioma_escribe,
+          p.procedencia_region AS procedenciaRegion, p.procedencia_provincia AS procedenciaProvincia, p.procedencia_distrito AS procedenciaDistrito, p.procedencia_direccion AS procedenciaDireccion,
+          p.nacimiento_region AS nacimientoRegion, p.nacimiento_provincia AS nacimientoProvincia, p.nacimiento_distrito AS nacimientoDistrito, p.nacimiento_ubigeo AS nacimientoUbigeo,
+          p.colegio_nombre AS schoolName, p.colegio_tipo AS schoolType, p.colegio_nivel AS schoolLevel,
+          p.colegio_region AS colegioRegion, p.colegio_provincia AS colegioProvincia, p.colegio_distrito AS colegioDistrito,
+          p.anio_egreso AS graduationYear, p.carrera, p.modalidad, p.lugar_inscripcion, 
+          p.estado AS status, p.fecha_creacion AS created_at, p.modificado_por AS changed_by, 
+          p.tiene_condiciones_especiales AS has_special_conditions, p.discapacidad, p.numero_conadis AS conadis_number, 
+          p.es_deportista AS is_deportista, p.es_victima_violencia AS is_victima_violencia, 
+          p.es_servicio_militar AS is_servicio_militar, p.es_primeros_puestos AS is_primeros_puestos, 
+          p.apoderado_dni, p.apoderado_nombres, p.apoderado_apellido_paterno, p.apoderado_apellido_materno, p.apoderado_movil,
+          p.monto_pago, p.codigo_registro,
+          cs.codigo AS security_code
+        FROM preinscripciones p
+        LEFT JOIN codigo_segurida cs ON p.dni = cs.dni
+        ORDER BY p.fecha_creacion DESC
       `);
       res.json(rows);
     } catch (error) {
@@ -2146,6 +2264,16 @@ async function startServer() {
       const typeLower = (schoolType || '').toLowerCase();
       const montoPago = (typeLower.includes('privad') || typeLower.includes('particular')) ? costoPrivado : costoNacional;
 
+      // Generate unique registration code
+      const year = new Date().getFullYear();
+      let prefix = (modality || 'UNKNOWN').split(' ').map((w: string) => w.substring(0,3).toUpperCase()).join('');
+      if (prefix.length > 10) prefix = prefix.substring(0, 10);
+      
+      const [countRows]: any = await pool.query("SELECT COUNT(*) as count FROM preinscripciones WHERE modalidad = ? AND YEAR(fecha_creacion) = ?", [modality, year]);
+      const currentCount = countRows[0]?.count || 0;
+      const seq = (currentCount + 1).toString().padStart(4, '0');
+      const codigoRegistro = `${prefix}-${year}-${seq}`;
+
       const [result] = await pool.query(
         `INSERT INTO preinscripciones (
           nombres, apellido_paterno, apellido_materno, dni, correo, movil, 
@@ -2158,8 +2286,8 @@ async function startServer() {
           tiene_condiciones_especiales, discapacidad, numero_conadis, es_deportista, 
           es_victima_violencia, es_servicio_militar, es_primeros_puestos,
           apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno, apoderado_movil,
-          codigo_carrera, monto_pago
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          codigo_carrera, monto_pago, codigo_registro
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           names, paternalSurname, maternalSurname, dni, email, movil,
           birthDate || null, gender, pais || 'Perú', nacionalidad || 'Peruana', idioma,
@@ -2171,47 +2299,50 @@ async function startServer() {
           hasSpecialConditions ? 1 : 0, discapacidad ? 1 : 0, conadisNumber, isDeportista ? 1 : 0,
           isVictimaViolencia ? 1 : 0, isServicioMilitar ? 1 : 0, isPrimerosPuestos ? 1 : 0,
           apoderadoDni, apoderadoNombres, apoderadoApellidoPaterno, apoderadoApellidoMaterno, apoderadoMovil,
-          careerCode, montoPago
+          careerCode, montoPago, codigoRegistro
         ]
       );
 
       const insertId = (result as any).insertId;
 
-      // Generate a 6-digit security code starting with 'Q'
+      // Generate a 5-digit security code
       const securityCode = Math.floor(10000 + Math.random() * 90000).toString();
       
       // Save security code
       await pool.query(
-        "INSERT INTO codigo_segurida (dni, codigo) VALUES (?, ?) ON DUPLICATE KEY UPDATE codigo = ?, usado = FALSE, fecha_generacion = CURRENT_TIMESTAMP",
-        [dni, securityCode, securityCode]
+        "INSERT INTO codigo_segurida (dni, codigo, modalidad) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE codigo = ?, usado = FALSE, fecha_generacion = CURRENT_TIMESTAMP",
+        [dni, securityCode, modality, securityCode]
       );
 
-      // Send confirmation email (without security code as per user request)
-      await sendEmail(
-        email,
-        "Confirmación de Inscripción - UNIQ Admisión",
-        `
-        <div style="font-family: sans-serif; color: #333;">
-          <h2 style="color: #047857;">¡Inscripción Recibida!</h2>
-          <p>Hola <strong>${names}</strong>,</p>
-          <p>Hemos recibido correctamente tu solicitud de inscripción para el proceso de admisión de la <strong>Universidad Nacional Intercultural de Quillabamba</strong>.</p>
-          <p><strong>Detalles de tu solicitud:</strong></p>
-          <ul>
-            <li><strong>DNI:</strong> ${dni}</li>
-            <li><strong>Carrera:</strong> ${career}</li>
-            <li><strong>Modalidad:</strong> ${modality}</li>
-            <li><strong>Estado:</strong> Pendiente de revisión</li>
-          </ul>
-          <p>Te notificaremos por este medio una vez que tu documentación haya sido revisada.</p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-          <p style="font-size: 12px; color: #666;">Este es un mensaje automático, por favor no respondas a este correo.</p>
-        </div>
-        `
-      );
+    // await sendEmail(
+    //   email,
+    //   "Confirmación de Inscripción - UNIQ Admisión",
+    //   `
+    //   <div style="font-family: sans-serif; color: #333;">
+    //     <h2 style="color: #047857;">¡Inscripción Recibida!</h2>
+    //     <p>Hola <strong>${names}</strong>,</p>
+    //     <p>Hemos recibido correctamente tu solicitud de inscripción para el proceso de admisión de la <strong>Universidad Nacional Intercultural de Quillabamba</strong>.</p>
+    //     <p><strong>Detalles de tu solicitud:</strong></p>
+    //     <ul>
+    //       <li><strong>DNI:</strong> ${dni}</li>
+    //       <li><strong>Carrera:</strong> ${career}</li>
+    //       <li><strong>Modalidad:</strong> ${modality}</li>
+    //       <li><strong>Estado:</strong> Pendiente de revisión</li>
+    //     </ul>
+    //     <p>Te notificaremos por este medio una vez que tu documentación haya sido revisada.</p>
+    //     <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+    //     <p style="font-size: 12px; color: #666;">Este es un mensaje automático, por favor no respondas a este correo.</p>
+    //   </div>
+    //   `
+    // );
 
       res.status(201).json({ id: insertId, status: "Pendiente", securityCode });
-    } catch (error) {
-      handleDbError(res, error, "creating registration");
+    } catch (error: any) {
+      if (error && error.code === 'ER_DUP_ENTRY') {
+        res.status(400).json({ error: "Ya existe una inscripción registrada para este DNI en la modalidad seleccionada." });
+      } else {
+        handleDbError(res, error, "creating registration");
+      }
     }
   });
 
@@ -2275,6 +2406,16 @@ async function startServer() {
       const typeLower = (schoolType || '').toLowerCase();
       const montoPago = (typeLower.includes('privad') || typeLower.includes('particular')) ? costoPrivado : costoNacional;
 
+      // Generate unique registration code
+      const year = new Date().getFullYear();
+      let prefix = (modality || 'UNKNOWN').split(' ').map((w: string) => w.substring(0,3).toUpperCase()).join('');
+      if (prefix.length > 10) prefix = prefix.substring(0, 10);
+      
+      const [countRows]: any = await pool.query("SELECT COUNT(*) as count FROM preinscripciones WHERE modalidad = ? AND YEAR(fecha_creacion) = ?", [modality, year]);
+      const currentCount = countRows[0]?.count || 0;
+      const seq = (currentCount + 1).toString().padStart(4, '0');
+      const codigoRegistro = `${prefix}-${year}-${seq}`;
+
       const [result] = await pool.query(
         `INSERT INTO preinscripciones (
           nombres, apellido_paterno, apellido_materno, dni, correo, movil, 
@@ -2283,12 +2424,12 @@ async function startServer() {
           procedencia_region, procedencia_provincia, procedencia_distrito, procedencia_direccion,
           nacimiento_region, nacimiento_provincia, nacimiento_distrito, nacimiento_ubigeo,
           colegio_nombre, colegio_tipo, colegio_nivel, colegio_region, colegio_provincia, colegio_distrito,
-          anio_egreso, career, modality, lugar_inscripcion, estado, modificado_por,
+          anio_egreso, carrera, modalidad, lugar_inscripcion, estado, modificado_por,
           tiene_condiciones_especiales, discapacidad, numero_conadis, es_deportista, 
           es_victima_violencia, es_servicio_militar, es_primeros_puestos,
           apoderado_dni, apoderado_nombres, apoderado_apellido_paterno, apoderado_apellido_materno, apoderado_movil,
-          codigo_carrera, monto_pago
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', 'Admin', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          codigo_carrera, monto_pago, codigo_registro
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', 'Admin', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           names, paternalSurname, maternalSurname, dni, email, movil,
           birthDate || null, gender, idioma,
@@ -2300,24 +2441,28 @@ async function startServer() {
           hasSpecialConditions ? 1 : 0, discapacidad ? 1 : 0, conadisNumber, isDeportista ? 1 : 0,
           isVictimaViolencia ? 1 : 0, isServicioMilitar ? 1 : 0, isPrimerosPuestos ? 1 : 0,
           apoderadoDni, apoderadoNombres, apoderadoApellidoPaterno, apoderadoApellidoMaterno, apoderadoMovil,
-          careerCode, montoPago
+          careerCode, montoPago, codigoRegistro
         ]
       );
 
       const insertId = (result as any).insertId;
 
-      // Generate a 6-digit security code starting with 'Q'
-      const securityCode = 'Q' + Math.floor(100000 + Math.random() * 900000).toString();
+      // Generate a 5-digit security code
+      const securityCode = Math.floor(10000 + Math.random() * 90000).toString();
       
       // Save security code
       await pool.query(
-        "INSERT INTO codigo_segurida (dni, codigo) VALUES (?, ?) ON DUPLICATE KEY UPDATE codigo = ?, usado = FALSE, fecha_generacion = CURRENT_TIMESTAMP",
-        [dni, securityCode, securityCode]
+        "INSERT INTO codigo_segurida (dni, codigo, modalidad) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE codigo = ?, usado = FALSE, fecha_generacion = CURRENT_TIMESTAMP",
+        [dni, securityCode, modality, securityCode]
       );
 
       res.json({ success: true, id: insertId, securityCode });
-    } catch (error) {
-      handleDbError(res, error, "creating registration (admin)");
+    } catch (error: any) {
+      if (error && error.code === 'ER_DUP_ENTRY') {
+        res.status(400).json({ error: "Ya existe una inscripción registrada para este DNI en la modalidad seleccionada." });
+      } else {
+        handleDbError(res, error, "creating registration (admin)");
+      }
     }
   });
 
@@ -2326,13 +2471,24 @@ async function startServer() {
   app.get("/api/registrations/check-dni/:dni", async (req, res) => {
     try {
       const { dni } = req.params;
-      const [rows]: any = await pool.query("SELECT id, nombres, apellido_paterno, apellido_materno FROM preinscripciones WHERE dni = ?", [dni]);
+      const { modality } = req.query;
+      
+      let query = "SELECT id, nombres, apellido_paterno, apellido_materno FROM preinscripciones WHERE dni = ?";
+      let queryParams: any[] = [dni];
+      
+      if (modality) {
+        query += " AND modalidad = ?";
+        queryParams.push(modality);
+      }
+      
+      const [rows]: any = await pool.query(query, queryParams);
       
       if (rows.length === 0) {
         return res.json({ exists: false });
       }
 
-      const [codeRows]: any = await pool.query("SELECT usado FROM codigo_segurida WHERE dni = ?", [dni]);
+      // We only consider the latest code for that specific registration if needed
+      const [codeRows]: any = await pool.query("SELECT usado FROM codigo_segurida WHERE dni = ? AND modalidad = ? ORDER BY id DESC LIMIT 1", [dni, modality]);
       const canModify = codeRows.length > 0 && !codeRows[0].usado;
 
       res.json({ 
@@ -2348,8 +2504,8 @@ async function startServer() {
   // Validate security code
   app.post("/api/registrations/validate-code", async (req, res) => {
     try {
-      const { dni, code } = req.body;
-      const [rows]: any = await pool.query("SELECT id, codigo, usado FROM codigo_segurida WHERE dni = ?", [dni]);
+      const { dni, code, modality } = req.body;
+      const [rows]: any = await pool.query("SELECT id, codigo, usado FROM codigo_segurida WHERE dni = ? AND modalidad = ? ORDER BY id DESC LIMIT 1", [dni, modality]);
 
       if (rows.length === 0) {
         return res.status(404).json({ message: "No se encontró un código para este DNI." });
@@ -2364,7 +2520,19 @@ async function startServer() {
       }
 
       // Get the full registration data
-      const [regRows]: any = await pool.query("SELECT * FROM preinscripciones WHERE dni = ?", [dni]);
+      let query = "SELECT * FROM preinscripciones WHERE dni = ?";
+      let queryParams: any[] = [dni];
+      
+      if (modality) {
+         query += " AND modalidad = ?";
+         queryParams.push(modality);
+      }
+      
+      const [regRows]: any = await pool.query(query + " ORDER BY id DESC LIMIT 1", queryParams);
+
+      if (regRows.length === 0) {
+         return res.status(404).json({ message: "No se encontró una preinscripción para este DNI y modalidad."});
+      }
 
       res.json({ 
         valid: true, 
@@ -2433,7 +2601,7 @@ async function startServer() {
           return res.status(400).json({ message: "Se requiere un código de seguridad para realizar modificaciones." });
         }
 
-        const [codeRows]: any = await pool.query("SELECT codigo, usado FROM codigo_segurida WHERE dni = ?", [dni]);
+        const [codeRows]: any = await pool.query("SELECT codigo, usado FROM codigo_segurida WHERE dni = ? AND modalidad = ?", [dni, modality]);
         
         if (codeRows.length === 0 || codeRows[0].codigo !== securityCode) {
           return res.status(400).json({ message: "Código de seguridad inválido." });
@@ -2444,7 +2612,7 @@ async function startServer() {
         }
 
         // Mark code as used
-        await pool.query("UPDATE codigo_segurida SET usado = TRUE, fecha_uso = CURRENT_TIMESTAMP WHERE dni = ?", [dni]);
+        await pool.query("UPDATE codigo_segurida SET usado = TRUE, fecha_uso = CURRENT_TIMESTAMP WHERE dni = ? AND modalidad = ?", [dni, modality]);
       }
 
       await pool.query(
@@ -2475,8 +2643,12 @@ async function startServer() {
       );
       
       res.json({ success: true, message: "Registration updated successfully" });
-    } catch (error) {
-      handleDbError(res, error, "updating registration");
+    } catch (error: any) {
+      if (error && error.code === 'ER_DUP_ENTRY') {
+        res.status(400).json({ error: "Ya existe una inscripción registrada para este DNI en la modalidad seleccionada." });
+      } else {
+        handleDbError(res, error, "updating registration");
+      }
     }
   });
 
@@ -2506,23 +2678,23 @@ async function startServer() {
 
         // Send status update email
         const statusColor = status === "Validado" ? "#047857" : "#b91c1c";
-        await sendEmail(
-          registration.email,
-          `Actualización de Estado: ${status} - UNIQ Admisión`,
-          `
-          <div style="font-family: sans-serif; color: #333;">
-            <h2 style="color: ${statusColor};">Actualización de tu Inscripción</h2>
-            <p>Hola <strong>${registration.nombres}</strong>,</p>
-            <p>El estado de tu solicitud para la carrera de <strong>${registration.carrera}</strong> ha sido actualizado:</p>
-            <div style="padding: 15px; background-color: #f9fafb; border-radius: 8px; border-left: 4px solid ${statusColor}; margin: 20px 0;">
-              <p style="margin: 0; font-weight: bold; font-size: 18px; color: ${statusColor};">${status}</p>
-            </div>
-            ${status === "Observado" ? "<p>Por favor, revisa tu documentación y asegúrate de que todos los datos sean correctos. Si tienes dudas, puedes contactarnos.</p>" : "<p>Tu preinscripción ha sido validada correctamente. ¡Felicidades!</p>"}
-            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-            <p style="font-size: 12px; color: #666;">Universidad Nacional Intercultural de Quillabamba - Oficina de Admisión</p>
-          </div>
-          `
-        );
+        // await sendEmail(
+        //   registration.email,
+        //   `Actualización de Estado: ${status} - UNIQ Admisión`,
+        //   `
+        //   <div style="font-family: sans-serif; color: #333;">
+        //     <h2 style="color: ${statusColor};">Actualización de tu Inscripción</h2>
+        //     <p>Hola <strong>${registration.nombres}</strong>,</p>
+        //     <p>El estado de tu solicitud para la carrera de <strong>${registration.carrera}</strong> ha sido actualizado:</p>
+        //     <div style="padding: 15px; background-color: #f9fafb; border-radius: 8px; border-left: 4px solid ${statusColor}; margin: 20px 0;">
+        //       <p style="margin: 0; font-weight: bold; font-size: 18px; color: ${statusColor};">${status}</p>
+        //     </div>
+        //     ${status === "Observado" ? "<p>Por favor, revisa tu documentación y asegúrate de que todos los datos sean correctos. Si tienes dudas, puedes contactarnos.</p>" : "<p>Tu preinscripción ha sido validada correctamente. ¡Felicidades!</p>"}
+        //     <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+        //     <p style="font-size: 12px; color: #666;">Universidad Nacional Intercultural de Quillabamba - Oficina de Admisión</p>
+        //   </div>
+        //   `
+        // );
       }
 
       res.json({ success: true });
@@ -2656,12 +2828,14 @@ async function startServer() {
   app.get("/api/configuracion-inicio", async (req, res) => {
     try {
       const [rows]: any = await pool.query("SELECT * FROM configuracion_inicio WHERE id = 1");
-      const [portalRows]: any = await pool.query("SELECT texto_logo, imagen_portal_url, contador_visitas, fecha_modificacion FROM configuracion_portal ORDER BY id DESC LIMIT 1");
+      const [admisionRows]: any = await pool.query("SELECT descripcion_admision, contador_visitas, fecha_modificacion FROM admision WHERE id = 1");
       
       const config = rows[0] || { 
         titulo: '', 
         subtitulo: '', 
         imagen_url: '', 
+        hero_images: [],
+        imagen_portal_url: '',
         overlay_opacity: 0.5, 
         overlay_color: '#000000',
         excelencia_titulo: 'Excelencia UNIQ',
@@ -2669,10 +2843,20 @@ async function startServer() {
         excelencia_descripcion: 'Programas acreditados y docentes de primer nivel para tu formación profesional.',
         excelencia_etiqueta: 'Título a nombre de la Nación'
       };
-      config.texto_logo = portalRows[0]?.texto_logo || `Admisión ${new Date().getFullYear()}`;
-      config.imagen_portal_url = portalRows[0]?.imagen_portal_url || '';
-      config.contador_visitas = portalRows[0]?.contador_visitas || 0;
-      config.fecha_modificacion = portalRows[0]?.fecha_modificacion || null;
+
+      if (config.hero_images && typeof config.hero_images === 'string') {
+        try {
+          config.hero_images = JSON.parse(config.hero_images);
+        } catch (e) {
+          config.hero_images = [];
+        }
+      } else if (!config.hero_images) {
+        config.hero_images = [];
+      }
+      
+      config.descripcion_admision = admisionRows[0]?.descripcion_admision || `Admisión ${new Date().getFullYear()}`;
+      config.contador_visitas = admisionRows[0]?.contador_visitas || 0;
+      config.fecha_modificacion = admisionRows[0]?.fecha_modificacion || rows[0]?.fecha_modificacion || null;
       
       res.json(config);
     } catch (error) {
@@ -2686,17 +2870,20 @@ async function startServer() {
         titulo, subtitulo, imagen_url, overlay_opacity, overlay_color, 
         excelencia_titulo, excelencia_subtitulo, excelencia_descripcion, excelencia_etiqueta,
         excelencia_icono, excelencia_etiqueta_icono,
-        texto_logo, imagen_portal_url 
+        descripcion_admision, imagen_portal_url, hero_images
       } = req.body;
+      
+      const heroImagesJson = JSON.stringify(hero_images || []);
+
       await pool.query(
-        "UPDATE configuracion_inicio SET titulo = ?, subtitulo = ?, imagen_url = ?, overlay_opacity = ?, overlay_color = ?, excelencia_titulo = ?, excelencia_subtitulo = ?, excelencia_descripcion = ?, excelencia_etiqueta = ?, excelencia_icono = ?, excelencia_etiqueta_icono = ? WHERE id = 1",
-        [titulo, subtitulo, imagen_url, overlay_opacity, overlay_color, excelencia_titulo, excelencia_subtitulo, excelencia_descripcion, excelencia_etiqueta, excelencia_icono, excelencia_etiqueta_icono]
+        "UPDATE configuracion_inicio SET titulo = ?, subtitulo = ?, imagen_url = ?, imagen_portal_url = ?, overlay_opacity = ?, overlay_color = ?, excelencia_titulo = ?, excelencia_subtitulo = ?, excelencia_descripcion = ?, excelencia_etiqueta = ?, excelencia_icono = ?, excelencia_etiqueta_icono = ?, hero_images = ? WHERE id = 1",
+        [titulo, subtitulo, imagen_url, imagen_portal_url || '', overlay_opacity, overlay_color, excelencia_titulo, excelencia_subtitulo, excelencia_descripcion, excelencia_etiqueta, excelencia_icono, excelencia_etiqueta_icono, heroImagesJson]
       );
       
-      if (texto_logo !== undefined || imagen_portal_url !== undefined) {
+      if (descripcion_admision !== undefined) {
         await pool.query(
-          "INSERT INTO configuracion_portal (texto_logo, imagen_portal_url) VALUES (?, ?)",
-          [texto_logo || `Admisión ${new Date().getFullYear()}`, imagen_portal_url || '']
+          "INSERT INTO admision (id, descripcion_admision) VALUES (1, ?) ON DUPLICATE KEY UPDATE descripcion_admision = ?",
+          [descripcion_admision || `Admisión ${new Date().getFullYear()}`, descripcion_admision || `Admisión ${new Date().getFullYear()}`]
         );
       }
       
@@ -2706,10 +2893,37 @@ async function startServer() {
     }
   });
 
+  app.get("/api/configuracion-admision", async (req, res) => {
+    try {
+      const [rows]: any = await pool.query("SELECT * FROM admision WHERE id = 1");
+      const config = rows[0] || { 
+        descripcion_admision: `Admisión ${new Date().getFullYear()}`,
+        contador_visitas: 0
+      };
+      res.json(config);
+    } catch (error) {
+      handleDbError(res, error, "fetching configuracion admision");
+    }
+  });
+
+  app.post("/api/configuracion-admision", async (req, res) => {
+    try {
+      const { descripcion_admision } = req.body;
+      await pool.query(
+        "INSERT INTO admision (id, descripcion_admision) VALUES (1, ?) ON DUPLICATE KEY UPDATE descripcion_admision = ?",
+        [descripcion_admision || `Admisión ${new Date().getFullYear()}`, descripcion_admision || `Admisión ${new Date().getFullYear()}`]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      handleDbError(res, error, "updating configuracion admision");
+    }
+  });
+
   app.post("/api/portal/increment-visits", async (req, res) => {
     try {
-      // Increment visits on the latest portal configuration
-      await pool.query("UPDATE configuracion_portal SET contador_visitas = contador_visitas + 1 ORDER BY id DESC LIMIT 1");
+      // Ensure the table and record exist before updating in admision table
+      await pool.query("INSERT IGNORE INTO admision (id, descripcion_admision, contador_visitas) VALUES (1, ?, 0)", [`Admisión ${new Date().getFullYear()}`]);
+      await pool.query("UPDATE admision SET contador_visitas = contador_visitas + 1 WHERE id = 1");
       res.json({ success: true });
     } catch (error) {
       handleDbError(res, error, "incrementing visits");
@@ -2721,7 +2935,7 @@ async function startServer() {
   app.get("/api/configuracion-cronograma", async (req, res) => {
     try {
       const [rows]: any = await pool.query("SELECT * FROM configuracion_cronograma WHERE id = 1");
-      res.json(rows[0] || { fondo_url: '', overlay_opacity: 0.6 });
+      res.json(rows[0] || { fondo_url: '', overlay_opacity: 0.8, overlay_color: '#0c0a09' });
     } catch (error) {
       handleDbError(res, error, "fetching configuracion cronograma");
     }
@@ -2729,10 +2943,10 @@ async function startServer() {
 
   app.post("/api/configuracion-cronograma", async (req, res) => {
     try {
-      const { fondo_url, overlay_opacity } = req.body;
+      const { fondo_url, overlay_opacity, overlay_color } = req.body;
       await pool.query(
-        "INSERT INTO configuracion_cronograma (id, fondo_url, overlay_opacity) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE fondo_url = ?, overlay_opacity = ?",
-        [fondo_url, overlay_opacity, fondo_url, overlay_opacity]
+        "INSERT INTO configuracion_cronograma (id, fondo_url, overlay_opacity, overlay_color) VALUES (1, ?, ?, ?) ON DUPLICATE KEY UPDATE fondo_url = ?, overlay_opacity = ?, overlay_color = ?",
+        [fondo_url, overlay_opacity, overlay_color, fondo_url, overlay_opacity, overlay_color]
       );
       res.json({ success: true });
     } catch (error) {
@@ -2778,7 +2992,7 @@ async function startServer() {
 
   app.get("/api/modalidades", async (req, res) => {
     try {
-      const [rows] = await pool.query("SELECT * FROM modalidades ORDER BY indice_orden ASC, id DESC");
+      const [rows] = await pool.query("SELECT * FROM modalidades WHERE eliminado = 0 AND habilitado = 1 ORDER BY indice_orden ASC, id DESC");
       res.json(rows);
     } catch (error) {
       handleDbError(res, error, "fetching modalidades");
@@ -2788,20 +3002,18 @@ async function startServer() {
   app.post("/api/modalidades", async (req, res) => {
     try {
       const { 
-        nombre, codigo, amazonico, descentralizado, pedir_documentacion, 
-        anio, fecha, fecha_inicio, fecha_fin, usar_rango, 
-        costo_nacional, costo_privado
+        nombre, 
+        anio, fecha, 
+        costo_nacional, costo_privado, hora_fin
       } = req.body;
-      const fmt_fecha_inicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
-      const fmt_fecha_fin = fecha_fin ? fecha_fin.split('T')[0] : null;
       const fmt_fecha = fecha ? fecha.split('T')[0] : null;
       
       await pool.query(
-        "INSERT INTO modalidades (nombre, codigo, amazonico, descentralizado, pedir_documentacion, anio, fecha, fecha_inicio, fecha_fin, usar_rango, costo_nacional, costo_privado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO modalidades (nombre, anio, fecha, costo_nacional, costo_privado, hora_fin) VALUES (?, ?, ?, ?, ?, ?)",
         [
-          nombre, codigo, amazonico ? 1 : 0, descentralizado ? 1 : 0, pedir_documentacion ? 1 : 0, 
-          anio, fmt_fecha, fmt_fecha_inicio, fmt_fecha_fin, usar_rango !== undefined ? usar_rango : true, 
-          costo_nacional || 0, costo_privado || 0
+          nombre, 
+          anio, fmt_fecha, 
+          costo_nacional || 0, costo_privado || 0, hora_fin || '12:59'
         ]
       );
       res.json({ success: true });
@@ -2814,21 +3026,19 @@ async function startServer() {
     try {
       const { id } = req.params;
       const { 
-        nombre, codigo, amazonico, descentralizado, pedir_documentacion, 
-        anio, fecha, fecha_inicio, fecha_fin, usar_rango, 
-        costo_nacional, costo_privado
+        nombre, 
+        anio, fecha, 
+        costo_nacional, costo_privado, hora_fin
       } = req.body;
-      const fmt_fecha_inicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
-      const fmt_fecha_fin = fecha_fin ? fecha_fin.split('T')[0] : null;
       const fmt_fecha = fecha ? fecha.split('T')[0] : null;
 
       // Perform direct update to maintain the Primary Key (id)
       await pool.query(
-        "UPDATE modalidades SET nombre = ?, codigo = ?, amazonico = ?, descentralizado = ?, pedir_documentacion = ?, anio = ?, fecha = ?, fecha_inicio = ?, fecha_fin = ?, usar_rango = ?, costo_nacional = ?, costo_privado = ? WHERE id = ?",
+        "UPDATE modalidades SET nombre = ?, anio = ?, fecha = ?, costo_nacional = ?, costo_privado = ?, hora_fin = ? WHERE id = ?",
         [
-          nombre, codigo, amazonico ? 1 : 0, descentralizado ? 1 : 0, pedir_documentacion ? 1 : 0, 
-          anio, fmt_fecha, fmt_fecha_inicio, fmt_fecha_fin, usar_rango !== undefined ? usar_rango : true, 
-          costo_nacional || 0, costo_privado || 0, id
+          nombre, 
+          anio, fmt_fecha, 
+          costo_nacional || 0, costo_privado || 0, hora_fin || '12:59', id
         ]
       );
       
@@ -2881,26 +3091,6 @@ async function startServer() {
     } catch (error: any) {
       console.error("[DNI PROXY ERROR]", error);
       res.status(500).json({ error: "Error al consultar el servicio de DNI", details: error.message });
-    }
-  });
-
-  // Configuracion Seguridad
-  app.get("/api/configuracion-seguridad", async (req, res) => {
-    try {
-      const [rows]: any = await pool.query("SELECT modificacion_habilitada FROM configuracion_seguridad WHERE id = 1");
-      res.json(rows[0] || { modificacion_habilitada: false });
-    } catch (error) {
-      handleDbError(res, error, "fetching configuracion seguridad");
-    }
-  });
-
-  app.post("/api/configuracion-seguridad", async (req, res) => {
-    try {
-      const { modificacion_habilitada } = req.body;
-      await pool.query("UPDATE configuracion_seguridad SET modificacion_habilitada = ? WHERE id = 1", [modificacion_habilitada ? 1 : 0]);
-      res.json({ success: true });
-    } catch (error) {
-      handleDbError(res, error, "updating configuracion seguridad");
     }
   });
 
@@ -2987,7 +3177,7 @@ async function startServer() {
 
           const initialSettings = {
             configuracionInicio: settings,
-            textoLogo: settings.texto_logo,
+            descripcionAdmision: settings.descripcion_admision,
             pdfSettings: pdfSettings
           };
 

@@ -5,9 +5,19 @@ import { Save, ChevronLeft, Loader2, Image as ImageIcon, Calendar, Sliders, Plus
 export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () => void, onUpdate: () => void }) => {
   const [config, setConfig] = useState({ 
     fondo_url: '', 
-    overlay_opacity: 0.6,
+    overlay_opacity: 0.8,
+    overlay_color: '#081c22', // Darker institutional cyan for better contrast
     fecha_modificacion: null
   });
+
+  const PRESET_COLORS = [
+    { name: 'Cian UNIQ (Logo)', value: '#0891b2' },
+    { name: 'Azul Institucional', value: '#1e3a8a' },
+    { name: 'Verde UNIQ', value: '#65a30d' },
+    { name: 'Ambar UNIQ', value: '#eab308' },
+    { name: 'Oscuro Profundo', value: '#0c0a09' },
+    { name: 'Pizarra Intensa', value: '#0f172a' },
+  ];
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -240,47 +250,115 @@ export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () =
       <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100 space-y-8">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-uniq-cyan/10 flex items-center justify-center text-uniq-cyan">
-            <Calendar size={24} />
+            <Sliders size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-stone-800">Fondo del Cronograma</h2>
-            <p className="text-sm text-stone-500">Personaliza el fondo visual de la sección de cronograma de admisión.</p>
+            <h2 className="text-xl font-bold text-stone-800">Estética del Cronograma</h2>
+            <p className="text-sm text-stone-500">Personaliza la tonalidad, color y fondo visual para alinearlo con la identidad de la UNIQ.</p>
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-stone-700">URL de Imagen de Fondo</label>
-            <div className="flex gap-4">
-              <input 
-                value={config.fondo_url || ''} 
-                onChange={e => setConfig({...config, fondo_url: e.target.value})}
-                className="flex-1 p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
-                placeholder="https://ejemplo.com/fondo-cronograma.jpg"
-              />
-            </div>
-          </div>
-
+        <div className="space-y-8 bg-stone-50/50 p-6 rounded-3xl border border-stone-100">
           <div className="space-y-4">
             <label className="text-sm font-bold text-stone-700 flex items-center gap-2">
-              <Sliders size={16} />
-              Opacidad del Overlay (Oscurecimiento)
+              <ImageIcon size={16} className="text-uniq-cyan" />
+              Imagen de Fondo (URL)
             </label>
-            <div className="flex items-center gap-4">
-              <input 
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={config.overlay_opacity ?? 0}
-                onChange={e => setConfig({...config, overlay_opacity: parseFloat(e.target.value)})}
-                className="flex-1 h-2 bg-stone-100 rounded-lg appearance-none cursor-pointer accent-uniq-cyan"
-              />
-              <span className="text-sm font-bold text-stone-600 w-12 text-right">
-                {Math.round(config.overlay_opacity * 100)}%
-              </span>
+            <input 
+              value={config.fondo_url || ''} 
+              onChange={e => setConfig({...config, fondo_url: e.target.value})}
+              className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium bg-white shadow-sm"
+              placeholder="https://ejemplo.com/fondo-institucional.jpg"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-bold text-stone-700 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-uniq-cyan" />
+                  Color del Logo / Institucional
+                </label>
+                <span className="text-[10px] font-bold text-uniq-cyan bg-uniq-cyan/10 px-2 py-0.5 rounded-md uppercase tracking-widest">Recomendado</span>
+              </div>
+              <div className="grid grid-cols-6 gap-3">
+                {PRESET_COLORS.map((color) => (
+                  <motion.button
+                    key={color.value}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setConfig({ ...config, overlay_color: color.value })}
+                    className={`w-full aspect-square rounded-xl border-2 transition-all relative group ${
+                      config.overlay_color === color.value ? 'border-uniq-cyan shadow-lg' : 'border-white hover:border-uniq-cyan/30'
+                    }`}
+                    style={{ backgroundColor: color.value }}
+                  >
+                    {config.overlay_color === color.value && (
+                      <div className="absolute inset-0 flex items-center justify-center text-white">
+                        <Check size={14} strokeWidth={3} />
+                      </div>
+                    )}
+                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-stone-800 text-white text-[8px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                      {color.name}
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+              <div className="flex items-center gap-3 mt-6 p-3 bg-white rounded-2xl border border-stone-200 shadow-sm">
+                <input 
+                  type="color"
+                  value={config.overlay_color || '#000000'}
+                  onChange={e => setConfig({...config, overlay_color: e.target.value})}
+                  className="w-10 h-10 rounded-lg cursor-pointer border-none bg-transparent"
+                />
+                <input 
+                  type="text"
+                  value={config.overlay_color || '#000000'}
+                  onChange={e => setConfig({...config, overlay_color: e.target.value})}
+                  className="flex-1 bg-transparent border-none outline-none font-mono text-sm uppercase font-bold text-stone-600"
+                  placeholder="#000000"
+                />
+              </div>
             </div>
-            <p className="text-xs text-stone-400">Aumenta la opacidad para mejorar la legibilidad del texto sobre la imagen.</p>
+
+            <div className="space-y-6">
+              <label className="text-sm font-bold text-stone-700 flex items-center gap-2">
+                <Sliders size={16} className="text-uniq-cyan" />
+                Opacidad de Tonalidad ({Math.round(config.overlay_opacity * 100)}%)
+              </label>
+              <div className="flex flex-col gap-6 pt-2">
+                <div className="relative h-2 w-full bg-stone-200 rounded-full">
+                  <div 
+                    className="absolute h-full rounded-full bg-gradient-to-r from-uniq-cyan to-uniq-lime" 
+                    style={{ width: `${config.overlay_opacity * 100}%` }}
+                  />
+                  <input 
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={config.overlay_opacity ?? 0}
+                    onChange={e => setConfig({...config, overlay_opacity: parseFloat(e.target.value)})}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none z-10"
+                  />
+                  <motion.div 
+                    className="absolute top-1/2 -translate-y-1/2 w-6 h-6 bg-white border-4 border-uniq-cyan rounded-full shadow-lg pointer-events-none z-20"
+                    style={{ left: `calc(${config.overlay_opacity * 100}% - 12px)` }}
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] font-bold text-stone-400 uppercase tracking-widest px-1">
+                  <span>Claro / Visible</span>
+                  <span>Oscuro / Tonalidad</span>
+                </div>
+              </div>
+              <div className="p-4 bg-uniq-cyan/5 rounded-2xl border border-uniq-cyan/10">
+                <p className="text-xs text-stone-500 leading-relaxed">
+                  Tip: Usa una opacidad entre <span className="font-bold text-uniq-cyan">70% y 90%</span> para asegurar que el texto blanco del cronograma sea legible sobre fondos coloridos.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Preview */}
@@ -296,8 +374,8 @@ export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () =
                     referrerPolicy="no-referrer"
                   />
                   <div 
-                    className="absolute inset-0 bg-black" 
-                    style={{ opacity: config.overlay_opacity }}
+                    className="absolute inset-0" 
+                    style={{ backgroundColor: config.overlay_color, opacity: config.overlay_opacity }}
                   />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center space-y-2">

@@ -34,11 +34,16 @@ export const generatePreinscriptionPDF = async (
     uniqLogo = logoImage; // Fallback to the provided logo if any
   }
   
-  const admissionName = appSettings?.textoLogo || `ADMISIÓN ${new Date().getFullYear()}`;
+  const admissionName = appSettings?.descripcionAdmision || `ADMISIÓN ${new Date().getFullYear()}`;
   const securityCode = formData.securityCode || (formData.dni ? `C${formData.dni.substring(formData.dni.length - 4)}` : 'C4534');
   
   const pdfTitle = pdfSettings?.titulo || 'FICHA DE PREINSCRIPCIÓN';
-  const pdfSubtitle = pdfSettings?.subtitulo || admissionName.toUpperCase();
+  let pdfSubtitle = pdfSettings?.subtitulo || admissionName.toUpperCase();
+  
+  // Replace hardcoded ADMISIÓN 2026 with dynamic portal configuration value
+  if (pdfSubtitle.toUpperCase().includes('ADMISIÓN 2026')) {
+    pdfSubtitle = admissionName.toUpperCase();
+  }
 
   const configData = pdfSettings?.config_data || {};
   const secciones = configData.secciones || {};
@@ -126,14 +131,6 @@ export const generatePreinscriptionPDF = async (
     doc.setFontSize(9); // Reduced from 10
     doc.text(pdfSubtitle.toUpperCase(), pageWidth / 2, 34, { align: 'center' });
 
-    // Registration ID
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    if (registrationId) {
-      doc.text(`ID: ${registrationId}`, 15, 34, { align: 'left' });
-    }
-    
     // Intercultural Color Line
     const lineColors = [colors.cyan, colors.green, colors.yellow, colors.orange, colors.red];
     const segmentWidth = (pageWidth - 30) / lineColors.length;
@@ -262,9 +259,9 @@ export const generatePreinscriptionPDF = async (
 
   // Ficha de Información
   let habilidadesIdioma = [];
-  if (formData.languageRead) habilidadesIdioma.push('Lee');
-  if (formData.languageSpeak) habilidadesIdioma.push('Habla');
-  if (formData.languageWrite) habilidadesIdioma.push('Escribe');
+  if (formData.languageRead || formData.idiomaLee) habilidadesIdioma.push('Lee');
+  if (formData.languageSpeak || formData.idiomaHabla) habilidadesIdioma.push('Habla');
+  if (formData.languageWrite || formData.idiomaEscribe) habilidadesIdioma.push('Escribe');
 
   let condicionesEspeciales = [];
   if (formData.discapacidad) condicionesEspeciales.push(`Discapacidad (CONADIS: ${formData.conadisNumber || 'No especificado'})`);
@@ -315,10 +312,6 @@ export const generatePreinscriptionPDF = async (
     [campos.lugar_inscripcion || 'Lugar de inscripción', formData.lugarInscripcion || 'Sede Principal'],
   ]);
 
-  // --- PAGE 2 ---
-  doc.addPage();
-  startY = 45;
-
   addSection(secciones.pagos_caja || 'PAGOS A REALIZAR EN CAJA', [
     [campos.tipo_pago || 'Tipo de pago', formData.modality || ''],
     [campos.monto_total || 'MONTO TOTAL', `S/ ${Number(montoPago || 0).toFixed(2)}`],
@@ -326,7 +319,7 @@ export const generatePreinscriptionPDF = async (
 
   startY += 5;
   
-  checkPageBreak(70); // Ensure space for indicaciones
+  checkPageBreak(60); // Ensure space for indicaciones title and some items
 
   // Indicaciones Title
   let cyanRgb = hexToRgb(colors.cyan);

@@ -6,7 +6,7 @@ import { generatePreinscriptionPDF } from '../../pdfGenerator';
 const ConfiguracionPDFView = ({ onBack, onUpdate, appSettings, setAppSettings }: { onBack: () => void, onUpdate: () => void, appSettings: any, setAppSettings: (settings: any) => void }) => {
   const [pdfSettings, setPdfSettings] = useState<any>({
     titulo: 'FICHA DE PRE-INSCRIPCIÓN',
-    subtitulo: 'ADMISIÓN 2026',
+    subtitulo: appSettings?.descripcionAdmision || 'ADMISIÓN 2026',
     logo_url: '',
     logo_size: 25,
     show_side_logos: true,
@@ -206,7 +206,7 @@ const ConfiguracionPDFView = ({ onBack, onUpdate, appSettings, setAppSettings }:
       const timer = setTimeout(updatePreview, 500);
       return () => clearTimeout(timer);
     }
-  }, [pdfSettings, logoImage, appSettings.textoLogo, loading]);
+  }, [pdfSettings, logoImage, appSettings.descripcionAdmision, loading]);
 
   const handleSave = async () => {
     setSaving(true);

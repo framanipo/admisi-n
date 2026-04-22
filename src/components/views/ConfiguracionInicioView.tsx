@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Save, ChevronLeft, Loader2, Layout, Image as ImageIcon, Globe, Eye, Calendar, Clock, Sliders, GraduationCap } from 'lucide-react';
+import { Save, ChevronLeft, Loader2, Layout, Image as ImageIcon, Sliders, GraduationCap, Eye, Trash2, Delete } from 'lucide-react';
 
 export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => void, onUpdate: () => void }) => {
   const [config, setConfig] = useState({ 
     titulo: '', 
     subtitulo: '', 
     imagen_url: '', 
+    imagen_portal_url: '',
     overlay_opacity: 0.5,
     overlay_color: '#000000',
     excelencia_titulo: '',
@@ -15,11 +16,26 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
     excelencia_etiqueta: '',
     excelencia_icono: 'GraduationCap',
     excelencia_etiqueta_icono: 'ShieldCheck',
-    texto_logo: '', 
-    imagen_portal_url: '',
+    hero_images: [] as string[],
     contador_visitas: 0,
     fecha_modificacion: null
   });
+
+  const addHeroImage = () => {
+    setConfig({ ...config, hero_images: [...(config.hero_images || []), ''] });
+  };
+
+  const removeHeroImage = (index: number) => {
+    const newImages = [...(config.hero_images || [])];
+    newImages.splice(index, 1);
+    setConfig({ ...config, hero_images: newImages });
+  };
+
+  const updateHeroImage = (index: number, url: string) => {
+    const newImages = [...(config.hero_images || [])];
+    newImages[index] = url;
+    setConfig({ ...config, hero_images: newImages });
+  };
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -102,50 +118,6 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
       </div>
 
       <div className="space-y-8">
-        {/* Configuración General */}
-        <section className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100 space-y-8">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-uniq-cyan/10 flex items-center justify-center text-uniq-cyan">
-              <Globe size={24} />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-stone-800">Identidad del Portal</h2>
-              <p className="text-sm text-stone-500">Configura los elementos visuales básicos de la plataforma.</p>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-stone-700 flex items-center gap-2">
-                Texto junto al Logo
-              </label>
-              <input 
-                value={config.texto_logo || ''} 
-                onChange={e => setConfig({...config, texto_logo: e.target.value})}
-                className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
-                placeholder={`Admisión ${new Date().getFullYear()}`}
-              />
-            </div>
- 
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-stone-700">URL de Imagen del Portal (Logo/Icono)</label>
-              <div className="flex gap-4">
-                <input 
-                  value={config.imagen_portal_url || ''} 
-                  onChange={e => setConfig({...config, imagen_portal_url: e.target.value})}
-                  className="flex-1 p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
-                  placeholder="https://ejemplo.com/logo.png"
-                />
-                {config.imagen_portal_url && (
-                  <div className="w-14 h-14 rounded-2xl border border-stone-200 overflow-hidden bg-stone-50 flex items-center justify-center">
-                    <img src={config.imagen_portal_url} alt="Preview" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* Sección de Bienvenida */}
         <section className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-stone-100 space-y-8">
           <div className="flex items-center gap-4">
@@ -154,33 +126,66 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
             </div>
             <div>
               <h2 className="text-xl font-bold text-stone-800">Sección de Bienvenida</h2>
-              <p className="text-sm text-stone-500">Personaliza el mensaje principal que ven los postulantes.</p>
+              <p className="text-sm text-stone-500">Personaliza el mensaje principal y el slider de imágenes.</p>
             </div>
           </div>
 
           <div className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-stone-700">Título Principal</label>
-              <input 
-                value={config.titulo || ''} 
-                onChange={e => setConfig({...config, titulo: e.target.value})}
-                className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-stone-700">Subtítulo / Descripción</label>
-              <textarea 
-                value={config.subtitulo || ''} 
-                onChange={e => setConfig({...config, subtitulo: e.target.value})}
-                className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium min-h-[120px]"
-                rows={4}
-              />
-            </div>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-stone-700">URL de Imagen de Fondo</label>
+                  <label className="text-sm font-bold text-stone-700">Título Principal</label>
+                  <input 
+                    value={config.titulo || ''} 
+                    onChange={e => setConfig({...config, titulo: e.target.value})}
+                    className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-stone-700">Subtítulo / Descripción</label>
+                  <textarea 
+                    value={config.subtitulo || ''} 
+                    onChange={e => setConfig({...config, subtitulo: e.target.value})}
+                    className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium min-h-[120px]"
+                    rows={4}
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-bold text-stone-700">Imágenes del Slider (Fondo)</label>
+                    <button 
+                      onClick={addHeroImage}
+                      className="text-xs font-bold bg-uniq-cyan/10 text-uniq-cyan px-4 py-2 rounded-xl hover:bg-uniq-cyan/20 transition-all"
+                    >
+                      + Agregar Imagen
+                    </button>
+                  </div>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    {(config.hero_images || []).map((imgUrl, idx) => (
+                      <div key={idx} className="flex gap-3">
+                        <input 
+                          value={imgUrl || ''} 
+                          onChange={e => updateHeroImage(idx, e.target.value)}
+                          className="flex-1 p-3 rounded-xl border border-stone-200 text-sm focus:border-uniq-cyan outline-none"
+                          placeholder="https://ejemplo.com/fondo.jpg"
+                        />
+                        <button 
+                          onClick={() => removeHeroImage(idx)}
+                          className="p-3 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))}
+                    {(config.hero_images || []).length === 0 && (
+                      <p className="text-xs text-stone-400 italic py-2">No hay imágenes en el slider. Se usará la imagen de fondo por defecto o el color sólido.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-stone-700">URL de Imagen de Fondo (Respaldo)</label>
                   <input 
                     value={config.imagen_url || ''} 
                     onChange={e => setConfig({...config, imagen_url: e.target.value})}
@@ -188,75 +193,94 @@ export const ConfiguracionInicioView = ({ onBack, onUpdate }: { onBack: () => vo
                     placeholder="https://ejemplo.com/hero.jpg"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-stone-700">URL de Imagen del Portal (Logo/Icono Nav)</label>
+                  <input 
+                    value={config.imagen_portal_url || ''} 
+                    onChange={e => setConfig({...config, imagen_portal_url: e.target.value})}
+                    className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-medium"
+                    placeholder="https://ejemplo.com/logo.png"
+                  />
+                </div>
 
                 <div className="space-y-4">
-                  <label className="text-sm font-bold text-stone-700 flex items-center gap-2">
-                    <Sliders size={16} />
-                    Opacidad del Overlay
+                  <label className="text-sm font-bold text-stone-400 flex items-center gap-2 uppercase tracking-widest text-[10px]">
+                    <Sliders size={14} />
+                    Personalización del Overlay
                   </label>
-                  <div className="flex items-center gap-4">
-                    <input 
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={config.overlay_opacity ?? 0}
-                      onChange={e => setConfig({...config, overlay_opacity: parseFloat(e.target.value)})}
-                      className="flex-1 h-2 bg-stone-100 rounded-lg appearance-none cursor-pointer accent-uniq-cyan"
-                    />
-                    <span className="text-sm font-bold text-stone-600 w-12 text-right">
-                      {Math.round(config.overlay_opacity * 100)}%
-                    </span>
+                  
+                  <div className="grid grid-cols-1 gap-6 p-6 bg-stone-50 rounded-3xl border border-stone-100">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-stone-600">Opacidad</span>
+                        <span className="text-xs font-bold text-uniq-cyan">{Math.round(config.overlay_opacity * 100)}%</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={config.overlay_opacity ?? 0.5}
+                        onChange={e => setConfig({...config, overlay_opacity: parseFloat(e.target.value)})}
+                        className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-uniq-cyan"
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <span className="text-xs font-bold text-stone-600">Color del Overlay</span>
+                      <div className="flex items-center gap-4">
+                        <input 
+                          type="color"
+                          value={config.overlay_color || '#000000'}
+                          onChange={e => setConfig({...config, overlay_color: e.target.value})}
+                          className="w-10 h-10 rounded-xl border-none cursor-pointer"
+                        />
+                        <input 
+                          type="text"
+                          value={config.overlay_color || ''}
+                          onChange={e => setConfig({...config, overlay_color: e.target.value})}
+                          className="flex-1 p-2 rounded-xl border border-stone-200 text-xs font-mono uppercase"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-stone-700 flex items-center gap-2">
-                    Color del Overlay
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <input 
-                      type="color"
-                      value={config.overlay_color || '#000000'}
-                      onChange={e => setConfig({...config, overlay_color: e.target.value})}
-                      className="w-12 h-12 rounded-xl border-none cursor-pointer overflow-hidden p-0"
-                    />
-                    <input 
-                      type="text"
-                      value={config.overlay_color || ''}
-                      onChange={e => setConfig({...config, overlay_color: e.target.value})}
-                      className="flex-1 p-3 rounded-xl border border-stone-200 text-sm font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-stone-700">Vista Previa</label>
-                <div className="relative aspect-video rounded-3xl overflow-hidden bg-stone-100 border border-stone-200">
-                  {config.imagen_url ? (
-                    <>
+                  <label className="text-sm font-bold text-stone-700">Vista Previa</label>
+                  <div className="relative aspect-video rounded-3xl overflow-hidden bg-stone-900 border border-stone-200 shadow-inner group">
+                    {(config.hero_images && config.hero_images.length > 0 && config.hero_images[0]) ? (
+                      <img 
+                        src={config.hero_images[0]} 
+                        alt="Hero Preview" 
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : config.imagen_url ? (
                       <img 
                         src={config.imagen_url} 
                         alt="Hero Preview" 
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
                       />
-                      <div 
-                        className="absolute inset-0" 
-                        style={{ backgroundColor: config.overlay_color, opacity: config.overlay_opacity }}
-                      />
-                      <div className="absolute inset-0 flex flex-col justify-center p-6 text-white">
-                        <h4 className="text-lg font-bold leading-tight line-clamp-1">{config.titulo || 'Título'}</h4>
-                        <p className="text-[10px] opacity-80 line-clamp-2 mt-1">{config.subtitulo || 'Descripción'}</p>
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-stone-600 gap-2">
+                        <ImageIcon size={48} />
+                        <p className="text-xs font-medium">Sin imagen configurada</p>
                       </div>
-                    </>
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-stone-400 gap-2">
-                      <ImageIcon size={48} />
-                      <p className="text-sm font-medium">Ingresa una URL para ver la previsualización</p>
+                    )}
+                    <div 
+                      className="absolute inset-0" 
+                      style={{ backgroundColor: config.overlay_color, opacity: config.overlay_opacity }}
+                    />
+                    <div className="absolute inset-0 flex flex-col justify-center p-8 text-white">
+                      <h4 className="text-xl font-bold leading-tight line-clamp-1">{config.titulo || 'Título Principal'}</h4>
+                      <p className="text-xs opacity-80 line-clamp-2 mt-2 leading-relaxed">{config.subtitulo || 'Descripción secundaria de bienvenida'}</p>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>

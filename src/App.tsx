@@ -37,6 +37,7 @@ import {
   FileSearch,
   AlertCircle,
   Download,
+  FileDown,
   Globe,
   Check,
   Plus,
@@ -68,6 +69,7 @@ declare global {
 import { Step, View, Role, UserAuth, FormData } from './types';
 
 import { ConfiguracionInicioView } from './components/views/ConfiguracionInicioView';
+import { ConfiguracionAdmisionView } from './components/views/ConfiguracionPortalView';
 import { ConfiguracionCronogramaView } from './components/views/ConfiguracionCronogramaView';
 import { ConfiguracionCarrerasView } from './components/views/ConfiguracionCarrerasView';
 import { ConfiguracionModalidadesView } from './components/views/ConfiguracionModalidadesView';
@@ -173,14 +175,7 @@ export default function App() {
   const [user, setUser] = useState<UserAuth | null>(null);
   const [view, setView] = useState<View>('landing');
   const [step, setStep] = useState<Step>('personal');
-  const [formData, setFormData] = useState<FormData>(() => {
-    const saved = localStorage.getItem('formData');
-    return saved ? JSON.parse(saved) : INITIAL_DATA;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('formData', JSON.stringify(formData));
-  }, [formData]);
+  const [formData, setFormData] = useState<FormData>(INITIAL_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [registrations, setRegistrations] = useState<any[]>([]);
@@ -270,7 +265,7 @@ export default function App() {
           return next;
         }), name: 'carreras' },
         { url: '/api/configuracion-inicio', setter: (data: any) => setAppSettings((prev: any) => {
-          const next = { ...prev, textoLogo: data.texto_logo, configuracionInicio: data };
+          const next = { ...prev, descripcionAdmision: data.descripcion_admision, configuracionInicio: data };
           localStorage.setItem('appSettings', JSON.stringify(next));
           return next;
         }), name: 'configuracion-inicio' },
@@ -278,7 +273,12 @@ export default function App() {
           const next = { ...prev, pdfSettings: data };
           localStorage.setItem('appSettings', JSON.stringify(next));
           return next;
-        }), name: 'configuracion-pdf' }
+        }), name: 'configuracion-pdf' },
+        { url: '/api/configuracion-cronograma', setter: (data: any) => setAppSettings((prev: any) => {
+          const next = { ...prev, cronogramaConfig: data };
+          localStorage.setItem('appSettings', JSON.stringify(next));
+          return next;
+        }), name: 'configuracion-cronograma' }
       ];
 
       let hasConnectionError = false;
@@ -516,7 +516,10 @@ export default function App() {
           newErrors[field] = 'Este campo es obligatorio';
         }
       });
-
+      if (formData.email && !formData.email.includes('@')) {
+        newErrors.email = 'El correo electrónico debe contener un símbolo "@"';
+      }
+      
       const requiredLength = formData.documentType === 'DNI' ? 8 : 12;
       if (formData.dni && formData.dni.length !== requiredLength) {
         newErrors.dni = `El ${formData.documentType === 'DNI' ? 'DNI' : 'Carnet de Extranjería'} debe tener exactamente ${requiredLength} ${formData.documentType === 'DNI' ? 'dígitos' : 'caracteres'}`;
@@ -628,11 +631,11 @@ export default function App() {
       {view !== 'login' && view !== 'landing' && (
         <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
           <div className="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
-            <div className="flex items-center gap-4 cursor-pointer" onClick={() => setView(user?.role === 'admin' ? 'admin-dashboard' : 'guia')}>
+            <div className="flex items-center gap-4">
               <UniqLogo className="h-10 w-10" />
               <div className="hidden sm:block">
                 <h1 className="font-bold text-sm leading-tight tracking-tight text-stone-800 max-w-[250px]">Universidad Nacional Intercultural de Quillabamba</h1>
-                <p className="text-[9px] uppercase font-bold tracking-[0.2em] text-stone-400">{appSettings?.textoLogo || "Admisión 2026"}</p>
+                <p className="text-[9px] uppercase font-bold tracking-[0.2em] text-stone-400">{appSettings?.descripcionAdmision || "Admisión 2026"}</p>
               </div>
             </div>
             
@@ -662,41 +665,7 @@ export default function App() {
                     Control
                   </button>
                 )}
-                {user?.role === 'visualizador' && (
-                  <button 
-                    onClick={() => setView('admin-dashboard')}
-                    className={`transition-colors py-2 px-3 rounded-lg ${view === 'admin-dashboard' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
-                  >
-                    Estadísticas
-                  </button>
-                )}
-                <button 
-                  onClick={() => setView('cronograma')}
-                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'cronograma' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
-                >
-                  Cronograma
-                </button>
-                <button 
-                  onClick={() => setView('reglamento')}
-                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'reglamento' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
-                >
-                  Reglamento
-                </button>
-                <button 
-                  onClick={() => setView('temario')}
-                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'temario' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
-                >
-                  Temario
-                </button>
-                <button 
-                  onClick={() => setView('resultados')}
-                  className={`transition-colors py-2 px-3 rounded-lg ${view === 'resultados' ? 'bg-cyan-50 text-cyan-700' : 'hover:bg-stone-50 hover:text-stone-800'}`}
-                >
-                  Resultados
-                </button>
               </nav>
-              
-              <div className="h-8 w-px bg-stone-200 mx-2" />
               
               <div className="flex items-center gap-3">
                 <div className="text-right">
@@ -722,6 +691,7 @@ export default function App() {
             <LandingPage 
               onPreRegister={() => setView('preinscripcion')} 
               onLogin={() => setView('login')} 
+              onNavigate={(v) => setView(v)}
               onViewCareer={(career) => {
                 setSelectedCareer(career);
                 setView('carrera-detail');
@@ -827,8 +797,6 @@ export default function App() {
             <RegistradosManagementView onBack={() => setView('admin-dashboard')} />
           ) : view === 'config-idiomas' ? (
             <IdiomaManagementView onBack={() => setView('admin-dashboard')} />
-          ) : view === 'config-seguridad' ? (
-            <ConfiguracionSeguridadView onBack={() => setView('admin-dashboard')} />
           ) : view === 'admin-dashboard' ? (
             <AdminDashboardView 
               registrations={registrations} 
@@ -848,7 +816,12 @@ export default function App() {
               dbCheckResult={dbCheckResult}
               onConfigDni={() => setView('config-dni')}
               onConfigInicio={() => setView('config-inicio')}
-              onConfigSeguridad={() => setView('config-seguridad')}
+              onConfigAdmision={() => setView('config-admision')}
+            />
+          ) : view === 'config-admision' ? (
+            <ConfiguracionAdmisionView 
+              onBack={() => setView('admin-dashboard')} 
+              onUpdate={fetchSettings}
             />
           ) : view === 'config-ubicaciones' ? (
             <LocationManagementView onBack={() => setView('admin-dashboard')} />
@@ -899,7 +872,7 @@ export default function App() {
             >
               {/* Hero Guía */}
               <div className="text-center mb-16">
-                <h2 className="text-4xl font-bold text-stone-800 mb-4">Guía del Postulante {appSettings?.textoLogo?.replace('Admisión ', '') || "2026"}</h2>
+                <h2 className="text-4xl font-bold text-stone-800 mb-4">Guía del Postulante {appSettings?.descripcionAdmision?.replace('Admisión ', '') || "2026"}</h2>
                 <p className="text-stone-500 max-w-2xl mx-auto">Todo lo que necesitas saber para formar parte de la Universidad Nacional Intercultural de Quillabamba.</p>
               </div>
 
@@ -936,7 +909,7 @@ export default function App() {
                   </div>
                   <h3 className="text-xl font-bold text-stone-800 mb-4">Cronograma de Admisión</h3>
                   <div className="space-y-4">
-                    {cronograma.slice(0, 3).map((item: any, i: number) => (
+                    {cronograma.filter((item: any) => item.status !== 'completado').slice(0, 3).map((item: any, i: number) => (
                       <div key={i} className="flex justify-between items-center p-3 bg-stone-50 rounded-xl">
                         <div>
                           <p className="text-xs font-bold text-stone-400 uppercase">{item.event}</p>
@@ -1280,6 +1253,7 @@ const PreinscripcionForm: React.FC<{
   const [isSearchingDni, setIsSearchingDni] = useState(false);
   const [isSearchingApoderadoDni, setIsSearchingApoderadoDni] = useState(false);
   const [lastSearchedDni, setLastSearchedDni] = useState('');
+  const [lastCheckedModality, setLastCheckedModality] = useState('');
   const [lastSearchedApoderadoDni, setLastSearchedApoderadoDni] = useState('');
   const [idiomas, setIdiomas] = useState<any[]>([]);
   const [paises, setPaises] = useState<any[]>([]);
@@ -1317,8 +1291,8 @@ const PreinscripcionForm: React.FC<{
   }, []);
 
   const handleValidateCode = async () => {
-    if (securityCode.length !== 6) {
-      setCodeError('El código debe tener 6 dígitos');
+    if (securityCode.length !== 5) {
+      setCodeError('El código debe tener 5 dígitos');
       return;
     }
 
@@ -1328,60 +1302,122 @@ const PreinscripcionForm: React.FC<{
       const response = await fetch('/api/registrations/validate-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dni: formData.dni, code: securityCode }),
+        body: JSON.stringify({ dni: formData.dni, code: securityCode, modality: formData.modality }),
       });
 
       const data = await response.json();
       if (response.ok) {
         // Load registration data into form
         const reg = data.registration;
+        
+        // Fetch dependent data for the selects to show correctly
+        const getProvincias = async (regionName: string) => {
+          const region = regiones.find(r => r.nombre.trim().toUpperCase() === (regionName || "").trim().toUpperCase());
+          if (region) {
+            const res = await fetch(`/api/provincias?region_id=${region.id}`);
+            const provs = res.ok ? await res.json() : [];
+            return { regionName: region.nombre, provinces: provs };
+          }
+          return { regionName: regionName, provinces: [] };
+        };
+
+        const getDistritos = async (provName: string, provinces: any[]) => {
+          const prov = provinces.find(p => p.nombre.trim().toUpperCase() === (provName || "").trim().toUpperCase());
+          if (prov) {
+            const res = await fetch(`/api/distritos?provincia_id=${prov.id}`);
+            const dists = res.ok ? await res.json() : [];
+            return { provName: prov.nombre, districts: dists };
+          }
+          return { provName: provName, districts: [] };
+        };
+
+        const getColegios = async (distName: string, districts: any[]) => {
+          const dist = districts.find(d => d.nombre.trim().toUpperCase() === (distName || "").trim().toUpperCase());
+          if (dist) {
+            const res = await fetch(`/api/colegios?distrito_id=${dist.id}`);
+            const cols = res.ok ? await res.json() : [];
+            return { distName: dist.nombre, colegios: cols };
+          }
+          return { distName: distName, colegios: [] };
+        };
+
+        const pLoc = await getProvincias(reg.procedencia_region);
+        setProcedenciaProvincias(pLoc.provinces);
+        const pProv = await getDistritos(reg.procedencia_provincia, pLoc.provinces);
+        setProcedenciaDistritos(pProv.districts);
+        const pDist = pProv.districts.find((d: any) => d.nombre.trim().toUpperCase() === (reg.procedencia_distrito || "").trim().toUpperCase());
+
+        const cLoc = await getProvincias(reg.colegio_region);
+        setColegioProvincias(cLoc.provinces);
+        const cProv = await getDistritos(reg.colegio_provincia, cLoc.provinces);
+        setColegioDistritos(cProv.districts);
+        const cCols = await getColegios(reg.colegio_distrito, cProv.districts);
+        setColegiosList(cCols.colegios);
+        const cDist = cProv.districts.find((d: any) => d.nombre.trim().toUpperCase() === (reg.colegio_distrito || "").trim().toUpperCase());
+
+        const nLoc = await getProvincias(reg.nacimiento_region);
+        setNacimientoProvincias(nLoc.provinces);
+        const nProv = await getDistritos(reg.nacimiento_provincia, nLoc.provinces);
+        setNacimientoDistritos(nProv.districts);
+        const nDist = nProv.districts.find((d: any) => d.nombre.trim().toUpperCase() === (reg.nacimiento_distrito || "").trim().toUpperCase());
+
         setFormData({
           ...formData,
-          modality: reg.modalidad,
-          career: reg.carrera,
-          careerCode: reg.codigo_carrera,
-          names: reg.nombres,
-          paternalSurname: reg.apellido_paterno,
-          maternalSurname: reg.apellido_materno,
+          modality: reg.modalidad || '',
+          career: reg.carrera || '',
+          careerCode: reg.codigo_carrera || '',
+          names: reg.nombres || '',
+          paternalSurname: reg.apellido_paterno || '',
+          maternalSurname: reg.apellido_materno || '',
           birthDate: reg.fecha_nacimiento ? reg.fecha_nacimiento.split('T')[0] : '',
-          gender: reg.sexo,
-          email: reg.email,
-          movil: reg.movil,
-          pais: reg.pais,
-          nacionalidad: reg.nacionalidad,
-          lugarInscripcion: reg.lugar_inscripcion,
-          idioma: reg.idioma,
+          gender: reg.genero ? reg.genero.toUpperCase() : '',
+          email: reg.correo || reg.email || '',
+          movil: reg.movil || '',
+          pais: reg.pais || '',
+          nacionalidad: reg.nacionalidad || '',
+          lugarInscripcion: reg.lugar_inscripcion || '',
+          idioma: reg.idioma || '',
           idiomaLee: !!reg.idioma_lee,
           idiomaHabla: !!reg.idioma_habla,
           idiomaEscribe: !!reg.idioma_escribe,
-          procedenciaRegion: reg.procedencia_region,
-          procedenciaProvincia: reg.procedencia_provincia,
-          procedenciaDistrito: reg.procedencia_distrito,
-          colegioRegion: reg.colegio_region,
-          colegioProvincia: reg.colegio_provincia,
-          colegioDistrito: reg.colegio_distrito,
-          schoolName: reg.colegio_nombre,
-          schoolType: reg.colegio_tipo,
-          schoolLevel: reg.colegio_nivel,
-          graduationYear: reg.anio_egreso,
-          nacimientoRegion: reg.nacimiento_region,
-          nacimientoProvincia: reg.nacimiento_provincia,
-          nacimientoDistrito: reg.nacimiento_distrito,
-          apoderadoDni: reg.apoderado_dni,
-          apoderadoNombres: reg.apoderado_nombres,
-          apoderadoApellidoPaterno: reg.apoderado_apellido_paterno,
-          apoderadoApellidoMaterno: reg.apoderado_apellido_materno,
-          apoderadoMovil: reg.apoderado_movil,
-          montoPago: reg.monto_pago,
-          securityCode: securityCode // Store the code for the update request
+          procedenciaRegion: pLoc.regionName,
+          procedenciaProvincia: pProv.provName,
+          procedenciaDistrito: pDist ? pDist.nombre : (reg.procedencia_distrito || ''),
+          procedenciaDireccion: (reg.procedencia_direccion || '').trim(),
+          colegioRegion: cLoc.regionName,
+          colegioProvincia: cProv.provName,
+          colegioDistrito: cDist ? cDist.nombre : (reg.colegio_distrito || ''),
+          schoolName: (reg.colegio_nombre || '').trim(),
+          schoolType: (reg.colegio_tipo || '').trim(),
+          schoolLevel: (reg.colegio_nivel || '').trim(),
+          graduationYear: reg.anio_egreso ? reg.anio_egreso.toString() : '',
+          nacimientoRegion: nLoc.regionName,
+          nacimientoProvincia: nProv.provName,
+          nacimientoDistrito: nDist ? nDist.nombre : (reg.nacimiento_distrito || ''),
+          nacimientoUbigeo: (reg.nacimiento_ubigeo || '').trim(),
+          apoderadoDni: reg.apoderado_dni || '',
+          apoderadoNombres: reg.apoderado_nombres || '',
+          apoderadoApellidoPaterno: reg.apoderado_apellido_paterno || '',
+          apoderadoApellidoMaterno: reg.apoderado_apellido_materno || '',
+          apoderadoMovil: reg.apoderado_movil || '',
+          hasSpecialConditions: !!reg.tiene_condiciones_especiales,
+          discapacidad: !!reg.discapacidad,
+          conadisNumber: reg.numero_conadis || '',
+          isDeportista: !!reg.es_deportista,
+          isVictimaViolencia: !!reg.es_victima_violencia,
+          isServicioMilitar: !!reg.es_servicio_militar,
+          isPrimerosPuestos: !!reg.es_primeros_puestos,
+          monto_pago: Number(reg.monto_pago) || 0,
+          securityCode: securityCode
         });
         setOriginalRegistrationId(reg.id);
         setIsModifying(true);
         setShowSecurityCodeInput(false);
+        setCurrentStep(1);
         // Success message
-        alert('Código validado correctamente. Ahora puede modificar su preinscripción por única vez.');
+        alert('Código validado correctamente. Ya puede proceder a modificar su preinscripción.');
       } else {
-        setCodeError(data.error || 'Código inválido o ya usado');
+        setCodeError(data.message || data.error || 'Código inválido o ya usado');
       }
     } catch (error) {
       console.error('Error validating code:', error);
@@ -1453,6 +1489,7 @@ const PreinscripcionForm: React.FC<{
       if (formData.dni.length !== 8) {
         if (lastSearchedDni !== '') {
           setLastSearchedDni('');
+          setLastCheckedModality('');
           setFormData(prev => ({
             ...prev,
             names: '',
@@ -1463,7 +1500,9 @@ const PreinscripcionForm: React.FC<{
         return;
       }
 
-      // Only lookup if DNI is exactly 8 digits and different from last searched
+      let nameDataExtracted = false;
+
+      // Only perform external DNI lookup if DNI is exactly 8 digits and different from last searched
       if (formData.dni.length === 8 && formData.dni !== lastSearchedDni) {
         setIsSearchingDni(true);
         setLastSearchedDni(formData.dni);
@@ -1489,26 +1528,7 @@ const PreinscripcionForm: React.FC<{
               delete newErrors.dni;
               return newErrors;
             });
-
-            // Check if DNI is already registered
-            try {
-              const checkRes = await fetch(`/api/registrations/check-dni/${formData.dni}`);
-              const checkData = await checkRes.json();
-              if (checkRes.ok && checkData.exists) {
-                setIsDniRegistered(true);
-                if (checkData.canModify) {
-                  setShowSecurityCodeInput(true);
-                } else {
-                  setShowSecurityCodeInput(false);
-                  setErrors(prev => ({ ...prev, dni: 'Este DNI ya está registrado y el código de seguridad ya fue usado.' }));
-                }
-              } else {
-                setIsDniRegistered(false);
-                setShowSecurityCodeInput(false);
-              }
-            } catch (err) {
-              console.error("Error checking DNI registration:", err);
-            }
+            nameDataExtracted = true;
           } else {
             const errorMsg = data.message || data.error || 'DNI no encontrado';
             setErrors(prev => ({ ...prev, dni: errorMsg }));
@@ -1519,17 +1539,52 @@ const PreinscripcionForm: React.FC<{
               paternalSurname: '',
               maternalSurname: ''
             }));
+            return;
           }
         } catch (error) {
           console.error("Error looking up DNI:", error);
           setErrors(prev => ({ ...prev, dni: 'Error de conexión' }));
+          return;
         } finally {
           setIsSearchingDni(false);
         }
+      } else {
+        nameDataExtracted = true;
+      }
+
+      // Check registration if DNI fetch succeeded or was previously fetched
+      if (nameDataExtracted && (formData.dni !== lastSearchedDni || formData.modality !== lastCheckedModality)) {
+          setLastCheckedModality(formData.modality);
+          try {
+            const url = formData.modality 
+              ? `/api/registrations/check-dni/${formData.dni}?modality=${encodeURIComponent(formData.modality)}`
+              : `/api/registrations/check-dni/${formData.dni}`;
+            const checkRes = await fetch(url);
+            const checkData = await checkRes.json();
+            if (checkRes.ok && checkData.exists) {
+              setIsDniRegistered(true);
+              if (checkData.canModify) {
+                setShowSecurityCodeInput(true);
+              } else {
+                setShowSecurityCodeInput(false);
+                setErrors(prev => ({ ...prev, dni: 'Este DNI ya está registrado en la modalidad seleccionada' }));
+              }
+            } else {
+              setIsDniRegistered(false);
+              setShowSecurityCodeInput(false);
+              setErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors.dni;
+                return newErrors;
+              });
+            }
+          } catch (err) {
+            console.error("Error checking DNI registration:", err);
+          }
       }
     };
     lookupDni();
-  }, [formData.dni, setFormData, lastSearchedDni]);
+  }, [formData.dni, formData.modality, setFormData, lastSearchedDni, lastCheckedModality]);
 
   useEffect(() => {
     setIsLoadingModalidades(true);
@@ -1788,7 +1843,41 @@ const PreinscripcionForm: React.FC<{
 
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
-      setFormData(prev => ({ ...prev, [name]: checked }));
+      const specialConditionSubFields = ['discapacidad', 'isDeportista', 'isVictimaViolencia', 'isServicioMilitar', 'isPrimerosPuestos'];
+      
+      if (name === 'hasSpecialConditions') {
+        setFormData(prev => ({ 
+          ...prev, 
+          [name]: checked,
+          // Reset all special condition sub-fields if parent un-checked
+          discapacidad: checked ? prev.discapacidad : false,
+          isDeportista: checked ? prev.isDeportista : false,
+          isVictimaViolencia: checked ? prev.isVictimaViolencia : false,
+          isServicioMilitar: checked ? prev.isServicioMilitar : false,
+          isPrimerosPuestos: checked ? prev.isPrimerosPuestos : false,
+          conadisNumber: checked ? prev.conadisNumber : ''
+        }));
+      } else if (specialConditionSubFields.includes(name) && checked) {
+        // If one of these is checked, uncheck all others
+        setFormData(prev => ({
+          ...prev,
+          discapacidad: false,
+          isDeportista: false,
+          isVictimaViolencia: false,
+          isServicioMilitar: false,
+          isPrimerosPuestos: false,
+          [name]: true,
+          // Maintain conadisNumber only if current name is discapacidad
+          conadisNumber: name === 'discapacidad' ? prev.conadisNumber : ''
+        }));
+      } else {
+        setFormData(prev => ({ 
+          ...prev, 
+          [name]: checked,
+          // If unchecking discapacidad, also clear the number
+          conadisNumber: (name === 'discapacidad' && !checked) ? '' : prev.conadisNumber
+        }));
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
       
@@ -2100,7 +2189,7 @@ const PreinscripcionForm: React.FC<{
                       <p className="font-bold">Este DNI ya está registrado</p>
                     </div>
                     <p className="text-sm text-amber-700">
-                      Si desea modificar su preinscripción (permitido solo una vez), ingrese el código de seguridad de 6 dígitos que se encuentra en su ficha PDF (campo C7542) o en su correo electrónico.
+                      Si desea modificar su preinscripción (permitido solo una vez), ingrese el código de seguridad de 5 dígitos que se encuentra en su ficha PDF
                     </p>
                     <div className="flex gap-4 items-end">
                       <div className="flex-1">
@@ -2110,17 +2199,17 @@ const PreinscripcionForm: React.FC<{
                           value={securityCode}
                           onChange={(e) => {
                             const val = e.target.value.replace(/[^0-9]/g, '');
-                            if (val.length <= 6) setSecurityCode(val);
+                            if (val.length <= 5) setSecurityCode(val);
                           }}
-                          placeholder="000000"
-                          maxLength={6}
+                          placeholder="00000"
+                          maxLength={5}
                           error={codeError}
                         />
                       </div>
                       <button
                         type="button"
                         onClick={handleValidateCode}
-                        disabled={isCodeValidating || securityCode.length !== 6}
+                        disabled={isCodeValidating || securityCode.length !== 5}
                         className="h-[46px] px-8 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition-all disabled:opacity-50 flex items-center gap-2"
                       >
                         {isCodeValidating ? <RefreshCw size={18} className="animate-spin" /> : <Check size={18} />}
@@ -2156,7 +2245,25 @@ const PreinscripcionForm: React.FC<{
                   error={errors.pais}
                 />
                 <InputField label="Nacionalidad" name="nacionalidad" value={formData.nacionalidad || ''} onChange={handleChange} error={errors.nacionalidad} readOnly disabled />
-                <InputField label="Email" name="email" value={formData.email || ''} onChange={handleChange} error={errors.email} />
+                <InputField 
+                  label="Email" 
+                  name="email" 
+                  value={formData.email || ''} 
+                  onChange={handleChange} 
+                  onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+                    const value = e.target.value;
+                    if (value && !value.includes('@')) {
+                      setErrors(prev => ({ ...prev, email: 'El correo electrónico debe contener un símbolo "@"' }));
+                    } else {
+                      setErrors(prev => {
+                        const newErrors = { ...prev };
+                        delete newErrors.email;
+                        return newErrors;
+                      });
+                    }
+                  }}
+                  error={errors.email} 
+                />
                 <InputField label="Móvil" name="movil" value={formData.movil || ''} onChange={handleChange} error={errors.movil} />
                 <SelectField 
                   label="Lugar de inscripción" 
@@ -2243,7 +2350,7 @@ const PreinscripcionForm: React.FC<{
                   </div>
                   <InputField label="Nivel" name="schoolLevel" value={formData.schoolLevel || ''} readOnly disabled />
                   <InputField label="Tipo de Colegio" name="schoolType" value={formData.schoolType || ''} readOnly disabled />
-                  <InputField label="Monto a Pagar" name="monto_pago" value={formData.monto_pago ? `S/ ${formData.monto_pago.toFixed(2)}` : 'S/ 0.00'} readOnly disabled />
+                  <InputField label="Monto a Pagar" name="monto_pago" value={formData.monto_pago ? `S/ ${Number(formData.monto_pago).toFixed(2)}` : 'S/ 0.00'} readOnly disabled />
                   <SelectField label="Año Egreso" name="graduationYear" value={formData.graduationYear || ''} onChange={handleChange} options={aniosEgreso.map(a => a.anio.toString())} placeholder="Seleccione año" error={errors.graduationYear} />
                 </div>
               </div>
@@ -2412,7 +2519,7 @@ const PreinscripcionForm: React.FC<{
               <div className="flex justify-between items-start mb-6 border-b border-stone-200 pb-6">
                 <div>
                   <h3 className="text-xl font-bold text-uniq-cyan mb-1">UNIVERSIDAD NACIONAL INTERCULTURAL DE QUILLABAMBA</h3>
-                  <p className="text-stone-500 font-medium">FICHA DE PRE-INSCRIPCIÓN - {appSettings?.textoLogo?.toUpperCase() || "ADMISIÓN 2026"}</p>
+                  <p className="text-stone-500 font-medium">FICHA DE PRE-INSCRIPCIÓN - {appSettings?.descripcionAdmision?.toUpperCase() || "ADMISIÓN 2026"}</p>
                 </div>
                 {logoImage && (
                   <img src={logoImage.src} alt="Logo UNIQ" className="w-16 h-16 object-contain" />
@@ -2450,7 +2557,6 @@ const PreinscripcionForm: React.FC<{
                       <p><span className="font-semibold text-stone-600">Nombres:</span> {formData.names}</p>
                       <p><span className="font-semibold text-stone-600">Apellidos:</span> {formData.paternalSurname} {formData.maternalSurname}</p>
                       <p><span className="font-semibold text-stone-600">Email:</span> {formData.email}</p>
-                      <p><span className="font-semibold text-stone-600">Teléfono:</span> {formData.phone}</p>
                     </div>
                   </div>
                 </div>
@@ -2508,22 +2614,22 @@ const CronogramaView: React.FC<{ onBack: () => void, cronograma: any[], appSetti
           <Clock size={24} />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-stone-800">Cronograma de {appSettings?.textoLogo || "Admisión 2026"}</h2>
+          <h2 className="text-2xl font-bold text-stone-800">Cronograma de {appSettings?.descripcionAdmision || "Admisión 2026"}</h2>
           <p className="text-stone-500">Fechas oficiales del proceso de selección.</p>
         </div>
       </div>
 
       <div className="space-y-4">
-        {cronograma.map((item: any, i: number) => (
+        {cronograma.filter((item: any) => item.status !== 'completado').map((item: any, i: number) => (
           <div key={i} className="flex items-center justify-between p-5 bg-stone-50 rounded-2xl border border-stone-100 hover:border-cyan-200 transition-all">
             <div className="flex items-center gap-4">
-              <div className={`w-2 h-2 rounded-full ${item.status === 'activo' ? 'bg-cyan-500 animate-pulse' : item.status === 'completado' ? 'bg-stone-300' : 'bg-cyan-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${item.status === 'activo' ? 'bg-cyan-500 animate-pulse' : 'bg-cyan-400'}`} />
               <div>
                 <p className="font-bold text-stone-800">{item.event}</p>
                 <p className="text-xs text-stone-500">{item.date}</p>
               </div>
             </div>
-            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.status === 'activo' ? 'bg-uniq-cyan/10 text-uniq-cyan' : item.status === 'completado' ? 'bg-stone-200 text-stone-500' : 'bg-uniq-cyan/5 text-uniq-cyan'}`}>
+            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${item.status === 'activo' ? 'bg-uniq-cyan/10 text-uniq-cyan' : 'bg-uniq-cyan/5 text-uniq-cyan'}`}>
               {item.status}
             </span>
           </div>
@@ -2680,46 +2786,79 @@ const TemarioView = ({ onBack, temario }: { onBack: () => void, temario: any[] }
 
 const ResultadosView = ({ isAdmin, resultados, appSettings, onBack }: { isAdmin: boolean, resultados: any[], appSettings?: any, onBack: () => void }) => {
   const [search, setSearch] = useState('');
+  const [selectedYear, setSelectedYear] = useState<string>('todos');
+  const [selectedModality, setSelectedModality] = useState<string>('todos');
+  const [selectedCareer, setSelectedCareer] = useState<string>('todos');
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pdfFile, setPdfFile] = useState<string | null>(null);
 
-  const filteredResults = (resultados.length > 0 ? resultados : [
-    { pos: 1, name: "GARCIA LOPEZ, MARCO", score: "18.450", status: "Ingresó" },
-    { pos: 2, name: "QUISPE MAMANI, ELENA", score: "17.920", status: "Ingresó" },
-    { pos: 3, name: "HUAMAN ROJAS, JORGE", score: "17.100", status: "Ingresó" },
-    { pos: 4, name: "TORRES VELA, LUCIA", score: "16.850", status: "No Ingresó" },
-  ]).filter(r => 
-    r.name.toLowerCase().includes(search.toLowerCase()) || 
-    (r.dni && r.dni.includes(search))
-  );
+  const filterOptions = useMemo(() => {
+    const data = resultados.length > 0 ? resultados : [
+      { id: 1, pos: 1, name: "GARCIA LOPEZ, MARCO", score: "18.450", status: "INGRESA", ano_admision: 2026, modalidad: "EXAMEN ORDINARIO", carrera: "CONTABILIDAD", colegio_procedencia: "I.E. MATEO PUMACAHUA", dni: "60473384" },
+      { id: 2, pos: 2, name: "QUISPE MAMANI, ELENA", score: "17.920", status: "INGRESA", ano_admision: 2026, modalidad: "EXAMEN ORDINARIO", carrera: "INGENIERÍA CIVIL", colegio_procedencia: "I.E. SAN JUAN", dni: "61538488" }
+    ];
+    return {
+      years: Array.from(new Set(data.map(r => r.ano_admision).filter(Boolean))).sort((a, b) => Number(b) - Number(a)),
+      modalities: Array.from(new Set(data.map(r => r.modalidad).filter(Boolean))).sort(),
+      careers: Array.from(new Set(data.map(r => r.carrera).filter(Boolean))).sort()
+    };
+  }, [resultados]);
+
+  const fallbackData = [
+      { id: 1, pos: 1, name: "GARCIA LOPEZ, MARCO", score: "18.450", status: "INGRESA", ano_admision: 2026, modalidad: "EXAMEN ORDINARIO", carrera: "CONTABILIDAD", colegio_procedencia: "I.E. MATEO PUMACAHUA", dni: "60473384" },
+      { id: 2, pos: 2, name: "QUISPE MAMANI, ELENA", score: "17.920", status: "INGRESA", ano_admision: 2026, modalidad: "EXAMEN ORDINARIO", carrera: "INGENIERÍA CIVIL", colegio_procedencia: "I.E. SAN JUAN", dni: "61538488" },
+      { id: 3, pos: 3, name: "HUAMAN ROJAS, JORGE", score: "17.100", status: "INGRESA", ano_admision: 2026, modalidad: "PRIMEROS PUESTOS", carrera: "ECONOMÍA", colegio_procedencia: "I.E. MATEO PUMACAHUA", dni: "61650914" },
+      { id: 4, pos: 4, name: "TORRES VELA, LUCIA", score: "16.850", status: "NO INGRESA", ano_admision: 2026, modalidad: "EXAMEN ORDINARIO", carrera: "ECOTURISMO", colegio_procedencia: "I.E. SAN JUAN", dni: "60202667" },
+  ];
+
+  const currentData = resultados.length > 0 ? resultados : fallbackData;
+
+  const filteredResults = currentData.filter(r => {
+    const matchSearch = r.name?.toLowerCase().includes(search.toLowerCase()) || (r.dni && r.dni.includes(search));
+    const matchYear = selectedYear === 'todos' || String(r.ano_admision) === selectedYear;
+    const matchModality = selectedModality === 'todos' || r.modalidad === selectedModality;
+    const matchCareer = selectedCareer === 'todos' || r.carrera === selectedCareer;
+    return matchSearch && matchYear && matchModality && matchCareer;
+  });
 
   const handleUpload = () => {
     setUploading(true);
     // Simulate file selection and upload
     setTimeout(() => {
       setUploading(false);
-      setPdfFile(`Resultados_${appSettings?.textoLogo?.replace(' ', '_') || "Admision_2026"}_Final.pdf`);
+      setPdfFile(`Resultados_${appSettings?.descripcionAdmision?.replace(/ /g, '_') || "Admision_2026"}_Final.pdf`);
     }, 2000);
   };
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-      <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
+      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl flex items-center justify-center shrink-0">
               <FileSearch size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-stone-800">Resultados de Admisión</h2>
-              <p className="text-stone-500">Consulta de puntajes y vacantes adjudicadas.</p>
+              <h2 className="text-xl md:text-2xl font-bold text-stone-800">Resultados de Admisión</h2>
+              <p className="text-stone-500 text-sm md:text-base">Consulta de puntajes y vacantes adjudicadas.</p>
             </div>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            {isAdmin && (
+              <a 
+                href="/formato_resultados.csv" 
+                download 
+                className="flex items-center gap-2 px-6 py-3 bg-stone-100 text-stone-700 rounded-2xl font-bold text-sm hover:bg-stone-200 transition-all w-full md:w-auto justify-center"
+              >
+                <FileDown size={18} />
+                Descargar Plantilla
+              </a>
+            )}
             {pdfFile && (
               <button 
-                className="flex items-center gap-2 px-6 py-3 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl font-bold text-sm hover:bg-uniq-cyan/20 transition-all"
+                className="flex items-center gap-2 px-6 py-3 bg-uniq-cyan/10 text-uniq-cyan rounded-2xl font-bold text-sm hover:bg-uniq-cyan/20 transition-all w-full md:w-auto justify-center"
                 onClick={() => window.open('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
               >
                 <FileText size={18} />
@@ -2730,31 +2869,64 @@ const ResultadosView = ({ isAdmin, resultados, appSettings, onBack }: { isAdmin:
               <button 
                 onClick={handleUpload}
                 disabled={uploading}
-                className="flex items-center gap-2 px-6 py-3 bg-stone-900 text-white rounded-2xl font-bold text-sm hover:bg-stone-800 transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-6 py-3 bg-stone-900 text-white rounded-2xl font-bold text-sm hover:bg-stone-800 transition-all disabled:opacity-50 w-full md:w-auto justify-center"
               >
                 <UploadCloud size={18} />
-                {uploading ? 'Subiendo...' : 'Subir PDF de Resultados'}
+                {uploading ? 'Subiendo...' : 'Subir CSV de Resultados'}
               </button>
             )}
           </div>
         </div>
 
-        <div className="relative mb-8">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
-          <input 
-            type="text" 
-            placeholder="Buscar por DNI o Apellidos..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="relative col-span-1 md:col-span-4">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
+            <input 
+              type="text" 
+              placeholder="Buscar por DNI o Apellidos..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all"
+            />
+          </div>
+          
+          <select 
+            value={selectedYear} 
+            onChange={e => setSelectedYear(e.target.value)}
+            className="px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none"
+          >
+            <option value="todos">Todos los Años</option>
+            {filterOptions.years.map((y, i) => (
+              <option key={i} value={String(y)}>{y}</option>
+            ))}
+          </select>
+          <select 
+            value={selectedModality} 
+            onChange={e => setSelectedModality(e.target.value)}
+            className="px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none"
+          >
+            <option value="todos">Todas las Modalidades</option>
+            {filterOptions.modalities.map((m, i) => (
+              <option key={i} value={String(m)}>{m}</option>
+            ))}
+          </select>
+          <select 
+            value={selectedCareer} 
+            onChange={e => setSelectedCareer(e.target.value)}
+            className="px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none md:col-span-2"
+          >
+            <option value="todos">Todas las Carreras</option>
+            {filterOptions.careers.map((c, i) => (
+              <option key={i} value={String(c)}>{c}</option>
+            ))}
+          </select>
         </div>
 
         <div className="bg-amber-50 border border-amber-200 p-6 rounded-3xl flex items-start gap-4 mb-8">
           <AlertCircle className="text-amber-600 shrink-0" size={24} />
           <div>
-            <p className="font-bold text-amber-900">Resultados Preliminares</p>
-            <p className="text-sm text-amber-800">Los resultados oficiales finales se publicarán después de la validación de documentos originales.</p>
+            <p className="font-bold text-amber-900">Resultados Oficiales</p>
+            <p className="text-sm text-amber-800">Haz clic en cualquier postulante para ver más detalles sobre su admisión (Colegio de procedencia, modalidad y carrera adjudicada).</p>
           </div>
         </div>
 
@@ -2764,28 +2936,74 @@ const ResultadosView = ({ isAdmin, resultados, appSettings, onBack }: { isAdmin:
               <tr className="bg-stone-50">
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Puesto</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Postulante</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400 hidden sm:table-cell">Carrera</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Puntaje</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Estado</th>
               </tr>
             </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filteredResults.map((res, i) => (
-                  <tr key={i} className="hover:bg-stone-50 transition-colors">
+            <tbody className="divide-y divide-stone-100">
+              {filteredResults.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-stone-500 font-medium">No se encontraron resultados para los filtros seleccionados.</td>
+                </tr>
+              ) : filteredResults.map((res, i) => (
+                <React.Fragment key={res.id || i}>
+                  <tr 
+                    onClick={() => setExpandedId(expandedId === (res.id || i) ? null : (res.id || i))}
+                    className="hover:bg-stone-50 transition-colors cursor-pointer group"
+                  >
                     <td className="p-4 font-mono font-bold text-stone-400">#{res.pos}</td>
-                    <td className="p-4 font-bold text-stone-800">{res.name}</td>
+                    <td className="p-4 font-bold text-stone-800 group-hover:text-uniq-cyan transition-colors">
+                      {res.name}
+                      <span className="block sm:hidden text-xs text-stone-500 font-normal mt-1">{res.carrera}</span>
+                    </td>
+                    <td className="p-4 text-sm text-stone-600 font-medium hidden sm:table-cell">{res.carrera || 'No especificada'}</td>
                     <td className="p-4 font-mono text-uniq-cyan font-bold">{res.score}</td>
                     <td className="p-4">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${res.status === 'Ingresó' ? 'bg-uniq-cyan/10 text-uniq-cyan' : 'bg-red-50 text-red-600'}`}>
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${res.status?.toLowerCase().includes('ingresa') && !res.status?.toLowerCase().includes('no') ? 'bg-cyan-50 text-cyan-700' : 'bg-stone-100 text-stone-500'}`}>
                         {res.status}
                       </span>
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                  <AnimatePresence>
+                    {expandedId === (res.id || i) && (
+                      <motion.tr 
+                        initial={{ opacity: 0, height: 0 }} 
+                        animate={{ opacity: 1, height: 'auto' }} 
+                        exit={{ opacity: 0, height: 0 }}
+                      >
+                        <td colSpan={5} className="p-0 border-b-0">
+                          <div className="bg-stone-50/50 p-6 md:px-10 border-t border-stone-100">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                              <div>
+                                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">DNI</p>
+                                <p className="text-sm font-medium text-stone-800">{res.dni || '***'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Año Admisión</p>
+                                <p className="text-sm font-medium text-stone-800">{res.ano_admision || 'No registrado'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Modalidad</p>
+                                <p className="text-sm font-medium text-stone-800 truncate" title={res.modalidad}>{res.modalidad || 'No registrada'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Colegio de Procedencia</p>
+                                <p className="text-sm font-medium text-stone-800 truncate" title={res.colegio_procedencia}>{res.colegio_procedencia || 'No registrado'}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    )}
+                  </AnimatePresence>
+                </React.Fragment>
+              ))}
+            </tbody>
           </table>
         </div>
 
-        <div className="mt-10 pt-8 border-t border-stone-100">
+        <div className="mt-10 pt-8 border-t border-stone-100 flex justify-between items-center">
           <button 
             onClick={onBack}
             className="flex items-center gap-2 px-6 py-3 text-stone-500 font-bold hover:text-stone-800 transition-all"
@@ -2793,6 +3011,9 @@ const ResultadosView = ({ isAdmin, resultados, appSettings, onBack }: { isAdmin:
             <ChevronLeft size={18} />
             Volver
           </button>
+          <div className="text-sm text-stone-400 font-medium">
+            Total: {filteredResults.length} registros
+          </div>
         </div>
       </div>
     </motion.div>
@@ -2877,7 +3098,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
   const filteredApplicants = registrations.filter(app => {
     const searchLower = search.toLowerCase();
     const fullName = `${app.nombres} ${app.apellido_paterno} ${app.apellido_materno}`.toLowerCase();
-    const regCode = `UNIQ-${appSettings?.textoLogo?.replace('Admisión ', '') || "2026"}-${app.id}`.toLowerCase();
+    const regCode = `UNIQ-${appSettings?.descripcionAdmision?.replace('Admisión ', '') || "2026"}-${app.id}`.toLowerCase();
     
     return (
       (app.dni && app.dni.includes(search)) || 
@@ -2932,6 +3153,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Carrera</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Móvil Apoderado</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Estado</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Código Seguridad</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Modificado por</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Acciones</th>
               </tr>
@@ -2939,7 +3161,7 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
             <tbody className="divide-y divide-stone-100">
               {filteredApplicants.map((app, i) => (
                 <tr key={i} className="hover:bg-stone-50 transition-colors">
-                  <td className="p-4 font-mono text-[10px] font-bold text-stone-500">UNIQ-{appSettings?.textoLogo?.replace('Admisión ', '') || "2026"}-{app.id}</td>
+                  <td className="p-4 font-mono text-[10px] font-bold text-stone-500">UNIQ-{appSettings?.descripcionAdmision?.replace('Admisión ', '') || "2026"}-{app.id}</td>
                   <td className="p-4 font-bold text-stone-800 text-sm">{app.nombres} {app.apellido_paterno} {app.apellido_materno}</td>
                   <td className="p-4 text-sm text-stone-600">{app.dni}</td>
                   <td className="p-4 text-sm text-stone-600">{app.carrera}</td>
@@ -2952,6 +3174,9 @@ const ControlPreinscripcionView = ({ registrations, onUpdateStatus, userRole, on
                     }`}>
                       {app.estado}
                     </span>
+                  </td>
+                  <td className="p-4 font-mono font-bold text-stone-600">
+                    {app.security_code || '-'}
                   </td>
                   <td className="p-4 text-[10px] text-stone-500 font-medium italic">{app.changed_by || 'Postulante'}</td>
                   <td className="p-4">
@@ -3088,7 +3313,7 @@ const ConfigDniApiView = ({ settings, onSave, onBack }: { settings: any, onSave:
   );
 };
 
-const AdminDashboardView = ({ registrations, userRole, onBack, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult, onConfigDni, onConfigInicio, onConfigPreinscripciones, onConfigColegios, onConfigIdiomas, onConfigPDF, appSettings }: { registrations: any[], userRole?: string, onBack: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any, onConfigDni: () => void, onConfigInicio: () => void, onConfigPreinscripciones: () => void, onConfigColegios: () => void, onConfigIdiomas: () => void, onConfigPDF: () => void, appSettings?: any }) => {
+const AdminDashboardView = ({ registrations, userRole, onBack, onConfigCronograma, onConfigCarreras, onConfigUsers, onConfigRegistrados, onConfigModalidades, onConfigDatabase, onCheckDb, isCheckingDb, dbCheckResult, onConfigDni, onConfigInicio, onConfigAdmision, onConfigColegios, onConfigIdiomas, appSettings }: { registrations: any[], userRole?: string, onBack: () => void, onConfigCronograma: () => void, onConfigCarreras: () => void, onConfigUsers: () => void, onConfigRegistrados: () => void, onConfigModalidades: () => void, onConfigDatabase: () => void, onCheckDb: () => void, isCheckingDb: boolean, dbCheckResult: any, onConfigDni: () => void, onConfigInicio: () => void, onConfigAdmision: () => void, onConfigColegios: () => void, onConfigIdiomas: () => void, appSettings?: any }) => {
   useEffect(() => {
     onCheckDb();
   }, []);
@@ -3169,6 +3394,7 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigCronogram
               title: "Configuración del Portal",
               description: "Personalización de la información pública y parámetros del examen.",
               actions: [
+                { icon: Calendar, label: "Configurar Admisión", color: "bg-uniq-cyan/10 text-uniq-cyan", action: onConfigAdmision },
                 { icon: LayoutDashboard, label: "Configurar Inicio", color: "bg-pink-50 text-pink-600", action: onConfigInicio },
                 { icon: BookOpen, label: "Configurar Carreras", color: "bg-purple-50 text-purple-600", action: onConfigCarreras },
                 { icon: BookOpen, label: "Configurar Modalidades", color: "bg-lime-50 text-lime-600", action: onConfigModalidades },
@@ -3182,7 +3408,6 @@ const AdminDashboardView = ({ registrations, userRole, onBack, onConfigCronogram
               actions: [
                 { icon: User, label: "Gestionar Usuarios", color: "bg-purple-50 text-purple-600", action: onConfigUsers },
                 { icon: Database, label: "Configurar Base Datos", color: "bg-indigo-50 text-indigo-600", action: onConfigDatabase },
-                { icon: Lock, label: "Habilitar Edición", color: "bg-amber-50 text-amber-600", action: onConfigSeguridad },
                 { icon: Globe, label: "Configurar API DNI", color: "bg-uniq-cyan/10 text-uniq-cyan", action: onConfigDni },
                 { icon: RefreshCw, label: isCheckingDb ? "Verificando..." : "Probar Conexión DB", color: "bg-emerald-50 text-emerald-600", action: onCheckDb },
               ]
@@ -3587,7 +3812,7 @@ const InscripcionAdminFormView = ({ onSave, onBack, currentUser, appSettings }: 
               <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Monto a Pagar</label>
               <input 
                 type="text" 
-                value={formData.monto_pago ? `S/ ${formData.monto_pago.toFixed(2)}` : 'S/ 0.00'} 
+                value={formData.monto_pago ? `S/ ${Number(formData.monto_pago).toFixed(2)}` : 'S/ 0.00'} 
                 readOnly 
                 disabled 
                 className="w-full px-4 py-3 bg-stone-100 border border-stone-200 rounded-2xl outline-none text-stone-500 font-bold" 
@@ -4111,6 +4336,55 @@ const LocationManagementView: React.FC<{ onBack: () => void }> = ({ onBack }) =>
   );
 };
 
+const mapDBToPdfFormData = (app: any) => ({
+  names: app.nombres,
+  paternalSurname: app.apellido_paterno,
+  maternalSurname: app.apellido_materno,
+  dni: app.dni,
+  email: app.email,
+  movil: app.movil,
+  phone: app.movil,
+  birthDate: app.fecha_nacimiento ? app.fecha_nacimiento.split('T')[0] : '',
+  gender: app.genero,
+  pais: app.pais,
+  nacionalidad: app.nacionalidad,
+  idioma: app.idioma,
+  languageRead: app.idioma_lee == 1 || app.idioma_lee === true || app.idioma_lee === '1',
+  languageSpeak: app.idioma_habla == 1 || app.idioma_habla === true || app.idioma_habla === '1',
+  languageWrite: app.idioma_escribe == 1 || app.idioma_escribe === true || app.idioma_escribe === '1',
+  procedenciaRegion: app.procedenciaRegion,
+  procedenciaProvincia: app.procedenciaProvincia,
+  procedenciaDistrito: app.procedenciaDistrito,
+  procedenciaDireccion: app.procedenciaDireccion,
+  nacimientoRegion: app.nacimientoRegion,
+  nacimientoProvincia: app.nacimientoProvincia,
+  nacimientoDistrito: app.nacimientoDistrito,
+  nacimientoUbigeo: app.nacimientoUbigeo,
+  schoolName: app.schoolName,
+  schoolType: app.schoolType,
+  schoolLevel: app.schoolLevel,
+  colegioRegion: app.colegioRegion,
+  colegioProvincia: app.colegioProvincia,
+  colegioDistrito: app.colegioDistrito,
+  graduationYear: app.graduationYear,
+  career: app.carrera,
+  modality: app.modalidad,
+  lugarInscripcion: app.lugar_inscripcion,
+  apoderadoNombres: app.apoderado_nombres,
+  apoderadoApellidoPaterno: app.apoderado_apellido_paterno,
+  apoderadoApellidoMaterno: app.apoderado_apellido_materno,
+  apoderadoDni: app.apoderado_dni,
+  apoderadoTelefono: app.apoderado_movil,
+  apoderadoMovil: app.apoderado_movil,
+  isDeportista: app.is_deportista == 1 || app.is_deportista === true || app.is_deportista === '1',
+  isVictimaViolencia: app.is_victima_violencia == 1 || app.is_victima_violencia === true || app.is_victima_violencia === '1',
+  isServicioMilitar: app.is_servicio_militar == 1 || app.is_servicio_militar === true || app.is_servicio_militar === '1',
+  isPrimerosPuestos: app.is_primeros_puestos == 1 || app.is_primeros_puestos === true || app.is_primeros_puestos === '1',
+  discapacidad: app.discapacidad == 1 || app.discapacidad === true || app.discapacidad === '1',
+  conadisNumber: app.conadis_number,
+  securityCode: app.security_code || `C${app.dni?.substring(app.dni.length - 4)}`
+});
+
 const PreinscripcionesManagementView: React.FC<{ 
   onBack: () => void, 
   appSettings?: any, 
@@ -4149,48 +4423,7 @@ const PreinscripcionesManagementView: React.FC<{
   }, [appSettings?.imagenPortalUrl]);
 
   const handleDownloadPDF = async (app: any) => {
-    const pdfFormData = {
-      names: app.nombres,
-      paternalSurname: app.apellido_paterno,
-      maternalSurname: app.apellido_materno,
-      dni: app.dni,
-      email: app.email,
-      phone: app.telefono,
-      birthDate: app.fecha_nacimiento,
-      gender: app.genero,
-      language: app.idioma,
-      languageRead: app.idioma_lee === 1,
-      languageSpeak: app.idioma_habla === 1,
-      languageWrite: app.idioma_escribe === 1,
-      originRegion: app.procedenciaRegion,
-      originProvince: app.procedenciaProvincia,
-      originDistrict: app.procedenciaDistrito,
-      originAddress: app.procedenciaDireccion,
-      birthRegion: app.nacimientoRegion,
-      birthProvince: app.nacimientoProvincia,
-      birthDistrict: app.nacimientoDistrito,
-      schoolName: app.schoolName,
-      schoolType: app.schoolType,
-      schoolLevel: app.schoolLevel,
-      schoolRegion: app.colegioRegion,
-      schoolProvince: app.colegioProvincia,
-      schoolDistrict: app.colegioDistrito,
-      schoolYear: app.graduationYear,
-      career: app.carrera,
-      modality: app.modalidad,
-      lugarInscripcion: app.lugar_inscripcion,
-      apoderadoNames: app.apoderado_nombres,
-      apoderadoPaternalSurname: app.apoderado_apellido_paterno,
-      apoderadoMaternalSurname: app.apoderado_apellido_materno,
-      apoderadoDni: app.apoderado_dni,
-      apoderadoPhone: app.apoderado_movil,
-      isDeportista: app.is_deportista === 1,
-      isVictimaViolencia: app.is_victima_violencia === 1,
-      isServicioMilitar: app.is_servicio_militar === 1,
-      isPrimerosPuestos: app.is_primeros_puestos === 1,
-      discapacidad: app.discapacidad === 1,
-      conadisNumber: app.conadis_number
-    };
+    const pdfFormData = mapDBToPdfFormData(app);
 
     try {
       await generatePreinscriptionPDF(
@@ -4210,48 +4443,7 @@ const PreinscripcionesManagementView: React.FC<{
   };
 
   const handlePreviewPDF = async (app: any) => {
-    const pdfFormData = {
-      names: app.nombres,
-      paternalSurname: app.apellido_paterno,
-      maternalSurname: app.apellido_materno,
-      dni: app.dni,
-      email: app.email,
-      phone: app.telefono,
-      birthDate: app.fecha_nacimiento,
-      gender: app.genero,
-      language: app.idioma,
-      languageRead: app.idioma_lee === 1,
-      languageSpeak: app.idioma_habla === 1,
-      languageWrite: app.idioma_escribe === 1,
-      originRegion: app.procedenciaRegion,
-      originProvince: app.procedenciaProvincia,
-      originDistrict: app.procedenciaDistrito,
-      originAddress: app.procedenciaDireccion,
-      birthRegion: app.nacimientoRegion,
-      birthProvince: app.nacimientoProvincia,
-      birthDistrict: app.nacimientoDistrito,
-      schoolName: app.schoolName,
-      schoolType: app.schoolType,
-      schoolLevel: app.schoolLevel,
-      schoolRegion: app.colegioRegion,
-      schoolProvince: app.colegioProvincia,
-      schoolDistrict: app.colegioDistrito,
-      schoolYear: app.graduationYear,
-      career: app.carrera,
-      modality: app.modalidad,
-      lugarInscripcion: app.lugar_inscripcion,
-      apoderadoNames: app.apoderado_nombres,
-      apoderadoPaternalSurname: app.apoderado_apellido_paterno,
-      apoderadoMaternalSurname: app.apoderado_apellido_materno,
-      apoderadoDni: app.apoderado_dni,
-      apoderadoPhone: app.apoderado_movil,
-      isDeportista: app.is_deportista === 1,
-      isVictimaViolencia: app.is_victima_violencia === 1,
-      isServicioMilitar: app.is_servicio_militar === 1,
-      isPrimerosPuestos: app.is_primeros_puestos === 1,
-      discapacidad: app.discapacidad === 1,
-      conadisNumber: app.conadis_number
-    };
+    const pdfFormData = mapDBToPdfFormData(app);
 
     try {
       const dataUri = await generatePreinscriptionPDF(
@@ -4576,12 +4768,26 @@ const PreinscripcionesManagementView: React.FC<{
                   <input type="text" value={formData.modality || ''} onChange={e => setFormData({...formData, modality: e.target.value})} className="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl" required />
                 </div>
               </div>
-              <div className="flex justify-end gap-3 pt-6 border-t border-stone-100">
-                <button type="button" onClick={() => setShowModal(false)} className="px-6 py-2 text-stone-500 font-bold hover:bg-stone-50 rounded-xl">Cancelar</button>
-                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-6 py-2 bg-uniq-cyan text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-50">
-                  {isSubmitting && <RefreshCw size={16} className="animate-spin" />}
-                  {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
-                </button>
+              <div className="flex justify-between items-center pt-6 border-t border-stone-100">
+                {editingId ? (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      const regToDownload = registrations.find(r => r.id === editingId);
+                      if (regToDownload) handleDownloadPDF(regToDownload);
+                    }} 
+                    className="flex items-center gap-2 px-4 py-2 text-uniq-cyan font-bold hover:bg-cyan-50 rounded-xl transition-colors"
+                  >
+                    <Download size={18} /> Descargar PDF
+                  </button>
+                ) : <div></div>}
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setShowModal(false)} className="px-6 py-2 text-stone-500 font-bold hover:bg-stone-50 rounded-xl">Cancelar</button>
+                  <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-6 py-2 bg-uniq-cyan text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-50">
+                    {isSubmitting && <RefreshCw size={16} className="animate-spin" />}
+                    {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+                  </button>
+                </div>
               </div>
             </form>
           </motion.div>
@@ -4841,57 +5047,6 @@ const RegistradosManagementView: React.FC<{ onBack: () => void }> = ({ onBack })
   );
 };
 
-const ConfiguracionSeguridadView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const [habilitada, setHabilitada] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/configuracion-seguridad')
-      .then(res => res.json())
-      .then(data => {
-        setHabilitada(data.modificacion_habilitada);
-        setLoading(false);
-      });
-  }, []);
-
-  const handleToggle = async () => {
-    const nuevoEstado = !habilitada;
-    await fetch('/api/configuracion-seguridad', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ modificacion_habilitada: nuevoEstado })
-    });
-    setHabilitada(nuevoEstado);
-  };
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto p-6">
-      <div className="flex items-center gap-4 mb-8">
-        <button onClick={onBack} className="p-2 hover:bg-stone-100 rounded-full">
-          <ChevronLeft size={24} className="text-stone-500" />
-        </button>
-        <h1 className="text-2xl font-bold">Habilitar Modificación de Preinscritos</h1>
-      </div>
-      {loading ? <div>Cargando...</div> : (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-stone-700">Estado de Modificación:</span>
-            <button 
-              onClick={handleToggle}
-              className={`px-6 py-2 rounded-xl font-bold text-white ${habilitada ? 'bg-green-600' : 'bg-red-600'}`}
-            >
-              {habilitada ? 'HABILITADO' : 'DESHABILITADO'}
-            </button>
-          </div>
-          <p className="text-sm text-stone-500 mt-4">
-            Al habilitar esta opción, los usuarios podrán modificar su preinscripción ingresando su DNI y el código de seguridad recibido una sola vez.
-          </p>
-        </div>
-      )}
-    </motion.div>
-  );
-};
-
 const FichaPDFView: React.FC<{ preinscripcion: any, onBack: () => void, appSettings: any }> = ({ preinscripcion, onBack, appSettings }) => {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
@@ -4909,48 +5064,7 @@ const FichaPDFView: React.FC<{ preinscripcion: any, onBack: () => void, appSetti
   useEffect(() => {
     if (preinscripcion) {
       const generate = async () => {
-        const pdfFormData = {
-          names: preinscripcion.nombres,
-          paternalSurname: preinscripcion.apellido_paterno,
-          maternalSurname: preinscripcion.apellido_materno,
-          dni: preinscripcion.dni,
-          email: preinscripcion.email,
-          phone: preinscripcion.telefono,
-          birthDate: preinscripcion.fecha_nacimiento,
-          gender: preinscripcion.genero,
-          language: preinscripcion.idioma,
-          languageRead: preinscripcion.idioma_lee === 1,
-          languageSpeak: preinscripcion.idioma_habla === 1,
-          languageWrite: preinscripcion.idioma_escribe === 1,
-          originRegion: preinscripcion.procedenciaRegion,
-          originProvince: preinscripcion.procedenciaProvincia,
-          originDistrict: preinscripcion.procedenciaDistrito,
-          originAddress: preinscripcion.procedenciaDireccion,
-          birthRegion: preinscripcion.nacimientoRegion,
-          birthProvince: preinscripcion.nacimientoProvincia,
-          birthDistrict: preinscripcion.nacimientoDistrito,
-          schoolName: preinscripcion.schoolName,
-          schoolType: preinscripcion.schoolType,
-          schoolLevel: preinscripcion.schoolLevel,
-          schoolRegion: preinscripcion.colegioRegion,
-          schoolProvince: preinscripcion.colegioProvincia,
-          schoolDistrict: preinscripcion.colegioDistrito,
-          schoolYear: preinscripcion.graduationYear,
-          career: preinscripcion.carrera,
-          modality: preinscripcion.modalidad,
-          lugarInscripcion: preinscripcion.lugar_inscripcion,
-          apoderadoNames: preinscripcion.apoderado_nombres,
-          apoderadoPaternalSurname: preinscripcion.apoderado_apellido_paterno,
-          apoderadoMaternalSurname: preinscripcion.apoderado_apellido_materno,
-          apoderadoDni: preinscripcion.apoderado_dni,
-          apoderadoPhone: preinscripcion.apoderado_movil,
-          isDeportista: preinscripcion.is_deportista === 1,
-          isVictimaViolencia: preinscripcion.is_victima_violencia === 1,
-          isServicioMilitar: preinscripcion.is_servicio_militar === 1,
-          isPrimerosPuestos: preinscripcion.is_primeros_puestos === 1,
-          discapacidad: preinscripcion.discapacidad === 1,
-          conadisNumber: preinscripcion.conadis_number
-        };
+        const pdfFormData = mapDBToPdfFormData(preinscripcion);
 
         const dataUri = await generatePreinscriptionPDF(
           pdfFormData,

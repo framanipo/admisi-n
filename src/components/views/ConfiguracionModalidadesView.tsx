@@ -56,14 +56,11 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: editForm.nombre,
-          codigo: editForm.codigo || '',
-          amazonico: !!editForm.amazonico,
-          descentralizado: !!editForm.descentralizado,
-          pedir_documentacion: !!editForm.pedir_documentacion,
           anio: editForm.anio || new Date().getFullYear(),
           fecha: editForm.fecha || '',
           costo_nacional: editForm.costo_nacional || 0,
-          costo_privado: editForm.costo_privado || 0
+          costo_privado: editForm.costo_privado || 0,
+          hora_fin: editForm.hora_fin || '12:59'
         })
       });
       if (response.ok) {
@@ -117,8 +114,7 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
           </div>
           <button 
             onClick={() => startEdit({ 
-              nombre: '', codigo: '', amazonico: false, descentralizado: false, 
-              pedir_documentacion: false, anio: new Date().getFullYear(), 
+              nombre: '', anio: new Date().getFullYear(), 
               fecha: '', costo_nacional: 0, costo_privado: 0
             })} 
             className="flex items-center justify-center gap-2 px-8 py-4 bg-uniq-cyan text-white font-bold rounded-2xl hover:bg-uniq-cyan/90 transition-all shadow-lg shadow-uniq-cyan/20 active:scale-95"
@@ -185,6 +181,16 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
                                   className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
                                 />
                               </div>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Hora de Finalización</label>
+                              <input 
+                                type="time" 
+                                value={editForm.hora_fin || '12:59'} 
+                                onChange={e => setEditForm({...editForm, hora_fin: e.target.value})} 
+                                className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all font-bold text-stone-800"
+                              />
+                              <p className="text-[10px] text-stone-400 ml-1">Hora en la cual los registros para esta modalidad se cerrarán.</p>
                             </div>
                           </div>
                         </div>
@@ -281,7 +287,8 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
                             const now = new Date();
                             const peruTime = new Date(now.getTime() + (now.getTimezoneOffset() - 300) * 60000);
                             const [y, mon, d] = m.fecha.split('T')[0].split('-').map(Number);
-                            const deadline = new Date(y, mon - 1, d, 12, 59, 59);
+                            const [h, min] = (m.hora_fin || '12:59').split(':').map(Number);
+                            const deadline = new Date(y, mon - 1, d, h, min, 59);
                             
                             return peruTime > deadline ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-lime-50 text-lime-600 border-lime-100';
                           })()
@@ -293,9 +300,10 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
                              const now = new Date();
                              const peruTime = new Date(now.getTime() + (now.getTimezoneOffset() - 300) * 60000);
                              const [y, mon, d] = m.fecha.split('T')[0].split('-').map(Number);
-                             const deadline = new Date(y, mon - 1, d, 12, 59, 59);
+                             const [h, min] = (m.hora_fin || '12:59').split(':').map(Number);
+                             const deadline = new Date(y, mon - 1, d, h, min, 59);
                              
-                             return peruTime > deadline ? 'Expirado (12:59 PM)' : 'Activo';
+                             return peruTime > deadline ? 'Expirado' : 'Activo';
                            })()
                           }
                         </div>
@@ -377,6 +385,15 @@ export const ConfiguracionModalidadesView = ({ onBack, onUpdate }: { onBack: () 
                                   className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 transition-all font-bold text-stone-800"
                                 />
                               </div>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Hora de Finalización</label>
+                              <input 
+                                type="time" 
+                                value={editForm.hora_fin || '12:59'} 
+                                onChange={e => setEditForm({...editForm, hora_fin: e.target.value})} 
+                                className="w-full px-5 py-4 bg-stone-50/50 border border-stone-200 rounded-2xl outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all font-bold text-stone-800"
+                              />
                             </div>
                       </div>
                     </div>
