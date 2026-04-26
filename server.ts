@@ -9,6 +9,19 @@ import fs from "fs/promises";
 import multer from "multer";
 import crypto from "crypto";
 
+import https from "https";
+
+export async function getExternalIp() {
+  return new Promise((resolve) => {
+    https.get("https://ipv4.icanhazip.com", (res) => {
+      let data = "";
+      res.on("data", (chunk) => data += chunk);
+      res.on("end", () => resolve(data.trim()));
+      res.on("error", () => resolve("Desconocida"));
+    }).on("error", () => resolve("Desconocida"));
+  });
+}
+
 dotenv.config({ override: true });
 
 const __filename = fileURLToPath(import.meta.url);
@@ -176,12 +189,15 @@ async function startServer() {
           console.log("[DB] Retrying in 3 seconds...");
           await new Promise(resolve => setTimeout(resolve, 3000));
         } else {
-          console.error("[DB] CRITICAL: All connection attempts timed out.");
-          console.error(`[DB] TROUBLESHOOTING: This ETIMEDOUT error means your MySQL server at ${dbSettings.host} is not responding.`);
-          console.error("[DB] 1. Check if the MySQL service is running.");
-          console.error(`[DB] 2. Check if port ${dbSettings.port} is open in your server's firewall (iptables/ufw/cloud security groups).`);
-          console.error("[DB] 3. Ensure MySQL is configured to listen on all interfaces (bind-address = 0.0.0.0).");
-          console.error("[DB] 4. IMPORTANT: In cPanel, add IP 34.34.229.10 to 'Remote MySQL' allowed hosts.");
+          try {
+            const externalIp = await getExternalIp();
+            console.error("[DB] CRITICAL: All connection attempts timed out.");
+            console.error(`[DB] TROUBLESHOOTING: This ETIMEDOUT error means your MySQL server at ${dbSettings.host} is not responding.`);
+            console.error("[DB] 1. Check if the MySQL service is running.");
+            console.error(`[DB] 2. Check if port ${dbSettings.port} is open in your server's firewall (iptables/ufw/cloud security groups).`);
+            console.error("[DB] 3. Ensure MySQL is configured to listen on all interfaces (bind-address = 0.0.0.0).");
+            console.error(`[DB] 4. IMPORTANT: In cPanel, add IP ${externalIp} to 'Remote MySQL' allowed hosts. Note: This IP may change.`);
+          } catch(e) {}
         }
       }
     }
@@ -281,20 +297,6 @@ async function startServer() {
         )
       `);
 
-      // Add new columns to existing resultados table if they don't exist
-      try {
-        await connection.query("ALTER TABLE resultados ADD COLUMN career_id INT");
-        await connection.query("ALTER TABLE resultados ADD CONSTRAINT fk_career FOREIGN KEY (career_id) REFERENCES carreras(id)");
-      } catch (e: any) {
-        // Ignore error if column already exists (ER_DUP_FIELDNAME)
-        if (e.code !== 'ER_DUP_FIELDNAME' && !e.message.includes('Duplicate column name')) {
-           console.log("Could not add career_id column:", e.message);
-        }
-      }
-      try { await connection.query("ALTER TABLE resultados ADD COLUMN ano_admision INT"); } catch (e) {}
-      try { await connection.query("ALTER TABLE resultados ADD COLUMN modalidad VARCHAR(100)"); } catch (e) {}
-      try { await connection.query("ALTER TABLE resultados ADD COLUMN colegio_procedencia VARCHAR(255)"); } catch (e) {}
-      
       // Table for Carreras
       await connection.query(`
         CREATE TABLE IF NOT EXISTS carreras (
@@ -1576,12 +1578,13 @@ async function startServer() {
     }
   });
 
-  const handleDbError = (res: express.Response, error: any, context: string) => {
+  const handleDbError = async (res: express.Response, error: any, context: string) => {
     console.error(`Error fetching ${context}:`, error);
     if (error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED' || error.code === 'ER_HOST_NOT_PRIVILEGED' || error.code === 'ER_ACCESS_DENIED_ERROR') {
+      const externalIp = await getExternalIp();
       res.status(500).json({ 
         error: "Database Connection Error", 
-        details: "El servidor de base de datos no responde o el acceso fue denegado. Asegúrese de autorizar la IP 34.34.229.10 en cPanel (Remote MySQL)." 
+        details: `El servidor de base de datos no responde o el acceso fue denegado. Asegúrese de autorizar la IP ${externalIp} en cPanel (Remote MySQL) o utilice el comodín %.` 
       });
     } else {
       res.status(500).json({ error: "Internal Server Error" });
