@@ -150,34 +150,25 @@ export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () =
 
         <div className="space-y-4">
           {events.map((ev, idx) => (
-            <div key={ev.id || idx} className={`p-6 rounded-3xl border transition-all ${ev.isAutomatic ? 'bg-lime-50/30 border-lime-100' : 'bg-stone-50 border-stone-100'} space-y-6`}>
+            <div key={ev.id || idx} className={`p-6 rounded-3xl border transition-all bg-stone-50 border-stone-100 space-y-6`}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 space-y-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    {ev.isAutomatic && (
-                      <span className="px-3 py-1 bg-lime-100 text-lime-700 text-[10px] font-bold uppercase tracking-wider rounded-full">
-                        Modalidad (Automático)
-                      </span>
-                    )}
-                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 ml-1">Nombre del Evento</label>
                       <input 
                         value={ev.event || ''}
                         onChange={e => updateEvent(idx, 'event', e.target.value)}
-                        disabled={ev.isAutomatic}
-                        className={`w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-bold text-stone-800 ${ev.isAutomatic ? 'bg-white/50 cursor-not-allowed' : ''}`}
+                        className={`w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-bold text-stone-800`}
                         placeholder="Ej: Examen de Admisión"
                       />
                     </div>
                     <div className="flex items-end pb-2">
-                      <label className={`flex items-center gap-3 p-4 bg-white border border-stone-200 rounded-2xl select-none w-full ${ev.isAutomatic ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <label className={`flex items-center gap-3 p-4 bg-white border border-stone-200 rounded-2xl select-none w-full cursor-pointer`}>
                         <input 
                           type="checkbox" 
                           checked={ev.usar_rango !== false} 
                           onChange={e => updateEvent(idx, 'usar_rango', e.target.checked)}
-                          disabled={ev.isAutomatic}
                           className="w-5 h-5 accent-uniq-cyan rounded"
                         />
                         <span className="text-sm font-bold text-stone-700">Utilizar rango de fechas</span>
@@ -192,8 +183,7 @@ export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () =
                         type="date"
                         value={ev.fecha_inicio?.split('T')[0] || ''}
                         onChange={e => updateEvent(idx, 'fecha_inicio', e.target.value)}
-                        disabled={ev.isAutomatic}
-                        className={`w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-bold text-stone-800 ${ev.isAutomatic ? 'bg-white/50 cursor-not-allowed' : ''}`}
+                        className={`w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-bold text-stone-800`}
                       />
                     </div>
                     <div className={`space-y-2 transition-opacity ${ev.usar_rango === false ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
@@ -202,8 +192,7 @@ export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () =
                         type="date"
                         value={ev.fecha_fin?.split('T')[0] || ''}
                         onChange={e => updateEvent(idx, 'fecha_fin', e.target.value)}
-                        disabled={ev.isAutomatic}
-                        className={`w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-bold text-stone-800 ${ev.isAutomatic ? 'bg-white/50 cursor-not-allowed' : ''}`}
+                        className={`w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-uniq-cyan/10 focus:border-uniq-cyan outline-none transition-all font-bold text-stone-800`}
                       />
                     </div>
                   </div>
@@ -226,15 +215,13 @@ export const ConfiguracionCronogramaView = ({ onBack, onUpdate }: { onBack: () =
                     <ChevronLeft size={20} className="-rotate-90" />
                   </button>
                 </div>
-                {!ev.isAutomatic && (
-                  <button 
-                    onClick={() => removeEvent(idx)}
-                    className="p-3 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                    title="Eliminar evento"
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                )}
+                <button 
+                  onClick={() => removeEvent(idx)}
+                  className="p-3 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                  title="Eliminar evento"
+                >
+                  <Trash2 size={20} />
+                </button>
               </div>
             </div>
           ))}

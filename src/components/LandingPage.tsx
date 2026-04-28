@@ -6,7 +6,7 @@ import { renderTitle } from '../lib/utils';
 import { DynamicIcon } from './ui/FormComponents';
 import { Career } from '../data/defaultCareers';
 
-export const LandingPage = ({ onPreRegister, onLogin, onNavigate, onViewCareer, appSettings, cronograma, carrerasDetalladas }: { onPreRegister: () => void, onLogin: () => void, onNavigate: (view: any) => void, onViewCareer: (career: Career) => void, appSettings: any, cronograma: any[], carrerasDetalladas: any[] }) => {
+export const LandingPage = ({ onPreRegister, onLogin, onNavigate, onViewCareer, appSettings, cronograma, carrerasDetalladas, visitorCount }: { onPreRegister: () => void, onLogin: () => void, onNavigate: (view: any) => void, onViewCareer: (career: Career) => void, appSettings: any, cronograma: any[], carrerasDetalladas: any[], visitorCount?: number | null }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const scrollToId = (id: string) => {
@@ -215,6 +215,22 @@ export const LandingPage = ({ onPreRegister, onLogin, onNavigate, onViewCareer, 
                   <DynamicIcon name={appSettings?.configuracionInicio?.excelencia_etiqueta_icono || "ShieldCheck"} size={20} />
                   {appSettings?.configuracionInicio?.excelencia_etiqueta || "Título a nombre de la Nación"}
                 </div>
+                {visitorCount && visitorCount > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    transition={{ delay: 1 }}
+                    className="flex flex-col gap-1 p-5 bg-gradient-to-r from-uniq-cyan/10 to-uniq-cyan/5 rounded-2xl border border-uniq-cyan/20 backdrop-blur-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                       <DynamicIcon name="PartyPopper" size={18} className="text-uniq-yellow animate-bounce" />
+                       <span className="text-white/80 text-xs font-bold uppercase tracking-widest">Estadísticas del mes</span>
+                    </div>
+                    <p className="text-white font-medium text-sm">
+                      ¡Qué alegría! Eres el visitante número <span className="text-uniq-yellow text-lg font-black">{visitorCount.toLocaleString()}</span> en explorar nuestra excelencia este mes.
+                    </p>
+                  </motion.div>
+                )}
               </div>
             </div>
           </motion.div>

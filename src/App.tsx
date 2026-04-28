@@ -334,17 +334,26 @@ export default function App() {
       .then(data => {
         if (Array.isArray(data)) {
           setRegiones(data);
-        } else {
-          console.error('Expected array for regiones, got:', data);
         }
       })
-      .catch(err => console.error('Error fetching regiones:', err));
+      .catch(err => {
+        // Silently ignore fetch region errors on page load
+      });
   }, []);
+
+  const [visitorCount, setVisitorCount] = useState<number | null>(null);
 
   useEffect(() => {
     fetchSettings();
     // Increment portal visits
-    fetch('/api/portal/increment-visits', { method: 'POST' }).catch(console.error);
+    fetch('/api/portal/increment-visits', { method: 'POST' })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.count) {
+          setVisitorCount(data.count);
+        }
+      })
+      .catch(console.error);
   }, [fetchSettings]);
 
   const fetchRegistrations = useCallback(async () => {
@@ -699,6 +708,7 @@ export default function App() {
               appSettings={appSettings}
               cronograma={cronograma}
               carrerasDetalladas={carrerasDetalladas}
+              visitorCount={visitorCount}
             />
           ) : view === 'carrera-detail' && selectedCareer ? (
             <CarreraDetailView career={selectedCareer} onBack={() => setView('landing')} />
@@ -2130,19 +2140,18 @@ const PreinscripcionForm: React.FC<{
                   name="modality"
                   value={formData.modality || ''}
                   onChange={handleChange}
-                  options={modalidades.map(m => {
+                  options={modalidades.filter(m => {
                     const now = new Date();
                     const peruTime = new Date(now.getTime() + (now.getTimezoneOffset() - 300) * 60000);
-                    let status = '';
                     if (m.fecha) {
                       const [year, month, day] = m.fecha.split('T')[0].split('-').map(Number);
                       const deadline = new Date(year, month - 1, day, 12, 59, 59);
                       if (peruTime > deadline) {
-                        status = ' (Cerrado)';
+                        return false;
                       }
                     }
-                    return { value: m.nombre, label: `${m.nombre}${status}` };
-                  })}
+                    return true;
+                  }).map(m => ({ value: m.nombre, label: m.nombre }))}
                   loading={isLoadingModalidades}
                   error={errors.modality}
                 />
